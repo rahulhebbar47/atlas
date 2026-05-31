@@ -1,0 +1,92 @@
+{
+  "source": "FRED CSUSHPINSA (S&P Cotality Case-Shiller U.S. National Home Price Index, NSA)",
+  "seriesOrTable": "CSUSHPINSA",
+  "fetchedAt": "2026-02-23T15:20:36.492Z",
+  "latestDate": "2025-11-01",
+  "latestValue": 328.149,
+  "yoyChangeRate": 0.014860334504428741,
+  "yoyChangePercent": 1.486033450442874,
+  "recentValues": [
+    {
+      "date": "2025-11-01",
+      "value": 328.149
+    },
+    {
+      "date": "2025-10-01",
+      "value": 328.506
+    },
+    {
+      "date": "2025-09-01",
+      "value": 328.974
+    },
+    {
+      "date": "2025-08-01",
+      "value": 329.877
+    },
+    {
+      "date": "2025-07-01",
+      "value": 330.977
+    },
+    {
+      "date": "2025-06-01",
+      "value": 331.619
+    },
+    {
+      "date": "2025-05-01",
+      "value": 331.431
+    },
+    {
+      "date": "2025-04-01",
+      "value": 329.915
+    },
+    {
+      "date": "2025-03-01",
+      "value": 327.739
+    },
+    {
+      "date": "2025-02-01",
+      "value": 325.12
+    },
+    {
+      "date": "2025-01-01",
+      "value": 323.667
+    },
+    {
+      "date": "2024-12-01",
+      "value": 323.344
+    },
+    {
+      "date": "2024-11-01",
+      "value": 323.741
+    },
+    {
+      "date": "2024-10-01",
+      "value": 324.023
+    },
+    {
+      "date": "2024-09-01",
+      "value": 324.706
+    },
+    {
+      "date": "2024-08-01",
+      "value": 325.074
+    },
+    {
+      "date": "2024-07-01",
+      "value": 325.629
+    },
+    {
+      "date": "2024-06-01",
+      "value": 325.307
+    },
+    {
+      "date": "2024-05-01",
+      "value": 323.754
+    },
+    {
+      "date": "2024-04-01",
+      "value": 320.811
+    }
+  ],
+  "notes": "Monthly, NSA. National composite home price index (Jan 2000 = 100). Used in Phase 5i as baseline reference for home price modeling. YoY change calibrates normal appreciation rate."
+}

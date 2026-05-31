@@ -1,0 +1,21 @@
+{
+  "source": "BLS CPI Relative Importance, December 2024",
+  "url": "https://www.bls.gov/cpi/tables/relative-importance/2024.htm",
+  "fetchedAt": "2026-02-15T22:16:12.811Z",
+  "dataYear": 2024,
+  "weights": {
+    "food_home": 0.079,
+    "food_away": 0.056,
+    "shelter": 0.37,
+    "medical_care": 0.084,
+    "transportation": 0.151,
+    "education_comm": 0.062,
+    "info_technology": 0.013,
+    "apparel": 0.025,
+    "recreation": 0.053,
+    "other_services": 0.032,
+    "energy": 0.062,
+    "other_goods": 0.013
+  },
+  "notes": "Published BLS weights from December 2024 Relative Importance table. These are approximate values from the published BLS data — verify against the source URL for exact figures. Weights should sum to ~1.0. Update annually when BLS publishes new relative importance data."
+}

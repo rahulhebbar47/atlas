@@ -1,0 +1,187 @@
+@import "tailwindcss";
+
+/* ============================================================
+   ATLAS Design System — Tailwind CSS 4 Theme Configuration
+
+   Design tokens ported from public/landing.html to ensure
+   visual cohesion between landing page and simulator dashboard.
+   ============================================================ */
+
+@theme {
+  /* Fonts — matching landing page */
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+  /* Surface colors — deep space palette from landing */
+  --color-bg-void: #04070D;
+  --color-bg-deep: #080D18;
+  --color-bg-surface: #0C1424;
+  --color-bg-elevated: #111D33;
+  --color-bg-card: #13203A;
+
+  /* Text colors */
+  --color-text-primary: #E8ECF4;
+  --color-text-secondary: #8A96AD;
+  --color-text-muted: #4E5D75;
+  --color-text-accent: #C4D0E4;
+
+  /* Gold accent — primary interactive color */
+  --color-gold: #D4A03C;
+  --color-gold-bright: #F0C05A;
+  --color-gold-glow: rgba(212, 160, 60, 0.15);
+  --color-gold-subtle: rgba(212, 160, 60, 0.06);
+
+  /* Capability vector colors */
+  --color-cap-lang: #3B82F6;
+  --color-cap-code: #10B981;
+  --color-cap-agent: #F59E0B;
+  --color-cap-decide: #8B5CF6;
+  --color-cap-robot: #EF4444;
+  --color-cap-auto: #06B6D4;
+  --color-cap-gen: #EC4899;
+  --color-cap-sci: #84CC16;
+
+  /* Status colors */
+  --color-growth: #22C55E;
+  --color-caution: #F97316;
+  --color-critical: #EF4444;
+  --color-neutral: #6B7280;
+
+  /* Border */
+  --color-border: rgba(138, 150, 173, 0.1);
+  --color-border-accent: rgba(212, 160, 60, 0.2);
+}
+
+/* ============================================================
+   Base Styles
+   ============================================================ */
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background: var(--color-bg-void);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+}
+
+::selection {
+  background: rgba(212, 160, 60, 0.3);
+  color: var(--color-text-primary);
+}
+
+/* ============================================================
+   Custom Scrollbar (Webkit)
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-text-muted);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* ============================================================
+   Custom Range Slider
+
+   Color-coded via --slider-color CSS variable, set inline
+   on each slider component.
+   ============================================================ */
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  background: var(--color-bg-elevated);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-bg-deep);
+  border: 2px solid var(--slider-color, var(--color-gold));
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+input[type="range"]::-webkit-slider-thumb:active {
+  transform: scale(1.05);
+  background: var(--slider-color, var(--color-gold));
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--color-bg-deep);
+  border: 2px solid var(--slider-color, var(--color-gold));
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  background: var(--color-bg-elevated);
+  border-radius: 3px;
+}
+
+/* ============================================================
+   Custom Select Dropdown
+   ============================================================ */
+
+select {
+  color-scheme: dark;
+}
+
+select option {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+select option:disabled {
+  color: var(--color-text-muted);
+}
+
+/* ============================================================
+   Grain Overlay — subtle texture matching landing page
+   ============================================================ */
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.02;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
+#root {
+  position: relative;
+  z-index: 2;
+}

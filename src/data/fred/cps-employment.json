@@ -1,0 +1,14 @@
+{
+  "source": "Derived from BLS CPS Labor Force (LNS11000000) and Unemployment Rate (LNS14000000)",
+  "seriesOrTable": "LNS12000000",
+  "fetchedAt": "2026-02-16T00:00:00.000Z",
+  "latestDate": "2025-12-01",
+  "cpsEmployment": 163949,
+  "cpsEmploymentAbsolute": 163949000,
+  "derivedFrom": {
+    "laborForce": 171495,
+    "unemploymentRate": 4.4,
+    "method": "laborForce × (1 - unemploymentRate/100)"
+  },
+  "notes": "CPS civilian employment level (thousands, SA). Includes self-employed, agricultural, private household workers — all civilians. Should be re-fetched from FRED LNS12000000 when API key available."
+}

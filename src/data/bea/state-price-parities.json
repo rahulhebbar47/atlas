@@ -1,0 +1,265 @@
+{
+  "source": "BEA Regional SARPP (Regional Price Parities)",
+  "seriesOrTable": "Regional SARPP",
+  "fetchedAt": "2026-03-03T16:59:35.174Z",
+  "dataYear": 2024,
+  "stateCount": 51,
+  "states": {
+    "10000": {
+      "fips": "10000",
+      "name": "Delaware",
+      "rpp": 99.808
+    },
+    "11000": {
+      "fips": "11000",
+      "name": "District of Columbia",
+      "rpp": 109.901
+    },
+    "12000": {
+      "fips": "12000",
+      "name": "Florida",
+      "rpp": 103.414
+    },
+    "13000": {
+      "fips": "13000",
+      "name": "Georgia",
+      "rpp": 96.293
+    },
+    "15000": {
+      "fips": "15000",
+      "name": "Hawaii",
+      "rpp": 109.951
+    },
+    "16000": {
+      "fips": "16000",
+      "name": "Idaho",
+      "rpp": 95.494
+    },
+    "17000": {
+      "fips": "17000",
+      "name": "Illinois",
+      "rpp": 99.958
+    },
+    "18000": {
+      "fips": "18000",
+      "name": "Indiana",
+      "rpp": 93.329
+    },
+    "19000": {
+      "fips": "19000",
+      "name": "Iowa",
+      "rpp": 87.762
+    },
+    "20000": {
+      "fips": "20000",
+      "name": "Kansas",
+      "rpp": 90.068
+    },
+    "21000": {
+      "fips": "21000",
+      "name": "Kentucky",
+      "rpp": 90.159
+    },
+    "22000": {
+      "fips": "22000",
+      "name": "Louisiana",
+      "rpp": 88.207
+    },
+    "23000": {
+      "fips": "23000",
+      "name": "Maine",
+      "rpp": 97.05
+    },
+    "24000": {
+      "fips": "24000",
+      "name": "Maryland",
+      "rpp": 104.959
+    },
+    "25000": {
+      "fips": "25000",
+      "name": "Massachusetts",
+      "rpp": 105.757
+    },
+    "26000": {
+      "fips": "26000",
+      "name": "Michigan",
+      "rpp": 96.217
+    },
+    "27000": {
+      "fips": "27000",
+      "name": "Minnesota",
+      "rpp": 98.621
+    },
+    "28000": {
+      "fips": "28000",
+      "name": "Mississippi",
+      "rpp": 86.953
+    },
+    "29000": {
+      "fips": "29000",
+      "name": "Missouri",
+      "rpp": 90.817
+    },
+    "30000": {
+      "fips": "30000",
+      "name": "Montana",
+      "rpp": 94.645
+    },
+    "31000": {
+      "fips": "31000",
+      "name": "Nebraska",
+      "rpp": 90.103
+    },
+    "32000": {
+      "fips": "32000",
+      "name": "Nevada",
+      "rpp": 99.979
+    },
+    "33000": {
+      "fips": "33000",
+      "name": "New Hampshire",
+      "rpp": 104.165
+    },
+    "34000": {
+      "fips": "34000",
+      "name": "New Jersey",
+      "rpp": 108.805
+    },
+    "35000": {
+      "fips": "35000",
+      "name": "New Mexico",
+      "rpp": 92.212
+    },
+    "36000": {
+      "fips": "36000",
+      "name": "New York",
+      "rpp": 107.921
+    },
+    "37000": {
+      "fips": "37000",
+      "name": "North Carolina",
+      "rpp": 94.326
+    },
+    "38000": {
+      "fips": "38000",
+      "name": "North Dakota",
+      "rpp": 88.959
+    },
+    "39000": {
+      "fips": "39000",
+      "name": "Ohio",
+      "rpp": 92.774
+    },
+    "40000": {
+      "fips": "40000",
+      "name": "Oklahoma",
+      "rpp": 87.843
+    },
+    "41000": {
+      "fips": "41000",
+      "name": "Oregon",
+      "rpp": 103.361
+    },
+    "42000": {
+      "fips": "42000",
+      "name": "Pennsylvania",
+      "rpp": 97.572
+    },
+    "44000": {
+      "fips": "44000",
+      "name": "Rhode Island",
+      "rpp": 102.28
+    },
+    "45000": {
+      "fips": "45000",
+      "name": "South Carolina",
+      "rpp": 93.749
+    },
+    "46000": {
+      "fips": "46000",
+      "name": "South Dakota",
+      "rpp": 88.586
+    },
+    "47000": {
+      "fips": "47000",
+      "name": "Tennessee",
+      "rpp": 91.87
+    },
+    "48000": {
+      "fips": "48000",
+      "name": "Texas",
+      "rpp": 97.057
+    },
+    "49000": {
+      "fips": "49000",
+      "name": "Utah",
+      "rpp": 98.864
+    },
+    "50000": {
+      "fips": "50000",
+      "name": "Vermont",
+      "rpp": 97.958
+    },
+    "51000": {
+      "fips": "51000",
+      "name": "Virginia",
+      "rpp": 101.104
+    },
+    "53000": {
+      "fips": "53000",
+      "name": "Washington",
+      "rpp": 107.013
+    },
+    "54000": {
+      "fips": "54000",
+      "name": "West Virginia",
+      "rpp": 89.497
+    },
+    "55000": {
+      "fips": "55000",
+      "name": "Wisconsin",
+      "rpp": 94.095
+    },
+    "56000": {
+      "fips": "56000",
+      "name": "Wyoming",
+      "rpp": 92.691
+    },
+    "01000": {
+      "fips": "01000",
+      "name": "Alabama",
+      "rpp": 88.823
+    },
+    "02000": {
+      "fips": "02000",
+      "name": "Alaska",
+      "rpp": 102.359
+    },
+    "04000": {
+      "fips": "04000",
+      "name": "Arizona",
+      "rpp": 100.677
+    },
+    "05000": {
+      "fips": "05000",
+      "name": "Arkansas",
+      "rpp": 86.937
+    },
+    "06000": {
+      "fips": "06000",
+      "name": "California",
+      "rpp": 110.72
+    },
+    "08000": {
+      "fips": "08000",
+      "name": "Colorado",
+      "rpp": 103.052
+    },
+    "09000": {
+      "fips": "09000",
+      "name": "Connecticut",
+      "rpp": 103.61
+    }
+  },
+  "notes": "2024 annual. Regional data has longer lag than NIPA. US average = 100. Higher = more expensive. Update to 2025 when available."
+}

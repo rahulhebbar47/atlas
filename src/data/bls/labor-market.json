@@ -1,0 +1,17 @@
+{
+  "source": "BLS Current Employment Statistics (CES)",
+  "fetchedAt": "2026-02-15T22:16:10.907Z",
+  "avgWeeklyHours": {
+    "seriesId": "CES0500000002",
+    "annualAverage": null,
+    "latestMonthly": "34.2",
+    "history": []
+  },
+  "avgHourlyEarnings": {
+    "seriesId": "CES0500000003",
+    "annualAverage": null,
+    "latestMonthly": "37.02",
+    "history": []
+  },
+  "notes": "Average weekly hours (CES0500000002) and average hourly earnings (CES0500000003), total private."
+}

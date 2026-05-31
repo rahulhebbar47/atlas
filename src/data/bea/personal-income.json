@@ -1,0 +1,192 @@
+{
+  "source": "BEA NIPA Table 2.1 (Personal Income and Its Disposition)",
+  "seriesOrTable": "NIPA T20100",
+  "fetchedAt": "2026-03-03T16:59:22.354Z",
+  "dataYear": 2025,
+  "dataQuarter": "Q4",
+  "estimateType": "advance",
+  "personalIncomeBillions": 26422.304,
+  "wageShare": 0.6025977901094469,
+  "assetShare": 0.2052194237111192,
+  "transferShare": 0.19218278617943385,
+  "componentsBillions": {
+    "compensation": 15922.022,
+    "assetIncome": 5422.37,
+    "transferReceipts": 5077.912
+  },
+  "allLines": {
+    "1": {
+      "description": "Personal income",
+      "valueBillions": 26422.304
+    },
+    "2": {
+      "description": "Compensation of employees",
+      "valueBillions": 15922.022
+    },
+    "3": {
+      "description": "Wages and salaries",
+      "valueBillions": 13111.023000000001
+    },
+    "4": {
+      "description": "Private industries",
+      "valueBillions": 11172.929
+    },
+    "5": {
+      "description": "Government",
+      "valueBillions": 1938.095
+    },
+    "6": {
+      "description": "Supplements to wages and salaries",
+      "valueBillions": 2810.9990000000003
+    },
+    "7": {
+      "description": "Employer contributions for employee pension and insurance funds",
+      "valueBillions": 1892.54
+    },
+    "8": {
+      "description": "Employer contributions for government social insurance",
+      "valueBillions": 918.4590000000001
+    },
+    "9": {
+      "description": "Proprietors' income with inventory valuation and capital consumption adjustments",
+      "valueBillions": 2112.1330000000003
+    },
+    "10": {
+      "description": "Farm",
+      "valueBillions": 61.403
+    },
+    "11": {
+      "description": "Nonfarm",
+      "valueBillions": 2050.73
+    },
+    "12": {
+      "description": "Rental income of persons with capital consumption adjustment",
+      "valueBillions": 1111.941
+    },
+    "13": {
+      "description": "Personal income receipts on assets",
+      "valueBillions": 4238.418
+    },
+    "14": {
+      "description": "Personal interest income",
+      "valueBillions": 1981.93
+    },
+    "15": {
+      "description": "Personal dividend income",
+      "valueBillions": 2256.488
+    },
+    "16": {
+      "description": "Personal current transfer receipts",
+      "valueBillions": 5077.912
+    },
+    "17": {
+      "description": "Government social benefits to persons",
+      "valueBillions": 4966.269
+    },
+    "18": {
+      "description": "Social security",
+      "valueBillions": 1578.207
+    },
+    "19": {
+      "description": "Medicare",
+      "valueBillions": 1269.52
+    },
+    "20": {
+      "description": "Medicaid",
+      "valueBillions": 1078.394
+    },
+    "21": {
+      "description": "Unemployment insurance",
+      "valueBillions": 38.268
+    },
+    "22": {
+      "description": "Veterans' benefits",
+      "valueBillions": 307.799
+    },
+    "23": {
+      "description": "Other",
+      "valueBillions": 694.081
+    },
+    "24": {
+      "description": "Other current transfer receipts, from business (net)",
+      "valueBillions": 111.642
+    },
+    "25": {
+      "description": "Less: Contributions for government social insurance, domestic",
+      "valueBillions": 2040.122
+    },
+    "26": {
+      "description": "Less: Personal current taxes",
+      "valueBillions": 3309.936
+    },
+    "27": {
+      "description": "Equals: Disposable personal income",
+      "valueBillions": 23112.368000000002
+    },
+    "28": {
+      "description": "Less: Personal outlays",
+      "valueBillions": 22270.974000000002
+    },
+    "29": {
+      "description": "Personal consumption expenditures",
+      "valueBillions": 21387.305
+    },
+    "30": {
+      "description": "Personal interest payments",
+      "valueBillions": 593.646
+    },
+    "31": {
+      "description": "Personal current transfer payments",
+      "valueBillions": 290.023
+    },
+    "32": {
+      "description": "To government",
+      "valueBillions": 150.001
+    },
+    "33": {
+      "description": "To the rest of the world (net)",
+      "valueBillions": 140.02100000000002
+    },
+    "34": {
+      "description": "Equals: Personal saving",
+      "valueBillions": 841.394
+    },
+    "35": {
+      "description": "Personal saving as a percentage of disposable personal income",
+      "valueBillions": 0.0036000000000000003
+    },
+    "36": {
+      "description": "Personal income excluding current transfer receipts, Billions of chained (2017) dollars",
+      "valueBillions": 16649.014
+    },
+    "37": {
+      "description": "Total, Billions of chained (2017) dollars",
+      "valueBillions": 18028.067
+    },
+    "38": {
+      "description": "Current dollars",
+      "valueBillions": 67.494
+    },
+    "39": {
+      "description": "Chained (2017) dollars",
+      "valueBillions": 52.647
+    },
+    "40": {
+      "description": "Population (midperiod, thousands)",
+      "valueBillions": 342.433
+    },
+    "41": {
+      "description": "Disposable personal income, current dollars",
+      "valueBillions": 0.003
+    },
+    "42": {
+      "description": "Personal outlays, current dollars",
+      "valueBillions": 0.005200000000000001
+    },
+    "43": {
+      "description": "Disposable personal income, chained (2017) dollars",
+      "valueBillions": 0.0001
+    }
+  },
+  "notes": "Q4 2025 advance SAAR. Shares: wageShare=Compensation(L2)/PI, transferShare=Transfers(L16)/PI, assetShare=residual (includes proprietors', rental, interest, dividends, net of contributions). Will be revised. Replace with annual data when available (~mid-2026)."
+}

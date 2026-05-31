@@ -1,0 +1,91 @@
+{
+  "source": "FRED NROU (CBO Natural Rate of Unemployment, Long-Term)",
+  "seriesOrTable": "NROU",
+  "fetchedAt": "2026-02-23T15:20:22.858Z",
+  "latestDate": "2026-01-01",
+  "naturalUnemploymentRate": 0.04308657724,
+  "naturalUnemploymentRatePercent": 4.308657724,
+  "recentValues": [
+    {
+      "date": "2026-01-01",
+      "value": 0.04308657724
+    },
+    {
+      "date": "2025-10-01",
+      "value": 0.04312406028
+    },
+    {
+      "date": "2025-07-01",
+      "value": 0.043156079939999994
+    },
+    {
+      "date": "2025-04-01",
+      "value": 0.04318227512
+    },
+    {
+      "date": "2025-01-01",
+      "value": 0.04320248166
+    },
+    {
+      "date": "2024-10-01",
+      "value": 0.04321673018
+    },
+    {
+      "date": "2024-07-01",
+      "value": 0.04322554381000001
+    },
+    {
+      "date": "2024-04-01",
+      "value": 0.043211204839999996
+    },
+    {
+      "date": "2024-01-01",
+      "value": 0.04327479745
+    },
+    {
+      "date": "2023-10-01",
+      "value": 0.04333393686
+    },
+    {
+      "date": "2023-07-01",
+      "value": 0.04338890148
+    },
+    {
+      "date": "2023-04-01",
+      "value": 0.04344002716999999
+    },
+    {
+      "date": "2023-01-01",
+      "value": 0.04348774995
+    },
+    {
+      "date": "2022-10-01",
+      "value": 0.04353270628
+    },
+    {
+      "date": "2022-07-01",
+      "value": 0.04357603227
+    },
+    {
+      "date": "2022-04-01",
+      "value": 0.04361905793
+    },
+    {
+      "date": "2022-01-01",
+      "value": 0.043663200289999995
+    },
+    {
+      "date": "2021-10-01",
+      "value": 0.043709672250000005
+    },
+    {
+      "date": "2021-07-01",
+      "value": 0.04375862369
+    },
+    {
+      "date": "2021-04-01",
+      "value": 0.04380997848
+    }
+  ],
+  "notes": "Quarterly from CBO. Long-term natural rate estimate. observation_end filter excludes projections. Used as Phillips curve baseline."
+}

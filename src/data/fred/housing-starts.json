@@ -1,0 +1,93 @@
+{
+  "source": "FRED HOUST (New Privately-Owned Housing Units Started, Total)",
+  "seriesOrTable": "HOUST",
+  "fetchedAt": "2026-02-23T15:20:38.081Z",
+  "latestDate": "2025-12-01",
+  "latestValue": 1404,
+  "latestValueAbsolute": 1404000,
+  "annualAverage": 1358.5,
+  "annualAverageAbsolute": 1358500,
+  "recentValues": [
+    {
+      "date": "2025-12-01",
+      "value": 1404
+    },
+    {
+      "date": "2025-11-01",
+      "value": 1322
+    },
+    {
+      "date": "2025-10-01",
+      "value": 1272
+    },
+    {
+      "date": "2025-09-01",
+      "value": 1328
+    },
+    {
+      "date": "2025-08-01",
+      "value": 1291
+    },
+    {
+      "date": "2025-07-01",
+      "value": 1420
+    },
+    {
+      "date": "2025-06-01",
+      "value": 1382
+    },
+    {
+      "date": "2025-05-01",
+      "value": 1282
+    },
+    {
+      "date": "2025-04-01",
+      "value": 1398
+    },
+    {
+      "date": "2025-03-01",
+      "value": 1355
+    },
+    {
+      "date": "2025-02-01",
+      "value": 1490
+    },
+    {
+      "date": "2025-01-01",
+      "value": 1358
+    },
+    {
+      "date": "2024-12-01",
+      "value": 1514
+    },
+    {
+      "date": "2024-11-01",
+      "value": 1295
+    },
+    {
+      "date": "2024-10-01",
+      "value": 1352
+    },
+    {
+      "date": "2024-09-01",
+      "value": 1357
+    },
+    {
+      "date": "2024-08-01",
+      "value": 1391
+    },
+    {
+      "date": "2024-07-01",
+      "value": 1265
+    },
+    {
+      "date": "2024-06-01",
+      "value": 1327
+    },
+    {
+      "date": "2024-05-01",
+      "value": 1316
+    }
+  ],
+  "notes": "Monthly, SAAR (thousands of units). Baseline ~1.3-1.5M units/year. Used in Phase 5i as construction sector health indicator. Pre-2008: ~2M, trough 2009: ~0.5M, recovery 2020+: ~1.4M."
+}

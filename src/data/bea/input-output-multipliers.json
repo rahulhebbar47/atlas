@@ -1,0 +1,7 @@
+{
+  "isTodo": true,
+  "reason": "InputOutput API format is complex — existing hardcoded multipliers in constants.ts are reasonable approximations from BEA input-output tables, Moretti (2010), ATA, and CBO estimates.",
+  "followUp": "Investigate BEA InputOutput API in a future session. Consider parsing the published Excel tables instead.",
+  "existingMultipliersLocation": "src/models/constants.ts → EMPLOYMENT_MULTIPLIERS",
+  "fetchedAt": "2026-03-03T16:59:30.397Z"
+}

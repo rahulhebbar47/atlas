@@ -1,0 +1,16 @@
+{
+  "source": "BEA NIPA Tables 2.1/1.12, FRED series CPROFIT/CPATAX/W025RC1Q027SBEA/B057RC1Q027SBEA",
+  "fetchedAt": "2026-02-24T00:00:00.000Z",
+  "dataYear": 2025,
+  "dataQuarter": "Q3",
+  "estimateType": "preliminary",
+  "notes": "Q3 2025 SAAR. personalCurrentTaxes and socialInsuranceContributions from personal-income.json (BEA NIPA T2.1). socialInsuranceContributions = 2 × employer contributions for government social insurance (L8) to approximate symmetric FICA burden on wages. Corporate data from FRED. corporateIncomeTaxes (W025RC1Q027SBEA) includes federal + state/local. corporateProfitsBeforeTax is CPROFIT (with IVA/CCAdj). Replace with annual data when available.",
+  "personalCurrentTaxes": 3254.764,
+  "socialInsuranceContributions": 1818.976,
+  "corporateIncomeTaxes": 675.169,
+  "totalPersonalIncome": 26197.637,
+  "wageAndSalaryIncome": 12972.367,
+  "corporateProfitsBeforeTax": 4105.221,
+  "corporateProfitsAfterTax": 3411.652,
+  "undistributedProfits": 1330.569
+}

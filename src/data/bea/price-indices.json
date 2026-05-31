@@ -1,0 +1,109 @@
+{
+  "source": "BEA NIPA Table 1.1.4 (Price Indexes for Gross Domestic Product)",
+  "seriesOrTable": "NIPA T10104",
+  "fetchedAt": "2026-03-03T16:59:23.945Z",
+  "dataYear": 2025,
+  "dataQuarter": "Q4",
+  "estimateType": "advance",
+  "gdpDeflator": 130.61,
+  "baseYear": 2017,
+  "allIndices": {
+    "1": {
+      "description": "Gross domestic product",
+      "index": 130.61
+    },
+    "2": {
+      "description": "Personal consumption expenditures",
+      "index": 128.211
+    },
+    "3": {
+      "description": "Goods",
+      "index": 115.996
+    },
+    "4": {
+      "description": "Durable goods",
+      "index": 106.602
+    },
+    "5": {
+      "description": "Nondurable goods",
+      "index": 121.312
+    },
+    "6": {
+      "description": "Services",
+      "index": 134.251
+    },
+    "7": {
+      "description": "Gross private domestic investment",
+      "index": 124.747
+    },
+    "8": {
+      "description": "Fixed investment",
+      "index": 125.848
+    },
+    "9": {
+      "description": "Nonresidential",
+      "index": 117.668
+    },
+    "10": {
+      "description": "Structures",
+      "index": 137.459
+    },
+    "11": {
+      "description": "Equipment",
+      "index": 117.649
+    },
+    "12": {
+      "description": "Intellectual property products",
+      "index": 108.72
+    },
+    "13": {
+      "description": "Residential",
+      "index": 154.964
+    },
+    "16": {
+      "description": "Exports",
+      "index": 124.731
+    },
+    "17": {
+      "description": "Goods",
+      "index": 119.815
+    },
+    "18": {
+      "description": "Services",
+      "index": 133.815
+    },
+    "19": {
+      "description": "Imports",
+      "index": 113.179
+    },
+    "20": {
+      "description": "Goods",
+      "index": 110.268
+    },
+    "21": {
+      "description": "Services",
+      "index": 125.933
+    },
+    "22": {
+      "description": "Government consumption expenditures and gross investment",
+      "index": 134.932
+    },
+    "23": {
+      "description": "Federal",
+      "index": 135.177
+    },
+    "24": {
+      "description": "National defense",
+      "index": 134.61
+    },
+    "25": {
+      "description": "Nondefense",
+      "index": 136.1
+    },
+    "26": {
+      "description": "State and local",
+      "index": 134.874
+    }
+  },
+  "notes": "Q4 2025 advance SAAR. Price index with base year 2017=100. Used for nominal→real conversion. Will be revised in subsequent BEA releases."
+}

@@ -1,0 +1,13 @@
+{
+  "source": "BLS Current Population Survey (CPS)",
+  "seriesId": "LNS11000000",
+  "fetchedAt": "2026-02-15T22:16:10.906Z",
+  "annualAverage": null,
+  "latestMonthly": {
+    "year": "2025",
+    "period": "M12",
+    "value": 171495
+  },
+  "history": [],
+  "notes": "Civilian labor force level in thousands. LNS11000000."
+}

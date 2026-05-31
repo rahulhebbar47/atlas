@@ -1,0 +1,4332 @@
+{
+  "tech_swe": {
+    "clusterId": "tech_swe",
+    "clusterName": "Software Engineering",
+    "socCodes": {
+      "15-1252": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "133080",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1654440",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "144570",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "15-1253": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "102610",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "199800",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "110260",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "15-1254": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "90930",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "78860",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "98790",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "15-1256": {
+        "13": [],
+        "01": [],
+        "04": []
+      }
+    }
+  },
+  "tech_data_ml": {
+    "clusterId": "tech_data_ml",
+    "clusterName": "Data / ML Engineering",
+    "socCodes": {
+      "15-2051": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "112590",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "233440",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "124590",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "15-2098": {
+        "13": [],
+        "01": [],
+        "04": []
+      }
+    }
+  },
+  "tech_it": {
+    "clusterId": "tech_it",
+    "clusterName": "IT Support / Sysadmin",
+    "socCodes": {
+      "15-1231": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "73340",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "146450",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "79610",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "15-1244": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "96800",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "318570",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "101190",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "15-1232": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "60340",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "697210",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "64990",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "finance_trading": {
+    "clusterId": "finance_trading",
+    "clusterName": "Trading / Quantitative",
+    "socCodes": {
+      "13-2051": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "101350",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "340580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "116490",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "13-2054": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "106000",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "56320",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "119930",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "finance_banking": {
+    "clusterId": "finance_banking",
+    "clusterName": "Banking",
+    "socCodes": {
+      "13-2071": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "50480",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "28110",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "55890",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "13-2072": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "74180",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "290530",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "86020",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "43-3071": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "39340",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "339340",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "40940",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "finance_accounting": {
+    "clusterId": "finance_accounting",
+    "clusterName": "Accounting / Bookkeeping",
+    "socCodes": {
+      "13-2011": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "81680",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1448290",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "93520",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "43-3031": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "49210",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1455770",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "52020",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "finance_insurance": {
+    "clusterId": "finance_insurance",
+    "clusterName": "Insurance / Underwriting",
+    "socCodes": {
+      "13-2053": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "79880",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "107820",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "90830",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "13-2022": {
+        "13": [],
+        "01": [],
+        "04": []
+      }
+    }
+  },
+  "health_physicians": {
+    "clusterId": "health_physicians",
+    "clusterName": "Physicians / Surgeons",
+    "socCodes": {
+      "29-1210": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "-",
+            "footnotes": [
+              {
+                "code": "5",
+                "text": "This wage is equal to or greater than $115.00 per hour or $239,200 per year."
+              }
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "727050",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "272320",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "29-1215": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "238380",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "107950",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "256830",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "29-1216": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "236350",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "66640",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "262710",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "29-1228": {
+        "13": [],
+        "01": [],
+        "04": []
+      },
+      "29-1248": {
+        "13": [],
+        "01": [],
+        "04": []
+      }
+    }
+  },
+  "health_nurses": {
+    "clusterId": "health_nurses",
+    "clusterName": "Nurses",
+    "socCodes": {
+      "29-1141": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "93600",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "3282010",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "98430",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "29-1151": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "223210",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "50350",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "231700",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "29-2061": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "62340",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "632430",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "64150",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "health_techs": {
+    "clusterId": "health_techs",
+    "clusterName": "Technicians / Diagnostics",
+    "socCodes": {
+      "29-2010": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "61890",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "343040",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "65320",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "29-2034": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "77660",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "223460",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "79760",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "29-2035": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "88180",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "41530",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "91020",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "health_aides": {
+    "clusterId": "health_aides",
+    "clusterName": "Home Health / Aides",
+    "socCodes": {
+      "31-1120": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "34900",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "3988140",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "34990",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "31-1131": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "39530",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1388430",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "41270",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "39-9021": {
+        "13": [],
+        "01": [],
+        "04": []
+      }
+    }
+  },
+  "health_admin": {
+    "clusterId": "health_admin",
+    "clusterName": "Healthcare Administration",
+    "socCodes": {
+      "11-9111": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "117960",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "565840",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "137730",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "43-6013": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "44640",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "830760",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "45580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "29-2071": {
+        "13": [],
+        "01": [],
+        "04": []
+      }
+    }
+  },
+  "edu_teachers": {
+    "clusterId": "edu_teachers",
+    "clusterName": "Teachers / Professors",
+    "socCodes": {
+      "25-2021": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "62340",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1393310",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "69790",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "25-2031": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "64580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1072540",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "73700",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "25-1099": {
+        "13": [],
+        "01": [],
+        "04": []
+      }
+    }
+  },
+  "edu_admin": {
+    "clusterId": "edu_admin",
+    "clusterName": "Education Administration",
+    "socCodes": {
+      "11-9032": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "104070",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "319630",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "113360",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "11-9033": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "103960",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "176420",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "124450",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "11-9039": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "89040",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "53330",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "99460",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "edu_support": {
+    "clusterId": "edu_support",
+    "clusterName": "Education Support",
+    "socCodes": {
+      "25-9045": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "35240",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1375300",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "35960",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "25-4022": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "64320",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "131830",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "69180",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "legal_attorneys": {
+    "clusterId": "legal_attorneys",
+    "clusterName": "Attorneys",
+    "socCodes": {
+      "23-1011": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "151160",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "747750",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "182760",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "23-1021": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "115230",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "16230",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "122620",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "23-1022": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "67710",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "7860",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "91170",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "legal_paralegals": {
+    "clusterId": "legal_paralegals",
+    "clusterName": "Paralegals / Legal Assistants",
+    "socCodes": {
+      "23-2011": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "61010",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "367220",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "66510",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "23-2099": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "68760",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "47380",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "86220",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "transport_trucking": {
+    "clusterId": "transport_trucking",
+    "clusterName": "Trucking / Long-Haul",
+    "socCodes": {
+      "53-3032": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "57440",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "2070480",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "58400",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "transport_delivery": {
+    "clusterId": "transport_delivery",
+    "clusterName": "Local Delivery",
+    "socCodes": {
+      "53-3031": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "37130",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "417420",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "39670",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "43-5021": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "38340",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "71920",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "40060",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "transport_taxi": {
+    "clusterId": "transport_taxi",
+    "clusterName": "Taxi / Rideshare",
+    "socCodes": {
+      "53-3041": {
+        "13": [],
+        "01": [],
+        "04": []
+      },
+      "53-3054": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "36220",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "17510",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "39310",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "transport_warehouse": {
+    "clusterId": "transport_warehouse",
+    "clusterName": "Warehousing / Logistics",
+    "socCodes": {
+      "53-7062": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "38940",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "2982530",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "41420",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "53-7064": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "35580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "601440",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "36600",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "43-5071": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "43190",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "857630",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "44890",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "mfg_assembly": {
+    "clusterId": "mfg_assembly",
+    "clusterName": "Assembly / Production",
+    "socCodes": {
+      "51-2028": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "44040",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "261140",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "45930",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "51-2098": {
+        "13": [],
+        "01": [],
+        "04": []
+      }
+    }
+  },
+  "mfg_machinists": {
+    "clusterId": "mfg_machinists",
+    "clusterName": "Skilled Machinists",
+    "socCodes": {
+      "51-4041": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "56150",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "298790",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "57390",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "51-4011": {
+        "13": [],
+        "01": [],
+        "04": []
+      },
+      "51-4111": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "63180",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "55130",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "65100",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "mfg_qc": {
+    "clusterId": "mfg_qc",
+    "clusterName": "Quality Control",
+    "socCodes": {
+      "51-9061": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "47460",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "591180",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "51670",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "trades_electrical": {
+    "clusterId": "trades_electrical",
+    "clusterName": "Electricians",
+    "socCodes": {
+      "47-2111": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "62350",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "742580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "69630",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "trades_plumbing": {
+    "clusterId": "trades_plumbing",
+    "clusterName": "Plumbers",
+    "socCodes": {
+      "47-2152": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "62970",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "455940",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "69940",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "trades_construction": {
+    "clusterId": "trades_construction",
+    "clusterName": "General Construction",
+    "socCodes": {
+      "47-2061": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "46730",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1057660",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "51260",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "47-2031": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "59310",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "697740",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "64040",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "47-2051": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "54660",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "205230",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "59360",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "trades_hvac": {
+    "clusterId": "trades_hvac",
+    "clusterName": "HVAC",
+    "socCodes": {
+      "49-9021": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "59810",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "396870",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "62690",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "retail_floor": {
+    "clusterId": "retail_floor",
+    "clusterName": "Cashiers / Floor",
+    "socCodes": {
+      "41-2011": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "31190",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "3148030",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "31810",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "41-2031": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "34580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "3800250",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "37150",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "retail_mgmt": {
+    "clusterId": "retail_mgmt",
+    "clusterName": "Retail Management",
+    "socCodes": {
+      "41-1011": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "47320",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1113160",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "52350",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "41-1012": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "84130",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "219010",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "97870",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "retail_ecom": {
+    "clusterId": "retail_ecom",
+    "clusterName": "E-commerce / Fulfillment",
+    "socCodes": {
+      "43-5011": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "49900",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "97800",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "55420",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "53-7065": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "37090",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "2779530",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "38910",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "food_fast": {
+    "clusterId": "food_fast",
+    "clusterName": "Fast Food",
+    "socCodes": {
+      "35-3023": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "30480",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "3780930",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "31350",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "35-2014": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "36830",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1452130",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "37730",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "food_restaurant": {
+    "clusterId": "food_restaurant",
+    "clusterName": "Sit-Down Restaurant",
+    "socCodes": {
+      "35-1012": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "42010",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1187460",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "44900",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "35-3031": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "33760",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "2302690",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "38360",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "food_industrial": {
+    "clusterId": "food_industrial",
+    "clusterName": "Food Prep / Industrial",
+    "socCodes": {
+      "35-2021": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "34220",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "888770",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "33940",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "51-3091": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "42730",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "19500",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "44140",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "51-3092": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "40790",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "171660",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "42830",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "creative_design": {
+    "clusterId": "creative_design",
+    "clusterName": "Design / Visual",
+    "socCodes": {
+      "27-1024": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "61300",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "214260",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "68610",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "27-1025": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "63490",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "69580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "71430",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "27-1014": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "99800",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "21280",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "110110",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "creative_writing": {
+    "clusterId": "creative_writing",
+    "clusterName": "Writing / Content",
+    "socCodes": {
+      "27-3043": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "72270",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "47800",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "85780",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "27-3042": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "91670",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "55530",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "92330",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "27-3041": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "75260",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "95480",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "85700",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "creative_marketing": {
+    "clusterId": "creative_marketing",
+    "clusterName": "Marketing / Advertising",
+    "socCodes": {
+      "13-1161": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "76950",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "861140",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "86480",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "27-3031": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "69780",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "280590",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "80310",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "creative_media": {
+    "clusterId": "creative_media",
+    "clusterName": "Media Production",
+    "socCodes": {
+      "27-4011": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "54830",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "70080",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "61370",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "27-4014": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "66430",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "13050",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "79280",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "27-4021": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "42520",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "51230",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "55650",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "27-4032": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "70980",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "28860",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "83530",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "prof_consulting": {
+    "clusterId": "prof_consulting",
+    "clusterName": "Consulting",
+    "socCodes": {
+      "13-1111": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "101190",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "893900",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "114710",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "13-1199": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "81270",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1128200",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "92380",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "prof_hr": {
+    "clusterId": "prof_hr",
+    "clusterName": "Human Resources",
+    "socCodes": {
+      "13-1071": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "72910",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "917460",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "79730",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "13-1075": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "93500",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "64590",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "97130",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "11-3121": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "140030",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "215520",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "160480",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "prof_realestate": {
+    "clusterId": "prof_realestate",
+    "clusterName": "Real Estate",
+    "socCodes": {
+      "41-9022": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "56320",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "190600",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "70970",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "41-9021": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "72280",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "49590",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "91660",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "prof_admin": {
+    "clusterId": "prof_admin",
+    "clusterName": "Administrative / Clerical",
+    "socCodes": {
+      "43-6014": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "46290",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1737820",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "47640",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "43-9061": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "43630",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "2510550",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "45470",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "43-4051": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "42830",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "2725930",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "45380",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "43-1011": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "66140",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "1495580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "71560",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "gov_postal": {
+    "clusterId": "gov_postal",
+    "clusterName": "Postal / Delivery Services",
+    "socCodes": {
+      "43-5052": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "57490",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "336040",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "59880",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "43-5053": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "56530",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "111930",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "58310",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "ag_farm": {
+    "clusterId": "ag_farm",
+    "clusterName": "Farm Labor",
+    "socCodes": {
+      "45-2092": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "35690",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "261690",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "37850",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "45-2093": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "36150",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "35420",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "38580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "ag_equipment": {
+    "clusterId": "ag_equipment",
+    "clusterName": "Equipment Operation",
+    "socCodes": {
+      "45-2091": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "42580",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "30940",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "43920",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "sci_lab": {
+    "clusterId": "sci_lab",
+    "clusterName": "Lab Research",
+    "socCodes": {
+      "19-1042": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "100590",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "156300",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "112690",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "19-2031": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "84150",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "83250",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "95940",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "19-4099": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "60130",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "71400",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "64640",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "sci_engineering": {
+    "clusterId": "sci_engineering",
+    "clusterName": "Engineering / Applied Science",
+    "socCodes": {
+      "17-2051": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "99590",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "355410",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "107050",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "17-2071": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "111910",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "188790",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "120980",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "17-2112": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "101140",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "350230",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "107900",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      },
+      "17-2141": {
+        "13": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "102320",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "01": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "286760",
+            "footnotes": [
+              {}
+            ]
+          }
+        ],
+        "04": [
+          {
+            "year": "2024",
+            "period": "A01",
+            "periodName": "Annual",
+            "latest": "true",
+            "value": "110080",
+            "footnotes": [
+              {}
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

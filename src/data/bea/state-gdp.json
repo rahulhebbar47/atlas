@@ -1,0 +1,10 @@
+{
+  "isFallback": true,
+  "fallbackReason": "Run: npx tsx scripts/fetch-bea-data.ts --key YOUR_BEA_API_KEY (without --skip-state)",
+  "source": "Fallback — no state GDP data",
+  "fetchedAt": "2026-02-15T20:16:50.903Z",
+  "dataYear": 2025,
+  "stateCount": 0,
+  "states": {},
+  "notes": "FALLBACK DATA. State GDP requires real BEA Regional API data."
+}

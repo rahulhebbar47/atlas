@@ -1,0 +1,90 @@
+{
+  "source": "FRED M2V (Velocity of M2 Money Stock)",
+  "seriesOrTable": "M2V",
+  "fetchedAt": "2026-02-23T15:20:21.261Z",
+  "latestDate": "2025-10-01",
+  "velocity": 1.409,
+  "recentValues": [
+    {
+      "date": "2025-10-01",
+      "value": 1.409
+    },
+    {
+      "date": "2025-07-01",
+      "value": 1.406
+    },
+    {
+      "date": "2025-04-01",
+      "value": 1.395
+    },
+    {
+      "date": "2025-01-01",
+      "value": 1.393
+    },
+    {
+      "date": "2024-10-01",
+      "value": 1.395
+    },
+    {
+      "date": "2024-07-01",
+      "value": 1.394
+    },
+    {
+      "date": "2024-04-01",
+      "value": 1.389
+    },
+    {
+      "date": "2024-01-01",
+      "value": 1.377
+    },
+    {
+      "date": "2023-10-01",
+      "value": 1.373
+    },
+    {
+      "date": "2023-07-01",
+      "value": 1.353
+    },
+    {
+      "date": "2023-04-01",
+      "value": 1.325
+    },
+    {
+      "date": "2023-01-01",
+      "value": 1.291
+    },
+    {
+      "date": "2022-10-01",
+      "value": 1.255
+    },
+    {
+      "date": "2022-07-01",
+      "value": 1.22
+    },
+    {
+      "date": "2022-04-01",
+      "value": 1.192
+    },
+    {
+      "date": "2022-01-01",
+      "value": 1.166
+    },
+    {
+      "date": "2021-10-01",
+      "value": 1.164
+    },
+    {
+      "date": "2021-07-01",
+      "value": 1.153
+    },
+    {
+      "date": "2021-04-01",
+      "value": 1.151
+    },
+    {
+      "date": "2021-01-01",
+      "value": 1.158
+    }
+  ],
+  "notes": "Quarterly. Velocity = GDP / M2. Used in Fisher equation (MV=PY). Declining trend since 2000."
+}

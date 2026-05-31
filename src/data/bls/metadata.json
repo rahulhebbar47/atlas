@@ -1,0 +1,12 @@
+{
+  "fetchedAt": "2026-02-15T22:16:12.811Z",
+  "startYear": "2014",
+  "endYear": "2025",
+  "clusterCount": 47,
+  "totalSeriesFetched": 366,
+  "source": "Bureau of Labor Statistics (api.bls.gov)",
+  "notes": "OEWS data is annual. CPI is monthly. Re-run when new data is published.",
+  "includesStateData": false,
+  "laborMarketSeriesCount": 4,
+  "cpiSectorSeriesCount": 11
+}

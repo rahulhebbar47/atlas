@@ -1,0 +1,305 @@
+{
+  "source": "BEA Regional SAINC1 (State Annual Personal Income)",
+  "seriesOrTable": "Regional SAINC1",
+  "fetchedAt": "2026-03-03T16:59:33.590Z",
+  "dataYear": 2024,
+  "stateCount": 59,
+  "states": {
+    "10000": {
+      "fips": "10000",
+      "name": "Delaware",
+      "personalIncomeThousands": 71594.2
+    },
+    "11000": {
+      "fips": "11000",
+      "name": "District of Columbia",
+      "personalIncomeThousands": 78079.5
+    },
+    "12000": {
+      "fips": "12000",
+      "name": "Florida",
+      "personalIncomeThousands": 1706305.7
+    },
+    "13000": {
+      "fips": "13000",
+      "name": "Georgia",
+      "personalIncomeThousands": 704463.9
+    },
+    "15000": {
+      "fips": "15000",
+      "name": "Hawaii *",
+      "personalIncomeThousands": 102703.8
+    },
+    "16000": {
+      "fips": "16000",
+      "name": "Idaho",
+      "personalIncomeThousands": 124746.7
+    },
+    "17000": {
+      "fips": "17000",
+      "name": "Illinois",
+      "personalIncomeThousands": 947182.8
+    },
+    "18000": {
+      "fips": "18000",
+      "name": "Indiana",
+      "personalIncomeThousands": 443688.8
+    },
+    "19000": {
+      "fips": "19000",
+      "name": "Iowa",
+      "personalIncomeThousands": 211425.4
+    },
+    "20000": {
+      "fips": "20000",
+      "name": "Kansas",
+      "personalIncomeThousands": 195633
+    },
+    "21000": {
+      "fips": "21000",
+      "name": "Kentucky",
+      "personalIncomeThousands": 267297.9
+    },
+    "22000": {
+      "fips": "22000",
+      "name": "Louisiana",
+      "personalIncomeThousands": 284587.2
+    },
+    "23000": {
+      "fips": "23000",
+      "name": "Maine",
+      "personalIncomeThousands": 96850.3
+    },
+    "24000": {
+      "fips": "24000",
+      "name": "Maryland",
+      "personalIncomeThousands": 496413.9
+    },
+    "25000": {
+      "fips": "25000",
+      "name": "Massachusetts",
+      "personalIncomeThousands": 667993
+    },
+    "26000": {
+      "fips": "26000",
+      "name": "Michigan",
+      "personalIncomeThousands": 645846.8
+    },
+    "27000": {
+      "fips": "27000",
+      "name": "Minnesota",
+      "personalIncomeThousands": 437981.9
+    },
+    "28000": {
+      "fips": "28000",
+      "name": "Mississippi",
+      "personalIncomeThousands": 153256.4
+    },
+    "29000": {
+      "fips": "29000",
+      "name": "Missouri",
+      "personalIncomeThousands": 405457.2
+    },
+    "30000": {
+      "fips": "30000",
+      "name": "Montana",
+      "personalIncomeThousands": 78741.6
+    },
+    "31000": {
+      "fips": "31000",
+      "name": "Nebraska",
+      "personalIncomeThousands": 145798.5
+    },
+    "32000": {
+      "fips": "32000",
+      "name": "Nevada",
+      "personalIncomeThousands": 228086.6
+    },
+    "33000": {
+      "fips": "33000",
+      "name": "New Hampshire",
+      "personalIncomeThousands": 117220.3
+    },
+    "34000": {
+      "fips": "34000",
+      "name": "New Jersey",
+      "personalIncomeThousands": 806558.7
+    },
+    "35000": {
+      "fips": "35000",
+      "name": "New Mexico",
+      "personalIncomeThousands": 124086.2
+    },
+    "36000": {
+      "fips": "36000",
+      "name": "New York",
+      "personalIncomeThousands": 1699680
+    },
+    "37000": {
+      "fips": "37000",
+      "name": "North Carolina",
+      "personalIncomeThousands": 724994.6
+    },
+    "38000": {
+      "fips": "38000",
+      "name": "North Dakota",
+      "personalIncomeThousands": 57153.4
+    },
+    "39000": {
+      "fips": "39000",
+      "name": "Ohio",
+      "personalIncomeThousands": 766045.8
+    },
+    "40000": {
+      "fips": "40000",
+      "name": "Oklahoma",
+      "personalIncomeThousands": 260910.2
+    },
+    "41000": {
+      "fips": "41000",
+      "name": "Oregon",
+      "personalIncomeThousands": 302582.3
+    },
+    "42000": {
+      "fips": "42000",
+      "name": "Pennsylvania",
+      "personalIncomeThousands": 924379.6
+    },
+    "44000": {
+      "fips": "44000",
+      "name": "Rhode Island",
+      "personalIncomeThousands": 78553.7
+    },
+    "45000": {
+      "fips": "45000",
+      "name": "South Carolina",
+      "personalIncomeThousands": 332982.7
+    },
+    "46000": {
+      "fips": "46000",
+      "name": "South Dakota",
+      "personalIncomeThousands": 69996.3
+    },
+    "47000": {
+      "fips": "47000",
+      "name": "Tennessee",
+      "personalIncomeThousands": 480671.2
+    },
+    "48000": {
+      "fips": "48000",
+      "name": "Texas",
+      "personalIncomeThousands": 2184833.3
+    },
+    "49000": {
+      "fips": "49000",
+      "name": "Utah",
+      "personalIncomeThousands": 235907.4
+    },
+    "50000": {
+      "fips": "50000",
+      "name": "Vermont",
+      "personalIncomeThousands": 46229.3
+    },
+    "51000": {
+      "fips": "51000",
+      "name": "Virginia",
+      "personalIncomeThousands": 681552.2
+    },
+    "53000": {
+      "fips": "53000",
+      "name": "Washington",
+      "personalIncomeThousands": 677934.6
+    },
+    "54000": {
+      "fips": "54000",
+      "name": "West Virginia",
+      "personalIncomeThousands": 97970.7
+    },
+    "55000": {
+      "fips": "55000",
+      "name": "Wisconsin",
+      "personalIncomeThousands": 403888.3
+    },
+    "56000": {
+      "fips": "56000",
+      "name": "Wyoming",
+      "personalIncomeThousands": 50815.4
+    },
+    "91000": {
+      "fips": "91000",
+      "name": "New England",
+      "personalIncomeThousands": 1356223.6
+    },
+    "92000": {
+      "fips": "92000",
+      "name": "Mideast",
+      "personalIncomeThousands": 4076706
+    },
+    "93000": {
+      "fips": "93000",
+      "name": "Great Lakes",
+      "personalIncomeThousands": 3206652.4
+    },
+    "94000": {
+      "fips": "94000",
+      "name": "Plains",
+      "personalIncomeThousands": 1523445.6
+    },
+    "95000": {
+      "fips": "95000",
+      "name": "Southeast",
+      "personalIncomeThousands": 5912874.8
+    },
+    "96000": {
+      "fips": "96000",
+      "name": "Southwest",
+      "personalIncomeThousands": 3068733.3
+    },
+    "97000": {
+      "fips": "97000",
+      "name": "Rocky Mountain",
+      "personalIncomeThousands": 985009.6
+    },
+    "98000": {
+      "fips": "98000",
+      "name": "Far West *",
+      "personalIncomeThousands": 4767967.7
+    },
+    "01000": {
+      "fips": "01000",
+      "name": "Alabama",
+      "personalIncomeThousands": 295590.5
+    },
+    "02000": {
+      "fips": "02000",
+      "name": "Alaska *",
+      "personalIncomeThousands": 56423.1
+    },
+    "04000": {
+      "fips": "04000",
+      "name": "Arizona",
+      "personalIncomeThousands": 498903.6
+    },
+    "05000": {
+      "fips": "05000",
+      "name": "Arkansas",
+      "personalIncomeThousands": 183201.8
+    },
+    "06000": {
+      "fips": "06000",
+      "name": "California",
+      "personalIncomeThousands": 3400237.3
+    },
+    "08000": {
+      "fips": "08000",
+      "name": "Colorado",
+      "personalIncomeThousands": 494798.6
+    },
+    "09000": {
+      "fips": "09000",
+      "name": "Connecticut",
+      "personalIncomeThousands": 349377.1
+    }
+  },
+  "notes": "2024 annual. Regional data has longer lag than NIPA. Personal income in thousands of dollars. Update to 2025 when available."
+}

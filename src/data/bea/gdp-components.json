@@ -1,0 +1,121 @@
+{
+  "source": "BEA NIPA Table 1.1.5 (Gross Domestic Product)",
+  "seriesOrTable": "NIPA T10105",
+  "fetchedAt": "2026-03-03T16:59:20.741Z",
+  "dataYear": 2025,
+  "dataQuarter": "Q4",
+  "estimateType": "advance",
+  "gdpNominal": 31490070000000,
+  "gdpBillions": 31490.07,
+  "consumptionRatio": 0.6791761656928677,
+  "investmentRatio": 0.1752520715260398,
+  "governmentRatio": 0.16978117228700984,
+  "netExportRatio": -0.02420940950591726,
+  "components": {
+    "1": {
+      "description": "Gross domestic product",
+      "valueBillions": 31490.07
+    },
+    "2": {
+      "description": "Personal consumption expenditures",
+      "valueBillions": 21387.305
+    },
+    "3": {
+      "description": "Goods",
+      "valueBillions": 6576.982
+    },
+    "4": {
+      "description": "Durable goods",
+      "valueBillions": 2277.016
+    },
+    "5": {
+      "description": "Nondurable goods",
+      "valueBillions": 4299.966
+    },
+    "6": {
+      "description": "Services",
+      "valueBillions": 14810.323
+    },
+    "7": {
+      "description": "Gross private domestic investment",
+      "valueBillions": 5518.7
+    },
+    "8": {
+      "description": "Fixed investment",
+      "valueBillions": 5558.976000000001
+    },
+    "9": {
+      "description": "Nonresidential",
+      "valueBillions": 4378.954
+    },
+    "10": {
+      "description": "Structures",
+      "valueBillions": 891.744
+    },
+    "11": {
+      "description": "Equipment",
+      "valueBillions": 1699.0420000000001
+    },
+    "12": {
+      "description": "Intellectual property products",
+      "valueBillions": 1788.169
+    },
+    "13": {
+      "description": "Residential",
+      "valueBillions": 1180.021
+    },
+    "14": {
+      "description": "Change in private inventories",
+      "valueBillions": -40.276
+    },
+    "15": {
+      "description": "Net exports of goods and services",
+      "valueBillions": -762.356
+    },
+    "16": {
+      "description": "Exports",
+      "valueBillions": 3370.773
+    },
+    "17": {
+      "description": "Goods",
+      "valueBillions": 2119.857
+    },
+    "18": {
+      "description": "Services",
+      "valueBillions": 1250.916
+    },
+    "19": {
+      "description": "Imports",
+      "valueBillions": 4133.129
+    },
+    "20": {
+      "description": "Goods",
+      "valueBillions": 3215.8250000000003
+    },
+    "21": {
+      "description": "Services",
+      "valueBillions": 917.304
+    },
+    "22": {
+      "description": "Government consumption expenditures and gross investment",
+      "valueBillions": 5346.421
+    },
+    "23": {
+      "description": "Federal",
+      "valueBillions": 1971.997
+    },
+    "24": {
+      "description": "National defense",
+      "valueBillions": 1159.324
+    },
+    "25": {
+      "description": "Nondefense",
+      "valueBillions": 812.672
+    },
+    "26": {
+      "description": "State and local",
+      "valueBillions": 3374.424
+    }
+  },
+  "notes": "Q4 2025 advance SAAR. Values in billions of current dollars. Ratios computed as component/GDP. Will be revised in subsequent BEA releases. Replace with annual data when available (~mid-2026)."
+}

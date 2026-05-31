@@ -1,0 +1,147 @@
+{
+  "source": "BEA NIPA Table 3.1 (Government Current Receipts and Expenditures)",
+  "seriesOrTable": "NIPA T30100",
+  "fetchedAt": "2026-03-03T16:59:25.540Z",
+  "dataYear": 2025,
+  "dataQuarter": "Q4",
+  "estimateType": "advance",
+  "totalGInGDP_Billions": 5346.421,
+  "consumptionExpendituresBillions": 4209.638,
+  "grossInvestmentBillions": 1136.7830000000001,
+  "totalExpendituresBillions": 11174.234,
+  "allLines": {
+    "3": {
+      "description": "Personal current taxes",
+      "valueBillions": 3309.936
+    },
+    "4": {
+      "description": "Taxes on production and imports",
+      "valueBillions": 2344.465
+    },
+    "6": {
+      "description": "Taxes from the rest of the world",
+      "valueBillions": 42.638
+    },
+    "7": {
+      "description": "Contributions for government social insurance",
+      "valueBillions": 2046.926
+    },
+    "8": {
+      "description": "From persons",
+      "valueBillions": 2040.122
+    },
+    "9": {
+      "description": "From the rest of the world",
+      "valueBillions": 6.804
+    },
+    "10": {
+      "description": "Income receipts on assets",
+      "valueBillions": 225.299
+    },
+    "11": {
+      "description": "Interest and miscellaneous receipts",
+      "valueBillions": 211.427
+    },
+    "12": {
+      "description": "Interest receipts",
+      "valueBillions": 179.963
+    },
+    "13": {
+      "description": "Rents and royalties",
+      "valueBillions": 31.464000000000002
+    },
+    "14": {
+      "description": "Dividends",
+      "valueBillions": 13.872
+    },
+    "15": {
+      "description": "Current transfer receipts",
+      "valueBillions": 280.515
+    },
+    "16": {
+      "description": "From business (net)",
+      "valueBillions": 129.274
+    },
+    "17": {
+      "description": "From persons",
+      "valueBillions": 150.001
+    },
+    "18": {
+      "description": "From the rest of the world",
+      "valueBillions": 1.239
+    },
+    "19": {
+      "description": "Current surplus of government enterprises",
+      "valueBillions": -54.792
+    },
+    "20": {
+      "description": "Current expenditures",
+      "valueBillions": 10851.386
+    },
+    "21": {
+      "description": "Consumption expenditures",
+      "valueBillions": 4209.638
+    },
+    "22": {
+      "description": "Current transfer payments",
+      "valueBillions": 5050.561
+    },
+    "23": {
+      "description": "Government social benefits",
+      "valueBillions": 5005.363
+    },
+    "24": {
+      "description": "To persons",
+      "valueBillions": 4966.269
+    },
+    "25": {
+      "description": "To the rest of the world",
+      "valueBillions": 39.094
+    },
+    "26": {
+      "description": "Other current transfer payments to the rest of the world",
+      "valueBillions": 45.197
+    },
+    "27": {
+      "description": "Interest payments",
+      "valueBillions": 1493.141
+    },
+    "30": {
+      "description": "Subsidies",
+      "valueBillions": 98.046
+    },
+    "32": {
+      "description": "Social insurance funds",
+      "valueBillions": -865.367
+    },
+    "36": {
+      "description": "Capital transfer receipts",
+      "valueBillions": 77.017
+    },
+    "37": {
+      "description": "Total expenditures",
+      "valueBillions": 11174.234
+    },
+    "38": {
+      "description": "Current expenditures",
+      "valueBillions": 10851.386
+    },
+    "39": {
+      "description": "Gross government investment",
+      "valueBillions": 1136.7830000000001
+    },
+    "40": {
+      "description": "Capital transfer payments",
+      "valueBillions": 33.319
+    },
+    "41": {
+      "description": "Net purchases of nonproduced assets",
+      "valueBillions": 23.095
+    },
+    "42": {
+      "description": "Less: Consumption of fixed capital",
+      "valueBillions": 870.3480000000001
+    }
+  },
+  "notes": "Q4 2025 advance SAAR. G-in-GDP = consumption expenditures (L21) + gross investment (L39). Total expenditures (L37) includes transfers and interest payments. Will be revised."
+}

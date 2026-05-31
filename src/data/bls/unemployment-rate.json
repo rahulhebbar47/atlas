@@ -1,0 +1,13 @@
+{
+  "source": "BLS Current Population Survey (CPS)",
+  "seriesId": "LNS14000000",
+  "fetchedAt": "2026-02-15T22:16:10.904Z",
+  "annualAverage": null,
+  "latestMonthly": {
+    "year": "2025",
+    "period": "M12",
+    "value": 4.4
+  },
+  "history": [],
+  "notes": "Unemployment rate as percentage (e.g., 4.2 = 4.2%). LNS14000000."
+}

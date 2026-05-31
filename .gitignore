@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Archive — local-only, not published
+.archive/
+
+# Build output
+dist/
+
+# macOS
+.DS_Store
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment — NEVER commit real credentials
+.env
+.env.local
+.env.*
+!.env.example
+
+# API key files
+.bls-api-key
+
+# Secrets and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+credentials.json
+service-account*.json
+config.local.*
+
+# Python (fetch scripts may use)
+__pycache__/
+.venv/
+venv/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Vite
+*.local
+
+# Test coverage
+coverage/
+
+# OS files
+Thumbs.db

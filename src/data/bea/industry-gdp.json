@@ -1,0 +1,10 @@
+{
+  "isFallback": true,
+  "fallbackReason": "Run: npx tsx scripts/fetch-bea-data.ts --key YOUR_BEA_API_KEY",
+  "source": "Fallback — no industry breakdown available",
+  "fetchedAt": "2026-02-15T20:16:50.903Z",
+  "dataYear": 2025,
+  "totalGDPBillions": 29000,
+  "industries": {},
+  "notes": "FALLBACK DATA. Industry breakdown requires real BEA API data."
+}
