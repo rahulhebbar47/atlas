@@ -2,11 +2,12 @@
   "fetchedAt": "2026-02-15T22:16:12.811Z",
   "startYear": "2014",
   "endYear": "2025",
-  "clusterCount": 47,
+  "clusterCount": 48,
   "totalSeriesFetched": 366,
   "source": "Bureau of Labor Statistics (api.bls.gov)",
   "notes": "OEWS data is annual. CPI is monthly. Re-run when new data is published.",
   "includesStateData": false,
   "laborMarketSeriesCount": 4,
-  "cpiSectorSeriesCount": 11
+  "cpiSectorSeriesCount": 11,
+  "routingFixNote": "FS-6f: SOC 15-1253 (Software QA Analysts and Testers) moved from tech_swe.socCodes to its own tech_qa entry. Same observed records as fetchedAt \u2014 the fetch script had been revised to give tech_qa its own row (15-1253) without a re-fetch, leaving the QA occupation inside tech_swe and the tech_qa cluster on a synthetic estimator. Vintage-pinned: no values changed, routing only."
 }

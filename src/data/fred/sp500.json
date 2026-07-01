@@ -1,0 +1,86 @@
+{
+  "source": "FRED SP500 (S&P 500 Index)",
+  "seriesOrTable": "SP500",
+  "fetchedAt": "2026-06-11T17:56:02.415Z",
+  "latestDate": "2026-06-10",
+  "sp500Level": 7266.99,
+  "recentValues": [
+    {
+      "date": "2026-06-10",
+      "value": 7266.99
+    },
+    {
+      "date": "2026-06-09",
+      "value": 7386.65
+    },
+    {
+      "date": "2026-06-08",
+      "value": 7405.73
+    },
+    {
+      "date": "2026-06-05",
+      "value": 7383.74
+    },
+    {
+      "date": "2026-06-04",
+      "value": 7584.31
+    },
+    {
+      "date": "2026-06-03",
+      "value": 7553.68
+    },
+    {
+      "date": "2026-06-02",
+      "value": 7609.78
+    },
+    {
+      "date": "2026-06-01",
+      "value": 7599.96
+    },
+    {
+      "date": "2026-05-29",
+      "value": 7580.06
+    },
+    {
+      "date": "2026-05-28",
+      "value": 7563.63
+    },
+    {
+      "date": "2026-05-27",
+      "value": 7520.36
+    },
+    {
+      "date": "2026-05-26",
+      "value": 7519.12
+    },
+    {
+      "date": "2026-05-22",
+      "value": 7473.47
+    },
+    {
+      "date": "2026-05-21",
+      "value": 7445.72
+    },
+    {
+      "date": "2026-05-20",
+      "value": 7432.97
+    },
+    {
+      "date": "2026-05-19",
+      "value": 7353.61
+    },
+    {
+      "date": "2026-05-18",
+      "value": 7403.05
+    },
+    {
+      "date": "2026-05-15",
+      "value": 7408.5
+    },
+    {
+      "date": "2026-05-14",
+      "value": 7501.24
+    }
+  ],
+  "notes": "Daily (business days). S&P 500 index level. Used as baseline market validation for Phase 7 equity module."
+}

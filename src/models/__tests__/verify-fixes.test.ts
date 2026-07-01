@@ -63,6 +63,14 @@ describe('Fix A: Inflation Consistency', () => {
 
     // At zero displacement, inflation stays near baseline — no deep deflation.
     // Small negative netInflation (<1%) is acceptable due to credit model income composition drift.
+    // BOUND RESTORED (F4/OD-8 examination, E-1): the debt-turnover blend ends the spiral's
+    // immortality — the historical knife-edge (zero displacement AND zero population growth
+    // compounding a fixed +2.9% credit inflation expectation against wage-indexed incomes)
+    // no longer reaches the old ~−4.6% depths. The bound below is the ORIGINAL −0.02; the
+    // interim −0.06 relaxation is resolved (its full history: the audit records, E-1 → the F4/OD-8
+    // examination → the final attribution §F).
+    const viol = timeline.years.filter(y => y.macro.netInflation <= -0.02).map(y => y.year + ':' + (y.macro.netInflation*100).toFixed(2) + '%');
+    if (viol.length) console.log('TESTB VIOLATIONS:', viol.join(' '));
     for (const y of timeline.years) {
       expect(y.macro.effectiveInflationRate).toBeGreaterThanOrEqual(0);
       expect(y.macro.netInflation).toBeGreaterThan(-0.02);
@@ -191,3 +199,40 @@ describe('Fix D: Fiscal Loop Verification', () => {
 // REMOVED in Phase 3c: Fix E (Growth Rate Override) test — baselineGDPGrowth no longer drives
 // income compounding. Income now derives from actual prevNomGDP × share. The config field
 // still exists for year-0 fallbacks but varying it no longer affects income growth trajectory.
+
+describe('Stage 5b (F1): wage-subsidy costs reach the load-bearing budget', () => {
+  it('wage subsidy raises the debt-path deficit by ≈ its fiscal cost (was: never booked)', () => {
+    const configNP = getDefaultSimulationConfig();
+    const timelineNP = runWithBLS(configNP);
+
+    const configWS = getDefaultSimulationConfig();
+    configWS.policyConfig = {
+      ...configWS.policyConfig,
+      wageSubsidy: {
+        ...configWS.policyConfig.wageSubsidy,
+        enabled: true,
+        subsidyPercentage: { keyframes: [{ year: 2025, value: 0.02 }] }, // 2% of avg wage
+        maxSubsidyPerWorker: 10_000,
+      },
+    };
+    const timelineWS = runWithBLS(configWS);
+
+    // First real fiscal year (year 0 uses the baseline fiscal state)
+    const y2026NP = timelineNP.years.find(y => y.year === 2026)!;
+    const y2026WS = timelineWS.years.find(y => y.year === 2026)!;
+
+    const subsidyCost = y2026WS.policyEffects.fiscalCost - y2026WS.policyEffects.transferChannelAddition;
+    const deficitDelta = y2026WS.fiscalMonetary!.fiscal.totalDeficit - y2026NP.fiscalMonetary!.fiscal.totalDeficit;
+
+    console.log(`\nStage 5b F1: wage-subsidy cost $${(subsidyCost / 1e9).toFixed(1)}B; ` +
+      `debt-path deficit delta $${(deficitDelta / 1e9).toFixed(1)}B`);
+
+    // The subsidy must be a real, positive cost…
+    expect(subsidyCost).toBeGreaterThan(100e9); // 2% × ~$65k × ~157M ≈ $200B
+    // …and the LOAD-BEARING deficit must reflect it (net of the ~25% revenue feedback from the
+    // subsidy boosting prior-year taxable wage income). Pre-F1 this delta was NEGATIVE
+    // (revenue feedback only — the cost itself never reached the debt path).
+    expect(deficitDelta).toBeGreaterThan(0.6 * subsidyCost);
+    expect(deficitDelta).toBeLessThan(1.1 * subsidyCost);
+  });
+});

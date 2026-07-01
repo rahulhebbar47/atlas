@@ -1,6 +1,8 @@
 # ATLAS — Alpha (α) Drivers
 
-**Phase 10.A primitive.** Replaces the hacky `weightedCapability²` proxy for automation share with an explicit `automationShare ∈ [0, 1]` per cluster (and optional per-role override), driven by five signals.
+The automation share `α ∈ [0, 1]` is an explicit per-cluster quantity (with optional
+per-role override), driven by five signals. It replaces an earlier squared-capability proxy
+that conflated capability with the deployment choice. Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 ---
 
@@ -12,7 +14,7 @@
 - α = 0.0 means 100% of adoption is augmentation (capability × adoption → higher output per remaining worker, not fewer workers).
 - α is clamped to `[0, 1]`.
 
-Previously, `displacement = adoption × capability²` conflated "can we do it?" (capability²) with "are we choosing to replace?" (an implicit automation-share). Phase 10.A splits them:
+The formula separates "can we do it?" (capability) from "are we choosing to replace?" (α — the deployment-mode choice, previously implicit in a squared-capability term):
 
 ```
 displacement = adoption × weightedCapability × α     (V2)
@@ -95,7 +97,7 @@ SWE displacement this year = `adoption × weightedCapability × 0.772`. The repl
 
 ## Per-Cluster Wage Feedback (Scarcity → Next Year's Cheaper)
 
-Phase 10.A introduces a tight feedback loop:
+A tight feedback loop connects this year's displacement to next year's adoption economics:
 
 1. Cluster displacement → cluster has residual "scarcer" workers in high-difficulty roles.
 2. `computeClusterScarcityPremium` computes `wageAdjustmentFromScarcity = aiDisplacementShare × scarcityIntensity × clusterWagePremium`.

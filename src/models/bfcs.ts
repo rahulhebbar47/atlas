@@ -20,11 +20,13 @@ import type {
 } from '@/types';
 import {
   BASELINE_INFERENCE_SPEED,
+  INFERENCE_SPEED_YEARS_SCALE,
   INFERENCE_SPEED_IMPROVEMENT_RATE,
   TASK_PARALLELISM,
   BASELINE_SAFETY_RECORD,
   SAFETY_IMPROVEMENT_RATE,
   DOMAIN_RISK_FACTORS,
+  type ClusterCategory,
   DEFAULT_START_YEAR,
   DEFAULT_MANUFACTURING_ANNUAL_CHANGE,
   DEFAULT_ENERGY_ANNUAL_CHANGE,
@@ -147,7 +149,7 @@ export function computeFasterScore(
   // Inference speed improves each year but caps at 1.0
   const inferenceSpeed = Math.min(
     1.0,
-    BASELINE_INFERENCE_SPEED + effectiveRate * yearsSinceStart * 0.1,
+    BASELINE_INFERENCE_SPEED + effectiveRate * yearsSinceStart * INFERENCE_SPEED_YEARS_SCALE,
   );
 
   const parallelism = TASK_PARALLELISM[cluster.deploymentType];
@@ -177,6 +179,13 @@ export function computeCheaperScore(
   supplyChainMultipliers?: { inference: number; manufacturing: number; energy: number },
   /** Phase 10.A: scarcity-driven wage inflation from prior year — multiplies humanCostFactor by (1 + wageAdjustment). */
   wageAdjustment: number = 0,
+  /** FS-3 (ratified): the OEWS basis — the role's loaded mean wage relative to the economy mean.
+   *  undefined = the retired proxy (the which-change basis row). */
+  roleWageRelative?: number,
+  /** FS-3 (ratified): the G1 connection — the economy-wide NOMINAL wageIndex (t−1). The PRICE
+   *  channel lives here, once (the G4 partition: labor-availability/organizational caution stays
+   *  in the α slack driver — see alphaDrivers). 1.0 = disconnected (the which-change row). */
+  economyWageIndex: number = 1.0,
 ): number {
   const t = year - DEFAULT_START_YEAR;
   // Non-null assertion safe: AI_COST_COMPOSITION has all DeploymentType keys
@@ -199,10 +208,14 @@ export function computeCheaperScore(
     + comp.manufacturing * Math.exp(mfgChange * t) * scm.manufacturing
     + comp.energy * Math.exp(energyChange * t) * scm.energy;
 
-  // Human cost proxy: higher seniority = higher wages = bigger gap.
-  // Phase 10.A: wage adjustment from prior-year cluster scarcity inflates humanCostFactor,
-  // making AI look relatively MORE attractive (scarcity → wages up → Cheaper up).
-  const humanCostFactor = (0.3 + role.seniorityLevel * 0.7) * (1 + wageAdjustment);
+  // FS-3 (ratified): the OEWS basis — humanCost = (roleWage/econMean) × wageIndex(t−1) × (1+scarcity).
+  // NOMINAL-ON-NOMINAL declared: aiCostFraction is nominal-anchored-2025; the wage leg is the
+  // nominal wageIndex. The RETIRED proxy (kept as the basis-row fallback, with its why-note):
+  // (0.3 + 0.7×seniority) compressed the loaded 8×+ OEWS wage distribution ≈2.4× — understating
+  // Cheaper for high-wage roles, overstating for low-wage; the distributional correction
+  // re-targets displacement incidence toward high-wage cognitive roles (FS3_CHECKPOINT §1).
+  const basisFactor = roleWageRelative ?? (0.3 + role.seniorityLevel * 0.7);
+  const humanCostFactor = basisFactor * economyWageIndex * (1 + wageAdjustment);
 
   return Math.max(0, Math.min(1, 1 - (aiCostFraction / humanCostFactor)));
 }
@@ -232,7 +245,8 @@ export function computeSaferScore(
   const safetyRecord = 1 - (1 - BASELINE_SAFETY_RECORD) * Math.exp(-effectiveRate * yearsSinceStart);
 
   // Domain risk factor: from constants, keyed by category
-  const domainFactor = DOMAIN_RISK_FACTORS[cluster.category] ?? 0.8;
+  // FS-1b F6: the map is tsc-exhaustive over ClusterCategory — the silent 0.8 fallback DELETED.
+  const domainFactor = DOMAIN_RISK_FACTORS[cluster.category as ClusterCategory]; // reason: cluster.category is string-typed in legacy data; the exhaustiveness test guards the key set
 
   return Math.min(1, safetyRecord * domainFactor);
 }
@@ -259,12 +273,16 @@ export function computeBFCSScores(
   },
   /** Phase 10.A: scarcity-driven wage adjustment from prior year, propagated into Cheaper. */
   wageAdjustment: number = 0,
+  /** FS-3: the OEWS basis + the G1 connection (see computeCheaperScore). */
+  roleWageRelative?: number,
+  economyWageIndex: number = 1.0,
 ): BFCSScores {
   return {
     better: computeBetterScore(capabilityScores, cluster, role),
     faster: computeFasterScore(year, cluster, supplyChainParams?.fasterMultiplier),
     cheaper: computeCheaperScore(
       year, role, cluster, costParams, supplyChainParams?.costMultipliers, wageAdjustment,
+      roleWageRelative, economyWageIndex,
     ),
     safer: computeSaferScore(year, cluster, supplyChainParams?.saferMultiplier),
   };
@@ -316,9 +334,13 @@ export function checkAdoptionTrigger(
   },
   /** Phase 10.A: scarcity wage adjustment from prior year (propagated into Cheaper). */
   wageAdjustment: number = 0,
+  /** FS-3: the OEWS basis + the G1 connection. */
+  roleWageRelative?: number,
+  economyWageIndex: number = 1.0,
 ): { triggered: boolean; scores: BFCSScores } {
   const scores = computeBFCSScores(
     capabilityScores, cluster, role, year, costParams, supplyChainParams, wageAdjustment,
+    roleWageRelative, economyWageIndex,
   );
   const effectiveThresholds = thresholdOverride ?? role.bfcsThresholds;
   const triggered = checkThresholdsMet(scores, effectiveThresholds);
@@ -347,6 +369,42 @@ export function checkAdoptionTrigger(
  *
  * @param frictionYears  Role's aiReplacementFrictionYears (≥ 0, direct years — no scaling).
  */
+/**
+ * FS-3 (ratified): THE MARGIN-PRESERVING THRESHOLD TRANSFORM (the load-time bridge).
+ *   C*_new = C_2025,new − (C_2025,old − C*_old)
+ * The observed 2025 margin (distance-to-threshold) is preserved EXACTLY in absolute score units —
+ * the 2025 trigger map and every role's proximity reproduce by construction (the year-0 anchor is
+ * observed, not an outcome target; post-2025 timing moves only through the new basis's honest
+ * dynamics). No data rewrite: the stored thresholds remain the citation objects; this is the
+ * documented bridge. FS3-R1: the result is clamped-REPORTED — values outside (0,1) are flagged
+ * in the margins table (expected none; shown, not assumed), never silently clamped.
+ */
+export function deriveSeamCheaperThreshold(
+  cluster: OccupationCluster,
+  role: RoleDefinition,
+  startYear: number,
+  roleWageRelative: number,
+  costParams?: AICostParams,
+): { cheaperThresholdNew: number; c2025Old: number; c2025New: number; marginOld: number; outOfRange: boolean } {
+  const c2025Old = computeCheaperScore(startYear, role, cluster, costParams, undefined, 0);
+  const c2025New = computeCheaperScore(startYear, role, cluster, costParams, undefined, 0, roleWageRelative, 1.0);
+  const marginOld = c2025Old - role.bfcsThresholds.cheaper;
+  // FS-3 R1 RULING (headroom-proportional, UNIFORM): proximity-to-threshold only has stable
+  // cross-basis meaning as a FRACTION OF REMAINING SCORE-SPACE (score velocity varies with basis);
+  // the absolute rule was weaker everywhere and failed exactly where levels moved most (the
+  // proxy's zero-clamp had fabricated the stored margins for the high-wage class — raw ≈ −0.96
+  // clamped to 0). frac = (C*_old − C_2025,old)/(1 − C_2025,old); C*_new = C_new + frac×(1 − C_new):
+  // always in (C_new, 1) for frac ∈ (0,1); year-0 dormancy by construction; the clamp artifact
+  // never enters (fractions of clamped space remain well-defined). Applied to ALL rows, not a patch.
+  const headroomOld = 1 - c2025Old;
+  const frac = headroomOld > 0 ? (role.bfcsThresholds.cheaper - c2025Old) / headroomOld : 0;
+  const cheaperThresholdNew = c2025New + frac * (1 - c2025New);
+  return {
+    cheaperThresholdNew, c2025Old, c2025New, marginOld,
+    outOfRange: cheaperThresholdNew <= 0 || cheaperThresholdNew >= 1,
+  };
+}
+
 export function findTriggerYear(
   cluster: OccupationCluster,
   role: RoleDefinition,

@@ -1,11 +1,27 @@
 {
   "source": "FRED FEDFUNDS (Federal Funds Effective Rate)",
   "seriesOrTable": "FEDFUNDS",
-  "fetchedAt": "2026-02-23T15:20:24.439Z",
-  "latestDate": "2026-01-01",
-  "federalFundsRate": 0.0364,
-  "federalFundsRatePercent": 3.64,
+  "fetchedAt": "2026-06-11T17:55:25.968Z",
+  "latestDate": "2026-05-01",
+  "federalFundsRate": 0.0363,
+  "federalFundsRatePercent": 3.63,
   "recentValues": [
+    {
+      "date": "2026-05-01",
+      "value": 0.0363
+    },
+    {
+      "date": "2026-04-01",
+      "value": 0.0364
+    },
+    {
+      "date": "2026-03-01",
+      "value": 0.0364
+    },
+    {
+      "date": "2026-02-01",
+      "value": 0.0364
+    },
     {
       "date": "2026-01-01",
       "value": 0.0364
@@ -36,22 +52,6 @@
     },
     {
       "date": "2025-06-01",
-      "value": 0.0433
-    },
-    {
-      "date": "2025-05-01",
-      "value": 0.0433
-    },
-    {
-      "date": "2025-04-01",
-      "value": 0.0433
-    },
-    {
-      "date": "2025-03-01",
-      "value": 0.0433
-    },
-    {
-      "date": "2025-02-01",
       "value": 0.0433
     }
   ],

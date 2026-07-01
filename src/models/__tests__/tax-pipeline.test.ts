@@ -33,7 +33,9 @@ import {
   DEFAULT_POST_TAX_MPC_WAGE,
   DEFAULT_POST_TAX_MPC_ASSET,
   DEFAULT_POST_TAX_MPC_TRANSFER,
-  DEFAULT_AI_PROFIT_GROWTH_RATE,
+  // DEPRECATED (Stage 1): DEFAULT_AI_PROFIT_GROWTH_RATE no longer used here — the aiProfitGrowthRate
+  // price passthrough was retired and replaced by the explicit aiDeflationPassthrough parameter.
+  // DEFAULT_AI_PROFIT_GROWTH_RATE,
   EMPLOYER_EMPLOYEE_SPLIT,
   STATE_LOCAL_TAX_RATE,
   TRANSFER_TAX_RATE,
@@ -55,6 +57,9 @@ function zeroPolicyEffects(): PolicyEffects {
     wageChannelAddition: 0,
     assetChannelAddition: 0,
     transferChannelAddition: 0,
+    enhancedUIAddition: 0,
+    displacedFlatAddition: 0,
+  uiPricingWage: 0,
     totalPolicyIncome: 0,
     fiscalCost: 0,
     fiscalCostAsPercentGDP: 0,
@@ -286,36 +291,28 @@ describe('Import Dependence', () => {
 // ============================================================
 
 describe('Price Pass-Through', () => {
-  it('aiProfitGrowthRate=10 → near-zero deflation pass-through', () => {
-    // marketPowerRetention = min(1.0, 10/10) = 1.0
-    // pricePassThrough = 0.0 → deflation rate ≈ 0
+  it('aiDeflationPassthrough=0 → no AI deflation reaches consumer prices (Stage 1)', () => {
+    // Stage 1 retired the aiProfitGrowthRate passthrough. The AI-cost-savings passthrough is now the
+    // explicit aiDeflationPassthrough: 0 → all savings retained as margins, none reaches prices.
     const macro = computeMacro(buildDefaultMacroInputs({
-      aiProfitGrowthRate: 10.0,
+      aiDeflationPassthrough: 0,
       automationCoverage: 0.5,
       year: DEFAULT_START_YEAR + 5,
     }));
-
-    // aiDeflationRate should be very small (near zero)
-    expect(macro.aiDeflationRate).toBeLessThan(0.001);
+    // With no passthrough, the AI-exposed sector carries no deflation term (= base + broad pressures).
+    expect(macro.aiExposedInflation).toBeGreaterThan(0);
   });
 
-  it('aiProfitGrowthRate=0.5 → 95% deflation pass-through', () => {
-    // marketPowerRetention = min(1.0, 0.5/10) = 0.05
-    // pricePassThrough = 0.95
-    const macro = computeMacro(buildDefaultMacroInputs({
-      aiProfitGrowthRate: 0.5,
-      automationCoverage: 0.5,
-      year: DEFAULT_START_YEAR + 5,
+  it('higher aiDeflationPassthrough → more deflation in AI-exposed prices and composite (Stage 1)', () => {
+    const low = computeMacro(buildDefaultMacroInputs({
+      aiDeflationPassthrough: 0.2, automationCoverage: 0.5, year: DEFAULT_START_YEAR + 5,
     }));
-
-    const macroDefault = computeMacro(buildDefaultMacroInputs({
-      aiProfitGrowthRate: DEFAULT_AI_PROFIT_GROWTH_RATE,
-      automationCoverage: 0.5,
-      year: DEFAULT_START_YEAR + 5,
+    const high = computeMacro(buildDefaultMacroInputs({
+      aiDeflationPassthrough: 0.9, automationCoverage: 0.5, year: DEFAULT_START_YEAR + 5,
     }));
-
-    // Higher pass-through means more deflation
-    expect(macro.aiDeflationRate).toBeGreaterThan(macroDefault.aiDeflationRate);
+    // More passthrough → lower (more negative) AI-exposed inflation and lower composite.
+    expect(high.aiExposedInflation).toBeLessThan(low.aiExposedInflation);
+    expect(high.compositeInflation).toBeLessThan(low.compositeInflation);
   });
 });
 

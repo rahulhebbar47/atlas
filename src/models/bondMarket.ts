@@ -20,6 +20,7 @@
 
 import type { BondMarketState } from '@/types';
 import {
+  ANCHOR_INIT_2025,
   INITIAL_10Y_YIELD,
   INITIAL_POLICY_RATE,
   BASELINE_MORTGAGE_SPREAD,
@@ -89,12 +90,50 @@ export function computeFiscalRiskPremium(
   maxPremium: number = 0.06,
   levelMidpoint: number = 2.0,
   trajectoryMidpoint: number = 0.15,
+  // E-8 (ratified): markets price GRADUAL CONSOLIDATION once debt service binds — the trajectory
+  // and sustainability components are damped by (1 − adjustmentExpectation); the LEVEL component
+  // is untouched (the stock exists regardless of the expected path). 0 = current-law-forever.
+  adjustmentExpectation: number = 0,
+  // E-8b (ratified): evidence-based linear premium replaces the logistic extrapolation.
+  useLegacyLogistic: boolean = false,
+  debtGDPAnchor: number = 1.2,      // the 2025 state — premium ≡ 0 there (the observed 4.3% 10Y already embeds it)
+  deficitGDPAnchor: number = 0.06,  // the 2025 deficit/GDP
+  laubachLevelBeta: number = 0.035,
+  laubachDeficitBeta: number = 0.25,
+  actualDeficitGDP?: number,        // D-fix: the PRIMARY deficit/GDP (citation-consistent: Laubach's β_deficit is
+                                    // identified on PROJECTED deficits precisely to purge the endogenous
+                                    // rate-interest feedback; feeding realized TOTAL deficit made the premium
+                                    // price the interest it itself causes — the self-reference the citation's
+                                    // variable excludes by design). Interest is priced ONCE, via β_level × debt.
 ): {
   fiscalRiskPremium: number;
   trajectoryRisk: number;
   sustainabilityRisk: number;
   levelRisk: number;
 } {
+  if (!useLegacyLogistic) {
+    // ═══ E-8b (ratified): the Laubach/Engen-Hubbard linear evidence premium ═══
+    // fiscalRiskPremium = β_level × max(0, b − b₀) + β_deficit × max(0, d − d₀), zero-anchored at
+    // the 2025 state. No cap: the linear evidence slope is bounded by the path itself (maxPremium
+    // retires). The deficit ratio is recovered from the debt identity:
+    // Δ(debt/GDP) = deficit/GDP − g_nominal×b(t−1)  ⇒  d = Δb + g×b(t−1).
+    // adjustmentExpectation (E-8, now profile-gated per E-8b item 4) damps both terms: a credible
+    // user-selected consolidation compresses premia below the observed-regime evidence slope.
+    // Prefer the model's actual deficit flow; the Δb identity is the fallback (it embeds
+    // valuation/timing wedges that overstate the flow the market prices).
+    const deficitGDP = actualDeficitGDP
+      ?? ((debtGDPRatio - prevDebtGDPRatio) + nominalGDPGrowthRate * prevDebtGDPRatio);
+    const damp = 1 - adjustmentExpectation;
+    const levelRisk = laubachLevelBeta * Math.max(0, debtGDPRatio - debtGDPAnchor) * damp;
+    const trajectoryRisk = laubachDeficitBeta * Math.max(0, deficitGDP - deficitGDPAnchor) * damp;
+    return {
+      fiscalRiskPremium: levelRisk + trajectoryRisk,
+      trajectoryRisk,                 // = the deficit (flow) component in the E-8b decomposition
+      sustainabilityRisk: 0,          // DEPRECATED (E-8b): r−g lives in the actual debt dynamics, not premium extrapolation
+      levelRisk,
+    };
+  }
+  // ═══ LEGACY logistic path (pre-E-8b; isolation toggle config.legacyFiscalPremium) ═══
   // === Component 1: Trajectory Risk ===
   // How fast is debt/GDP changing? Markets panic when the ratio accelerates.
   // Phase 8 Fix 5: Center moved from 0.10 to configurable (default 0.15) to match
@@ -105,7 +144,7 @@ export function computeFiscalRiskPremium(
   // Derivation: solve 0.05 = 1/(1+exp(-s*0.07)) → s = ln(19)/0.07 ≈ 42
   const TRAJECTORY_STEEPNESS = Math.log(19) / 0.07; // ≈ 42.06
   const trajectoryRaw = 1.0 / (1.0 + Math.exp(-TRAJECTORY_STEEPNESS * (debtGDPChange - trajectoryMidpoint)));
-  const trajectoryRisk = trajectoryRaw * maxPremium;
+  const trajectoryRisk = trajectoryRaw * maxPremium * (1 - adjustmentExpectation);  // E-8
 
   // === Component 2: Sustainability Risk (r - g) ===
   // When interest rate on debt exceeds nominal GDP growth, debt compounds faster
@@ -118,7 +157,7 @@ export function computeFiscalRiskPremium(
   const sustainabilityRaw = rMinusG > 0
     ? Math.min(1.0, rMinusG / 0.05)
     : 0;
-  const sustainabilityRisk = sustainabilityRaw * maxPremium;
+  const sustainabilityRisk = sustainabilityRaw * maxPremium * (1 - adjustmentExpectation);  // E-8
 
   // === Component 3: Level Risk (background) ===
   // Sigmoid on absolute level, but with HIGH midpoint (2.0 = 200%) and LOW weight.
@@ -238,6 +277,16 @@ export function computeExpectedPolicyRates(
   naturalUnemploymentRate: number = 0.044,
   taylorEmploymentGapCoeff: number = 0.3,
   inflationConvergenceYears: number = 5,
+  // E-7 (ratified): the market inflation ANCHOR — projected inflation converges to THIS, not the
+  // Fed target (the target-convergence belief was family member #5: held unconditionally through
+  // decades of realized misses, producing the 20-yr curve inversion that starved E-6). The Taylor
+  // term below still measures against the Fed TARGET — markets expect the Fed to run Taylor on a
+  // de-anchored inflation path, which converges the expected POLICY path toward realized policy.
+  marketInflationAnchor: number = 0.02,
+  // E-9b (ratified): markets project the INERTIAL rule — projected_k = ρ^k·i(t) + (1−ρ^k)·Taylor_k
+  // (Coibion-Gorodnichenko: the persistence is the rule's, so the projection must carry it).
+  currentPolicyRate: number = 0,
+  taylorSmoothing: number = 0,
 ): number {
   const PROJECTION_HORIZON = 10;
   const horizon = Math.min(PROJECTION_HORIZON, Math.max(1, yearsRemaining));
@@ -249,7 +298,7 @@ export function computeExpectedPolicyRates(
     // Phase 8 Fix 4: Faster convergence (5yr default) matches market breakevens
     const convergeFraction = Math.min(1.0, k / inflationConvergenceYears);
     const projectedInflation =
-      currentInflation + convergeFraction * (inflationTarget - currentInflation);
+      currentInflation + convergeFraction * (marketInflationAnchor - currentInflation);  // E-7
 
     // Output gap closes linearly to zero
     const projectedOutputGap = currentOutputGap * (1 - k / horizon);
@@ -274,6 +323,12 @@ export function computeExpectedPolicyRates(
     if (fiscalDominanceActive && dominanceFactor > 0) {
       const fadingDominance = dominanceFactor * Math.max(0, 1 - k / horizon);
       projectedRate = projectedRate * (1 - fadingDominance);
+    }
+
+    // E-9b: the inertial projection — the inherited rate decays at ρ^k toward the Taylor path
+    if (taylorSmoothing > 0) {
+      const inertiaWeight = Math.pow(taylorSmoothing, k);
+      projectedRate = inertiaWeight * currentPolicyRate + (1 - inertiaWeight) * projectedRate;
     }
 
     totalRate += projectedRate;
@@ -527,6 +582,8 @@ export function getBaselineBondMarketState(): BondMarketState {
   return {
     tenYearYield: INITIAL_10Y_YIELD,
     expectedAveragePolicyRate: INITIAL_POLICY_RATE,
+    marketInflationAnchor: ANCHOR_INIT_2025,  // E-9c row 1: the observed 2025 expectations state (the inheritance principle)
+    adjustmentExpectation: 0,     // E-8: builds once debt service crosses the credibility trigger
     termPremium: TERM_PREMIUM,
     fiscalRiskPremium: 0,
     supplyPressurePremium: 0,

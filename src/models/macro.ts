@@ -22,7 +22,10 @@ import {
   US_LABOR_FORCE_2025,
   BASELINE_TOTAL_EMPLOYMENT,
   BASELINE_AVERAGE_ANNUAL_WAGE,
-  BASELINE_TRANSFER_PER_UNEMPLOYED,
+  // DEPRECATED (Stage 5): BASELINE_TRANSFER_PER_UNEMPLOYED replaced by the CASH/IN-KIND split below
+  // BASELINE_TRANSFER_PER_UNEMPLOYED,
+  DEFAULT_CASH_TRANSFER_PER_UNEMPLOYED,
+  DEFAULT_IN_KIND_TRANSFER_PER_UNEMPLOYED,
   BASELINE_PRICE_LEVEL,
   BASELINE_GDP_NOMINAL_2025,
   BASELINE_GDP_REAL_2025,
@@ -45,6 +48,11 @@ import {
   SECTOR_DEFLATION_INTENSITY,
   SECTOR_CPI_WEIGHTS,
   PHILLIPS_CURVE_SENSITIVITY,
+  // Stage 3: endogenous wage equation
+  DEFAULT_INFLATION_INDEXATION,
+  DEFAULT_PRODUCTIVITY_PASSTHROUGH,
+  DEFAULT_PHILLIPS_SLOPE,
+  DEFAULT_DOWNWARD_WAGE_RIGIDITY,
   NATURAL_UNEMPLOYMENT_RATE,
   FRED_NAIRU_RATE,
   NON_CLUSTER_EMPLOYED,
@@ -60,7 +68,8 @@ import {
   BASELINE_GOVT_TRANSFERS,
   BASELINE_DEBT_INTEREST,
   EFFECTIVE_TAX_RATE,
-  TRANSFER_GROWTH_PER_UE_POINT,
+  // DEPRECATED (Stage 5 / H3): retired from the loop — see constants.ts
+  // TRANSFER_GROWTH_PER_UE_POINT,
   DISCRETIONARY_SHARE_OF_G,
   REVENUE_PRESSURE_SENSITIVITY_DEFAULT,
   REVENUE_PRESSURE_CAP,
@@ -82,7 +91,21 @@ import {
   DEFAULT_BUSINESS_CREDIT_GDP_SENSITIVITY,
   DEFAULT_MAX_BUSINESS_CREDIT_LOOSENING,
   BASELINE_SHELTER_CPI_WEIGHT,
-  DEFAULT_SHELTER_INFLATION_STICKINESS,
+  // Stage 1: sectoral price architecture
+  AI_EXPOSED_CPI_WEIGHT,
+  LABOR_SERVICES_CPI_WEIGHT,
+  FOOD_ENERGY_CPI_WEIGHT,
+  DEFAULT_AI_DEFLATION_PASSTHROUGH,
+  DEFAULT_LABOR_COST_SHARE,
+  // Stage 1.5: embodied-AI sector routing + per-sector passthrough
+  clusterConsumptionSector,
+  type ConsumptionSector,
+  DEFAULT_LABOR_SERVICES_PASSTHROUGH,
+  DEFAULT_FOOD_ENERGY_PASSTHROUGH,
+  DEFAULT_SHELTER_PASSTHROUGH,
+  // DEPRECATED (Stage 1.5): DEFAULT_SHELTER_INFLATION_STICKINESS — ad-hoc embodied shelter term retired
+  // (replaced by routed construction deflation × shelterPassthrough). Retained for Stage 6.5 housing rework.
+  // DEFAULT_SHELTER_INFLATION_STICKINESS,
   DEFAULT_POPULATION_GROWTH_RATE,
   BASELINE_SHELTER_INFLATION,
   DEFAULT_MORTGAGE_STRESS_AMPLIFIER,
@@ -105,7 +128,8 @@ import {
   DEFAULT_POST_TAX_MPC_TRANSFER,
   STATE_LOCAL_TAX_RATE,
   TRANSFER_TAX_RATE,
-  DEFAULT_AI_PROFIT_GROWTH_RATE,
+  // DEPRECATED (Stage 1): DEFAULT_AI_PROFIT_GROWTH_RATE — old market-power passthrough retired.
+  // DEFAULT_AI_PROFIT_GROWTH_RATE,
   BASELINE_CORPORATE_RETENTION_RATE,
   BASELINE_PROFIT_GDP_RATIO,
   BASELINE_RETAINED_EARNINGS,
@@ -134,6 +158,55 @@ import {
   DEFAULT_SYSTEMIC_RISK_SENSITIVITY,
   DEFAULT_INFLATION_RISK_SENSITIVITY,
   DEFAULT_MAX_CONSUMER_TIGHTENING,
+  CONSUMER_TIGHTENING_GR_PEAK,
+  // E-9: F-D complement + the PCE proxy
+  NON_SHELTER_BASE_INFLATION,
+  DEFAULT_BUILDER_ADJUSTMENT_LAMBDA,
+  DEFAULT_LAND_CLOSURE_KAPPA,
+  DEFAULT_OPEX_PASSTHROUGH,
+  DEFAULT_RENT_DOWNWARD_RIGIDITY,
+  DEFAULT_RENT_INCOME_ELASTICITY,
+  DEFAULT_CONSTRUCTION_CREDIT_SENSITIVITY,
+  BUILDER_TREND_HORIZON_YEARS,
+  BUILDER_TREND_GROWTH_INIT_2025,
+  OBSERVED_2025_HOME_PRICE_GROWTH,
+  HOUSING_PIPELINE_DURATION_YEARS,
+  INITIAL_HOUSING_PIPELINE,
+  PCE_WEIGHT_SHELTER,
+  PCE_WEIGHT_AI_EXPOSED,
+  PCE_WEIGHT_LABOR_SERVICES,
+  PCE_WEIGHT_FOOD_ENERGY,
+  PCE_FORMULA_EFFECT,
+  // F4/OD-8 examination
+  DEFAULT_CREDIT_EXPECTATION_TURNOVER,
+  DEFAULT_ASSET_SHARE_DRIFT_RATE,
+  // Stage 7: residual corporate profits
+  DEFAULT_OTHER_COSTS_SHARE,
+  DEFAULT_AI_SECTOR_LABOR_SHARE,
+  DEFAULT_RENT_SHARING_ELASTICITY,
+  DEFAULT_SECULAR_PROFIT_DRIFT_RATE,
+  // Stage 6.5: stock-flow housing
+  BASELINE_HOUSING_STOCK_2025,
+  BASELINE_HOUSEHOLDS_2025,
+  BASELINE_STARTS_CAPACITY_RATIO,
+  BASELINE_MORTGAGE_RATE_2025,
+  DEFAULT_FORMATION_SENSITIVITY,
+  DEFAULT_HEADSHIP_RECOVERY_RATE,
+  DEFAULT_HOUSING_SUPPLY_ELASTICITY,
+  DEFAULT_EMBODIED_CAPACITY_GAIN,
+  DEFAULT_HOUSING_DEPRECIATION_RATE,
+  DEFAULT_LAND_SHARE,
+  DEFAULT_CONSTRUCTION_LABOR_SHARE,
+  DEFAULT_LAND_INCOME_BETA,
+  DEFAULT_LAND_SCARCITY_ELASTICITY,
+  DEFAULT_RENT_OCCUPANCY_ELASTICITY,
+  DEFAULT_RENT_COST_ANCHOR_WEIGHT,
+  DEFAULT_BASELINE_CAP_RATE,
+  DEFAULT_CAP_RATE_MORTGAGE_BETA,
+  DEFAULT_CAP_RATE_INVESTOR_COMPRESSION,
+  DEFAULT_FIRE_SALE_ELASTICITY,
+  DEFAULT_INVESTOR_DEMAND_INTENSITY,
+  DEFAULT_LAND_RATE_SENSITIVITY,
   DEFAULT_CONSUMER_CREDIT_IMPACT,
   ASSET_INCOME_UNDERWRITING_WEIGHT,
   COLLATERAL_LOOSENING_ASYMMETRY,
@@ -203,7 +276,10 @@ export function computeSectorWeightedDeflation(
   clusterCheaperByCluster?: Map<string, number>,
   /** Phase 10.A Bug #A fix: augmentationMultiplier from config (for perWorkerBoost). */
   augmentationMultiplierInput?: number,
-): number {
+): { total: number; byConsumption: Record<ConsumptionSector, number> } {
+  // Stage 1.5: returns the economy-wide scalar (back-compat: monetization + the aiDeflationRate output)
+  // AND the per-consumption-sector deflation RATE (each = CPI-weighted avg of its clusters' deflation,
+  // normalized within sector). The macro composite routes each sector's rate × that sector's passthrough.
   const yearsSinceStart = year - DEFAULT_START_YEAR;
   const augMultiplier = augmentationMultiplierInput ?? 2.0;
 
@@ -215,6 +291,9 @@ export function computeSectorWeightedDeflation(
   }
 
   let totalDeflation = 0;
+  // Stage 1.5: accumulate per-consumption-sector contributions + weights for within-sector normalization.
+  const secContribution: Record<ConsumptionSector, number> = { aiExposed: 0, laborServices: 0, foodEnergy: 0, shelter: 0 };
+  const secWeight: Record<ConsumptionSector, number> = { aiExposed: 0, laborServices: 0, foodEnergy: 0, shelter: 0 };
 
   for (const result of clusterResults) {
     const baseline = result.totalRemainingEmployment + result.totalDirectDisplacement;
@@ -282,9 +361,22 @@ export function computeSectorWeightedDeflation(
     const clusterCPIWeight = (SECTOR_CPI_WEIGHTS[prefix] ?? 0.01) / clustersInGroup;
 
     totalDeflation += clusterCPIWeight * sectorDeflation;
+
+    // Stage 1.5: route this cluster's CPI-weighted deflation to its consumption sector.
+    const cs = clusterConsumptionSector(result.clusterId);
+    secContribution[cs] += clusterCPIWeight * sectorDeflation;
+    secWeight[cs] += clusterCPIWeight;
   }
 
-  return Math.max(0, totalDeflation);
+  // Per-sector deflation RATE = CPI-weighted average of that sector's clusters (normalized within sector).
+  const byConsumption: Record<ConsumptionSector, number> = {
+    aiExposed: secWeight.aiExposed > 0 ? Math.max(0, secContribution.aiExposed / secWeight.aiExposed) : 0,
+    laborServices: secWeight.laborServices > 0 ? Math.max(0, secContribution.laborServices / secWeight.laborServices) : 0,
+    foodEnergy: secWeight.foodEnergy > 0 ? Math.max(0, secContribution.foodEnergy / secWeight.foodEnergy) : 0,
+    shelter: secWeight.shelter > 0 ? Math.max(0, secContribution.shelter / secWeight.shelter) : 0,
+  };
+
+  return { total: Math.max(0, totalDeflation), byConsumption };
 }
 
 /**
@@ -335,6 +427,9 @@ export function computeAutomationCoverageFromClusters(
  * @param policyWageFloor - Minimum wage floor as fraction of baseline wage (0 = no floor)
  * @returns Wage pressure factor [policyWageFloor, 1.0+]
  */
+// DEPRECATED (Stage 3): computeWagePressure (a level multiplier with the (1−aiShare) gate) is replaced
+// by computeNominalWageGrowth below — an endogenous nominal wage-GROWTH equation. Kept (not deleted) for
+// reference and any direct unit tests; no longer called by computeMacro.
 export function computeWagePressure(
   unemploymentRate: number,
   /** Phase 10.A: cumulative AI-displacement unemployment count (headcount, not rate). */
@@ -361,6 +456,63 @@ export function computeWagePressure(
   const scarcityPremium = aiShare * scarcityIntensity * aggregateReplacementDifficultyWagePremium;
 
   return Math.max(policyWageFloor, classicPhillips + scarcityPremium);
+}
+
+/**
+ * Stage 3: Endogenous nominal wage GROWTH rate (replaces computeWagePressure).
+ *   nominalWageGrowth = inflationIndexation × prevCompositeInflation        [R7: LAGGED]
+ *                     + productivityPassthrough × perWorkerProductivityGrowth [R1: per-worker only]
+ *                     − phillipsSlope × max(0, UE − NAIRU)                     [R3: one-sided slack]
+ *                     + Δ(scarcityPremiumLevel)                               [LEVEL hump → YoY change]
+ *   then if negative: × (1 − downwardWageRigidity)                            [R20: total-growth rigidity]
+ * Returns trendWageGrowth (no Phillips/scarcity) for the policy-floor reference (R19) and the Baumol term.
+ * Pure function. (1−aiShare) gate deleted.
+ */
+export function computeNominalWageGrowth(args: {
+  prevCompositeInflation: number;
+  perWorkerProductivityGrowth: number;
+  unemploymentRate: number;
+  naturalRate: number;
+  automationCoverage: number;
+  prevScarcityPremiumLevel: number;
+  scarcityIntensity: number;
+  inflationIndexation: number;
+  productivityPassthrough: number;
+  phillipsSlope: number;
+  downwardWageRigidity: number;
+  /** Stage 7 (Part 3): rent-sharing — prev-year profit share (t−1 lag) vs the DRIFTING secular
+   *  baseline (Q-2 B). TWO-SIDED: profits above baseline → workers claw back (bargaining/retention/
+   *  equity comp); below → wage growth drags (recessions compress rent-sharing — stabilizing).
+   *  NOT the scarcity premium: scarcity = f(coverage) — who is hard to replace; rent-sharing =
+   *  f(profit share) — how much there is to bargain over. */
+  prevProfitShare: number;
+  baselineProfitShare: number;
+  rentSharingElasticity: number;
+}): { nominalWageGrowth: number; trendWageGrowth: number; scarcityPremiumLevel: number; rentSharingContribution: number } {
+  const excessUE = Math.max(0, args.unemploymentRate - args.naturalRate);
+  const cov = Math.max(0, Math.min(1, args.automationCoverage));
+  const scarcityPremiumLevel = args.scarcityIntensity * cov * (1 - cov);            // documented hump LEVEL
+  const scarcityGrowthContribution = scarcityPremiumLevel - args.prevScarcityPremiumLevel;
+
+  // Trend (full-employment) wage growth: indexation + productivity, NO Phillips/scarcity. Used as the
+  // reference for the policy min-wage LEVEL floor (R19) and the labor-services Baumol deviation.
+  const trendWageGrowth = args.inflationIndexation * args.prevCompositeInflation
+    + args.productivityPassthrough * args.perWorkerProductivityGrowth;
+
+  // Stage 7 (Part 3): two-sided rent-sharing on the profit-share deviation (t−1)
+  const rentSharingContribution = args.rentSharingElasticity
+    * (args.prevProfitShare - args.baselineProfitShare);
+
+  let nominalWageGrowth = trendWageGrowth
+    - args.phillipsSlope * excessUE
+    + scarcityGrowthContribution
+    + rentSharingContribution;
+
+  // R20: asymmetric downward nominal rigidity applies to TOTAL growth, whatever drove it negative.
+  if (nominalWageGrowth < 0) {
+    nominalWageGrowth *= (1 - args.downwardWageRigidity);
+  }
+  return { nominalWageGrowth, trendWageGrowth, scarcityPremiumLevel, rentSharingContribution };
 }
 
 /**
@@ -552,6 +704,9 @@ export function computeRevenuePressure(
   cap: number = REVENUE_PRESSURE_CAP,
   decay: number = REVENUE_PRESSURE_DECAY,
 ): { revenuePressure: number; automationAcceleration: number } {
+  // FS-2b: the PRODUCER of the revenue-pressure acceleration (macro state, t-1 consumed); the
+  // COMPOSER (simulation.ts effectiveAutomationAcceleration) adds the credit channel under the
+  // SAME cap -- the cap-shadowing note lives there.
   const gdpContraction = Math.max(0, -gdpGrowthRate);
   const newPressure = Math.min(cap, sensitivity * gdpContraction);
   const automationAcceleration = Math.min(
@@ -644,7 +799,9 @@ export const DEFAULT_SECOND_ORDER_PARAMS: SecondOrderEffectParams = {
   // creditConsumptionSensitivity: CREDIT_CONSUMPTION_SENSITIVITY,
   baselineGovtTransfers: BASELINE_GOVT_TRANSFERS,
   baselineDebtInterest: BASELINE_DEBT_INTEREST,
-  transferGrowthPerUEPoint: TRANSFER_GROWTH_PER_UE_POINT,
+  // DEPRECATED (Stage 5 / H3): retired — incremental transfer spending now derives from the
+  // per-person CASH + IN-KIND constants (single source of truth with the income side).
+  // transferGrowthPerUEPoint: TRANSFER_GROWTH_PER_UE_POINT,
   discretionaryShareOfG: DISCRETIONARY_SHARE_OF_G,
   // Phase 4 quality pass: S-curve deflation velocity (replaces linear sensitivity)
   deferrableConsumptionShare: DEFERRABLE_CONSUMPTION_SHARE,
@@ -824,6 +981,8 @@ export function computeConsumerCreditConditions(
 ): {
   consumerCreditMultiplier: number;
   consumerCreditTightening: number;
+  /** Stage 6 (R18): channel sum BEFORE the maxConsumerTightening clip (binding diagnostics). */
+  unclippedConsumerTightening: number;
   incomeAdequacyRatio: number;
   underwritableIncome: number;
 } {
@@ -878,8 +1037,11 @@ export function computeConsumerCreditConditions(
   const totalSystemicTightening = systemicTightening + inflationRiskPremium;
 
   // Combined: all three channels compound during crises
-  const totalConsumerTightening = Math.min(maxConsumerTightening,
-    Math.max(0, incomeTightening + collateralTightening + totalSystemicTightening));
+  // Stage 6 (R18): surface the UNCLIPPED channel sum so binding analysis can judge whether the
+  // ceiling or the demand for tightening is the constraint.
+  const unclippedConsumerTightening = Math.max(0,
+    incomeTightening + collateralTightening + totalSystemicTightening);
+  const totalConsumerTightening = Math.min(maxConsumerTightening, unclippedConsumerTightening);
 
   const consumerCreditRatio = maxConsumerTightening > 0
     ? totalConsumerTightening / maxConsumerTightening : 0;
@@ -889,6 +1051,7 @@ export function computeConsumerCreditConditions(
   return {
     consumerCreditMultiplier,
     consumerCreditTightening: totalConsumerTightening,
+    unclippedConsumerTightening,
     incomeAdequacyRatio,
     underwritableIncome,
   };
@@ -915,6 +1078,9 @@ export function computeBusinessCreditConditions(
   maxBusinessTightening: number,
   maxBusinessLoosening: number,
   businessInvestmentImpact: number,
+  // Stage 0 (item 1): trend nominal growth for the growth signal (default 0 = legacy absolute behavior).
+  // The profit-coverage baseline (arg #2) is GDP-proportional, pre-scaled by the caller (Stage 0 item 2).
+  trendNominalGrowthRate: number = 0,
 ): {
   businessCreditMultiplier: number;
   businessCreditTightening: number;
@@ -922,6 +1088,9 @@ export function computeBusinessCreditConditions(
 } {
   // Channel 1: Profitability
   // Below baseline: tightening. Above baseline: loosening signal (capped at 2x).
+  // Stage 0 (item 2): the caller passes a GDP-proportional baseline (year-0 endogenous profits scaled
+  // by lagged nominal GDP), so a healthy economy with a stable profit SHARE yields profitCoverageRatio
+  // ≈ 1.0. The ratio moves only when the profit share of GDP changes — the meaningful credit signal.
   const profitCoverageRatio = baselineCorporateProfits > 0
     ? Math.min(2.0, prevAfterTaxCorporateProfits / baselineCorporateProfits)
     : 1.0;
@@ -933,7 +1102,10 @@ export function computeBusinessCreditConditions(
   // Channel 2: Revenue Trajectory
   // Positive GDP growth → loosening (banks confident in lending)
   // Negative GDP growth → tightening (revenue declining)
-  const growthSignal = -growthTrajectorySensitivity * prevGDPGrowthRate;
+  // Stage 0 (item 1): growth signal is relative to TREND nominal growth — at-trend growth is neutral
+  // (no loosening). Absolute positive growth previously made a healthy steady-state economy perpetually
+  // "loosen" business credit, inflating investment demand above capacity → capacity-gate false-positive.
+  const growthSignal = -growthTrajectorySensitivity * (prevGDPGrowthRate - trendNominalGrowthRate);
   const cappedGrowthEffect = Math.max(-DEFAULT_MAX_GROWTH_TIGHTENING,
     Math.min(maxBusinessLoosening, growthSignal));
 
@@ -966,6 +1138,18 @@ export function computeBusinessCreditConditions(
  *         Case, Quigley, Shiller (2005): MPC ~0.06
  *         Fed Z.1 Financial Accounts: household real estate ~$45T (2024 Q3)
  */
+// FS-4b (the premise CORRECTED in FS4B_REPORT): this function is DEAD IN THE SIMULATION PATH —
+// the live else-branch routes the wealth drag, the collateral rate, and the builder trendG to the
+// STRUCTURAL housing block (homePriceChangeRate = housing.homePriceGrowth). The FS-4 memo's
+// headline claim (a live dual-role seam) was WRONG: the producer's liveness was never
+// slot-verified. Retained ONLY for its two test callers, marked per the F-C dead-code genus;
+// its five inline numbers are NOT live model behavior. DO NOT wire this into the simulation.
+// FS-4b (the premise CORRECTED in FS4B_REPORT): this function is DEAD IN THE SIMULATION PATH —
+// the live else-branch routes the wealth drag, the collateral rate, and the builder trendG to the
+// STRUCTURAL housing block (homePriceChangeRate = housing.homePriceGrowth). The FS-4 memo's
+// headline claim (a live dual-role seam) was WRONG: the producer's liveness was never
+// slot-verified. Retained ONLY for its test callers, marked per the F-C dead-code genus;
+// its five inline numbers are NOT live model behavior. DO NOT wire this into the simulation.
 export function computeHousingWealthEffect(
   avgHomeownership: number,
   foreclosureRateAggregate: number,
@@ -1089,6 +1273,270 @@ export function computeHomePriceChange(
 
   return affordabilityEffect + incomeEffect + supplyEffect
     + demographicEffect + effectiveReversion;
+}
+
+/**
+ * STAGE 6.5: Stock-flow housing model (owner spec OD-9a–e; checkpoint ratified).
+ * Pure function — one annual step of the six-block system:
+ *   1. DEMAND: households via headship (formation collapses one-sided with income deviations, R24-class
+ *      asymmetry; reverts toward baseline as conditions normalize).
+ *   2. SUPPLY: starts respond to the profitability gap (P vs replacement cost) through the Saiz
+ *      regulatory-friction dial, capped by construction capacity (embodied AI builds FASTER);
+ *      completions lag 1 yr; stock depreciates (HUD ~0.25%/yr).
+ *   3. REPLACEMENT COST: (1−λ)·CC + λ·L. CC absorbs the FULL construction-cluster embodied deflation
+ *      (the 0.05 CPI hook is retired — cost savings reach shelter only through the supply response).
+ *      L tracks nominal income (Knoll-Schularick-Steger) + scarcity + the investor land bid
+ *      (R24: ONE-SIDED — land ratchets up, is held not dumped). As CC→0, λ_eff→1: land is the
+ *      terminal constraint (replaces the fake −0.05 "land scarcity floor").
+ *   4. RENT (= shelter CPI): cost anchor (Glaeser-Gyourko production-cost view; RATIFIED) +
+ *      occupancy gap (Rosen-Smith natural-vacancy literature). BASELINE_SHELTER_INFLATION is now
+ *      EMERGENT (zero-AI ≈ 3.95%/yr — see STAGE6_5_CHECKPOINT.md Gate A arithmetic).
+ *   5. PRICE: ΔP = ΔR − Δcap/cap + fire-sale (Mian-Sufi-Trebbi 1.75, replaces the hand-set ×3.0).
+ *      capRate = base + β·(mortgage − baseline) — rate rises sink prices with stable rents (GR pattern).
+ *   6. CONSERVATION: foreclosed units STAY in the stock; institutional conversions house renters —
+ *      tenure shifts can no longer manufacture rental inflation (kills the +17.3pp artifact).
+ * Growth RATES are computed every year (incl. year 0, for emergent year-0 shelter inflation);
+ * LEVEL indices compound from year 1 (isFirstYear holds them at 1.0 / baselines).
+ */
+export function computeHousingBlock(args: {
+  isFirstYear: boolean;
+  // prev states (1.0 / baselines at first year)
+  prevHousingStock: number; prevHouseholds: number; prevHeadship: number;
+  prevRentIndex: number; prevConstructionCost: number; prevLandCost: number;
+  prevHomePriceIndex: number; prevHousingStarts: number;
+  // current-year drivers
+  population: number;
+  nominalWageGrowth: number;
+  baseInflationRate: number;
+  broadGoodsPressure: number;
+  secDeflShelter: number;            // construction-cluster embodied deflation (R10 routing), full strength
+  embodiedCapability: number;        // [0,1] embodied capability curve (capacity channel)
+  prevRealIncomeGrowthRate: number;  // t−1 (0 at year 0 = sentinel)
+  prevCompositeInflation: number;    // t−1
+  trendRealIncomeGrowth: number;     // ≈ baselineGDPGrowth
+  foreclosureRateAggregate: number;
+  institutionalBuyerRate: number;
+  mortgageRate: number; prevMortgageRate: number;
+  prevAssetIncomeShare: number; baselineAssetIncomeShare: number;
+  /** Examination (config-consistency, Stage-6 precedent): realized population growth — equilibrium
+   *  baseline starts must track the CONFIGURED demography, not the default constant (zero-pop-growth
+   *  configs otherwise build into a glut → housing deflation spiral; the Test-B residual driver). */
+  realizedPopulationGrowth: number;
+  // parameters (user-adjustable; cited defaults in constants.ts)
+  formationSensitivity: number; headshipRecoveryRate: number;
+  supplyElasticity: number; embodiedCapacityGain: number; depreciationRate: number;
+  landShare: number; constructionLaborShare: number;
+  landIncomeBeta: number; landScarcityElasticity: number;
+  rentOccupancyElasticity: number; rentCostAnchorWeight: number;
+  opexPassthrough: number; rentDownwardRigidity: number;
+  rentIncomeElasticity: number; prevAfterTaxIncomeGrowth: number;
+  diagSpotBuilderPrice?: boolean;
+  // L9c
+  builderPriceMode?: 'spot' | 'trend-aware' | 'adaptive';
+  prevBuilderTrendGrowth: number; prevHomePriceChangeRate: number;
+  constructionCreditSensitivity: number; prevBusinessCreditTightening: number;
+  baselineCapRate: number; capRateMortgageBeta: number; capRateInvestorCompression: number;
+  fireSaleElasticity: number; investorDemandIntensity: number;
+  /** E-6 (ratified): the land discount-rate channel — the Fed now reaches every asset. */
+  landRateSensitivity: number;
+  // E-10 (ratified): pipeline + gradual builders
+  prevHousingPipeline: number; prevBuilderPriceIndex: number;
+  builderAdjustmentLambda: number; housingPipelineDuration: number;
+  // E-11 (ratified): the land residual closure
+  landClosureKappa: number; prevLandResidualTarget: number;
+  // E-12: the same-date capRate reference (legacy 0.06 via config.mortgageRateReference)
+  mortgageRateReference?: number;
+}): {
+  headshipRate: number; households: number; housingStock: number; housingStarts: number;
+  housingPipeline: number; housingCompletions: number; builderPriceIndex: number;
+  landResidualTarget: number;
+  builderTrendGrowth: number;
+  occupancyRate: number; occupancyGap: number;
+  rentGrowth: number; rentIndex: number;
+  constructionCostGrowth: number; constructionCostIndex: number;
+  landGrowth: number; landCostIndex: number;
+  replacementCostIndex: number; profitabilityGap: number;
+  capRate: number; homePriceGrowth: number; homePriceIndex: number;
+  lambdaEffPrev: number;             // value-weighted land share at t−1 (nonAI add-back weighting)
+  investorLandBid: number; fireSalePressure: number;
+} {
+  const a = args;
+  const baselineHeadship = BASELINE_HOUSEHOLDS_2025 / US_POPULATION_2025;
+  const naturalOccupancy = BASELINE_HOUSEHOLDS_2025 / BASELINE_HOUSING_STOCK_2025;
+  // Equilibrium baseline starts: hold occupancy at natural given the model's own demography
+  // (0.95M/yr — HOUST 1.36M is the documented empirical cross-check; the gap is household-size
+  // decline + immigration the 0.4%/yr demography does not carry. Ruled 6.5 item 3.)
+  const baselineStarts = a.depreciationRate * BASELINE_HOUSING_STOCK_2025
+    + (Math.max(0, a.realizedPopulationGrowth) * BASELINE_HOUSEHOLDS_2025) / naturalOccupancy;
+
+  let landResidualTargetOut = 1.0;  // E-11 state (set in the land section)
+  const capRateReference = a.mortgageRateReference ?? BASELINE_MORTGAGE_RATE_2025;  // E-12
+
+  // ── 1. DEMAND: headship + households ──
+  const incomeDev = a.prevRealIncomeGrowthRate - a.trendRealIncomeGrowth;
+  const headshipGrowth = a.formationSensitivity * Math.min(0, incomeDev)
+    + a.headshipRecoveryRate * Math.log(baselineHeadship / a.prevHeadship);
+  const headshipRate = a.isFirstYear ? baselineHeadship : a.prevHeadship * (1 + headshipGrowth);
+  const households = a.population * headshipRate;
+
+  // ── 2. SUPPLY (E-10): the pipeline stock + gradual builders — the last instantaneous agents
+  // join the gradual-adjustment family. Completions = the pipeline maturing at the length-biased
+  // duration (supply keeps arriving through rate spikes — the 2023-24 evidence); the stock
+  // inherits COMPLETIONS. Duration ≤ 0 = the legacy 1-yr lag (bit-equivalent with λ=0).
+  const pipeD = a.housingPipelineDuration;
+  const completions = pipeD > 0 ? a.prevHousingPipeline / pipeD : a.prevHousingStarts;
+  const housingStock = a.isFirstYear
+    ? BASELINE_HOUSING_STOCK_2025
+    : a.prevHousingStock + completions - a.depreciationRate * a.prevHousingStock;
+  const occupancyRate = households / housingStock;
+  const occupancyGap = occupancyRate - naturalOccupancy;
+
+  const prevReplacement = (1 - a.landShare) * a.prevConstructionCost + a.landShare * a.prevLandCost;
+  // E-10: builders mark to their λ-smoothed planning-horizon price, not the spot capRate-crushed value
+  const profitabilityGap = (a.prevBuilderPriceIndex - prevReplacement) / prevReplacement;
+  const startsCapacity = BASELINE_STARTS_CAPACITY_RATIO * baselineStarts
+    * (1 + a.embodiedCapacityGain * a.embodiedCapability);
+  const gapImpliedStarts = Math.min(
+    baselineStarts * Math.max(0, 1 + a.supplyElasticity * profitabilityGap),
+    startsCapacity,
+  );
+  // L9c-1 (ratified, R1 residually calibrated): the construction-credit gate — entry reads the
+  // Loop-4 business-credit conditions (the most credit-sensitive lending class; ADC −75% 2008-12).
+  // Gate-A-neutral by construction (tightening ≡ 0 at trend → gate ≡ 1).
+  // One-sided on the TIGHTENING side (the ratified choke semantics + the checkpoint's stated
+  // Gate-A-neutrality): business credit EASING (negative tightening, the healthy baseline) is not
+  // an entry subsidy — the boom-side credit channel is a separate, unruled edge (registered).
+  const creditGate = Math.max(0, 1 - a.constructionCreditSensitivity * Math.max(0, a.prevBusinessCreditTightening));
+  const gatedGapImpliedStarts = gapImpliedStarts * creditGate;
+  // E-10: gradual start decisions — starts(t) = λ·starts(t−1) + (1−λ)·gapImplied (HOUST-calibrated)
+  const housingStarts = a.builderAdjustmentLambda * a.prevHousingStarts
+    + (1 - a.builderAdjustmentLambda) * gatedGapImpliedStarts;
+  const housingPipeline = pipeD > 0
+    ? Math.max(0, a.prevHousingPipeline + housingStarts - completions)
+    : 0;
+
+  // ── 3. REPLACEMENT COST: construction + land ──
+  const constructionCostGrowth = a.constructionLaborShare * a.nominalWageGrowth
+    + (1 - a.constructionLaborShare) * (a.baseInflationRate + a.broadGoodsPressure)  // E-9: receives the F-D complement via the caller (materials = non-shelter goods)
+    - a.secDeflShelter;
+  const constructionCostIndex = a.isFirstYear
+    ? 1.0 : a.prevConstructionCost * (1 + constructionCostGrowth);
+
+  // year-0 sentinel: realIncomeGrowthRate is 0 before the first full year — use the nominal trend
+  const prevNominalIncomeGrowth = a.prevRealIncomeGrowthRate !== 0
+    ? a.prevRealIncomeGrowthRate + a.prevCompositeInflation
+    : a.trendRealIncomeGrowth + a.baseInflationRate;
+  // R24: ONE-SIDED investor bid — land ratchets up with the asset-income share and does not
+  // surrender gains when the share recedes (land is held, not dumped). Stated design choice.
+  const investorLandBid = a.investorDemandIntensity
+    * Math.max(0, a.prevAssetIncomeShare - a.baselineAssetIncomeShare);
+  // E-6 (ratified): the rate term — LEVEL-deviation on the mortgage rate (capRate symmetry; land is
+  // the longest-duration asset and must feel persistent rate levels, not just changes). Closes the
+  // income→land→rent→indexation loop against the Taylor anchor (the §0 stability finding: without
+  // it the zero-AI composite diverges to 9.6% by 2050). Distinct from the investor bid (E-2): the
+  // bid is an asset-share-driven DEMAND flow; this is the DISCOUNT-RATE channel — no double-count.
+  // E-11 (ratified): THE LAND RESIDUAL CLOSURE. L* computed in VALUE-CONSISTENT terms (precision
+  // item 1): structureValue = CC index × the base structure quantity ((1−s₀) at base prices), so
+  // the residual leverage declines (~2.5 → ~2.3) as land's value share drifts — exact, not frozen.
+  // ECM form: feedforward g_L*(t) carries the cointegrating trend (EC ≡ 0 at equilibrium);
+  // κ corrects level divergences. κ=0 → the literal pre-E-11 block (toggle #8, bit-equivalent).
+  const kappa = a.landClosureKappa;
+  let landGrowth: number;
+  if (kappa > 0) {
+    // L9 disposition 4: the 0.05 floor RETIRED — any path leaning on it was ruled a finding,
+    // and the free-disposal guard (P ≥ (1−s)·CC) is the standing detector of infeasible paths.
+    const residualTarget =
+      (a.prevHomePriceIndex - (1 - a.landShare) * a.prevConstructionCost) / a.landShare;
+    const gLstar = a.prevLandResidualTarget > 0
+      ? residualTarget / a.prevLandResidualTarget - 1
+      : 0;
+    landGrowth = a.landScarcityElasticity * occupancyGap
+      + investorLandBid
+      + gLstar
+      + kappa * (residualTarget / a.prevLandCost - 1);
+    // the retired terms (β_direct, landRateSensitivity) are carried structurally by the closure;
+    // see the wedge formalization at DEFAULT_LAND_CLOSURE_KAPPA.
+    landResidualTargetOut = residualTarget;
+  } else {
+    landGrowth = a.landIncomeBeta * prevNominalIncomeGrowth
+      + a.landScarcityElasticity * occupancyGap
+      + investorLandBid
+      - a.landRateSensitivity * (a.mortgageRate - capRateReference);  // legacy branch (toggle #8)
+    landResidualTargetOut = a.prevLandResidualTarget;
+  }
+  const landCostIndex = a.isFirstYear ? 1.0 : a.prevLandCost * (1 + landGrowth);
+
+  const replacementCostIndex = (1 - a.landShare) * constructionCostIndex + a.landShare * landCostIndex;
+  const lambdaEffPrev = (a.landShare * a.prevLandCost) / prevReplacement;
+  // Value-weighted component growth — algebraically identical to replacementIndex/prev − 1 when the
+  // levels compound, AND yields the correct growth RATE at year 0 while the levels are held at 1.0
+  // (level ratios would read 0 there, which zeroed year-0 shelter inflation — caught in Gate A).
+  const replacementGrowth = (1 - lambdaEffPrev) * constructionCostGrowth + lambdaEffPrev * landGrowth;
+
+  // ── 4. RENT = shelter CPI (cost anchor + occupancy cycle) ──
+  // L9 (ratified): rents re-routed off the unit-gain circle. PRIMARY = the occupancy gap (the
+  // original 6.5 design restored); + the LAND-FREE landlord opex term; one-sided nominal rigidity
+  // on the total change (Genesove; 2008-12-derived). rentCostAnchorWeight > 0 = the pre-L9 legacy.
+  let rentGrowth: number;
+  if (a.rentCostAnchorWeight > 0) {
+    rentGrowth = a.rentCostAnchorWeight * replacementGrowth
+      + a.rentOccupancyElasticity * occupancyGap;
+  } else {
+    // L9b: the intensive margin — tenants' WTP tracks nominal disposable income per household
+    const incomePerHouseholdGrowth = a.prevAfterTaxIncomeGrowth
+      - (a.prevHouseholds > 0 ? households / a.prevHouseholds - 1 : 0);
+    const rentGrowthRaw = a.rentOccupancyElasticity * occupancyGap
+      + a.opexPassthrough * constructionCostGrowth
+      + a.rentIncomeElasticity * incomePerHouseholdGrowth;
+    rentGrowth = rentGrowthRaw >= 0
+      ? rentGrowthRaw
+      : (1 - a.rentDownwardRigidity) * rentGrowthRaw;
+  }
+  const rentIndex = a.isFirstYear ? 1.0 : a.prevRentIndex * (1 + rentGrowth);
+
+  // ── 5. PRICE: rents capitalized at the rate-sensitive cap rate, plus fire sales ──
+  const investorPressure = Math.max(0, a.prevAssetIncomeShare - a.baselineAssetIncomeShare);
+    const capRate = a.baselineCapRate
+    + a.capRateMortgageBeta * (a.mortgageRate - capRateReference)  // E-12: the same-date-derived reference
+    - a.capRateInvestorCompression * investorPressure;
+  const prevCapRate = a.baselineCapRate
+    + a.capRateMortgageBeta * (a.prevMortgageRate - BASELINE_MORTGAGE_RATE_2025);
+  const capRateDrag = prevCapRate > 0 ? (capRate - prevCapRate) / prevCapRate : 0;
+  // CONSERVATION: foreclosed units stay in the stock; only the UNABSORBED share pressures prices
+  const fireSalePressure = -a.fireSaleElasticity
+    * (1 - a.institutionalBuyerRate) * a.foreclosureRateAggregate;
+  const homePriceGrowth = rentGrowth - capRateDrag + fireSalePressure;
+  const homePriceIndex = a.isFirstYear ? 1.0 : a.prevHomePriceIndex * (1 + homePriceGrowth);
+  // E-10: the builder's planning-horizon price (same λ — one agent, one cadence)
+  // L9c-3/4 (ratified): the TREND-AWARE builder — perceived = λ·prev·(1+trendG) + (1−λ)·P.
+  // At constant growth, perceived ≡ P exactly (secular bias ZERO — the λ-lag row superseded);
+  // deviations from trend decay at the same λ (the 2022-23 cadence calibration preserved).
+  // trendG = an H=10 EMA of realized ΔP (H reuses the standing expectations horizon).
+  // Modes: 'spot' (perceived = P) / 'trend-aware' (default) / 'adaptive' (the pre-L9c smoother —
+  // the chronic-under-build world stays representable). diagSpotBuilderPrice ≡ legacy 'spot'.
+  const builderMode = a.diagSpotBuilderPrice ? 'spot' : (a.builderPriceMode ?? 'trend-aware');
+  const builderTrendGrowth = a.isFirstYear
+    ? a.prevBuilderTrendGrowth
+    : (1 - 1 / BUILDER_TREND_HORIZON_YEARS) * a.prevBuilderTrendGrowth
+      + (1 / BUILDER_TREND_HORIZON_YEARS) * a.prevHomePriceChangeRate;
+  const builderPriceIndex = a.isFirstYear ? 1.0
+    : builderMode === 'spot'
+      ? homePriceIndex
+      : builderMode === 'adaptive'
+        ? a.builderAdjustmentLambda * a.prevBuilderPriceIndex
+          + (1 - a.builderAdjustmentLambda) * homePriceIndex
+        : a.builderAdjustmentLambda * a.prevBuilderPriceIndex * (1 + builderTrendGrowth)
+          + (1 - a.builderAdjustmentLambda) * homePriceIndex;
+
+  return {
+    headshipRate, households, housingStock, housingStarts, occupancyRate, occupancyGap,
+    housingPipeline, housingCompletions: completions, builderPriceIndex,
+    builderTrendGrowth,
+    landResidualTarget: landResidualTargetOut,
+    rentGrowth, rentIndex, constructionCostGrowth, constructionCostIndex,
+    landGrowth, landCostIndex, replacementCostIndex, profitabilityGap,
+    capRate, homePriceGrowth, homePriceIndex, lambdaEffPrev, investorLandBid, fireSalePressure,
+  };
 }
 
 /**
@@ -1281,7 +1729,9 @@ export function updateHomeownership(
  * @param govtTransfers - Baseline government transfer payments
  * @param debtInterest - Baseline net interest payments
  * @param totalRevenue - Total government revenue (decomposed tax channels, Phase 5-tax)
- * @param transferGrowthPerPP - Additional transfers per 1pp excess UE
+ * @param incrementalTransferSpending - Stage 5 (H3): incremental-UE transfer outlays (cash + in-kind),
+ *        the SAME dollar flow paid on the income/consumption side — identical constants by construction.
+ *        (Replaces the retired transferGrowthPerPP $65B/pp × excessUE estimate.)
  * @param policyFiscalCost - Policy costs (UBI, wage subsidies, etc.)
  * @returns { adjustedG, fiscalDeficitGDPRatio, discretionarySpending }
  */
@@ -1293,12 +1743,15 @@ export function computeFiscalPressure(
   govtTransfers: number = BASELINE_GOVT_TRANSFERS,
   debtInterest: number = BASELINE_DEBT_INTEREST,
   totalRevenue: number = EFFECTIVE_TAX_RATE * nominalGDP,  // backward-compat default
-  transferGrowthPerPP: number = TRANSFER_GROWTH_PER_UE_POINT,
+  incrementalTransferSpending: number = 0,
   policyFiscalCost: number = 0,
 ): { adjustedG: number; fiscalDeficitGDPRatio: number; discretionarySpending: number } {
-  const excessUE = Math.max(0, unemploymentRate - naturalUE);
-  // excessUE is fraction; multiply by 100 for percentage points
-  const additionalTransfers = transferGrowthPerPP * excessUE * 100;
+  // Stage 5 (H3): the reporting deficit books the unified per-person flow directly. unemploymentRate
+  // and naturalUE are retained in the signature for call-site continuity (the rate-based $/pp
+  // estimate is retired — the dollar amount now arrives pre-computed from the single source).
+  void unemploymentRate;
+  void naturalUE;
+  const additionalTransfers = incrementalTransferSpending;
   const totalTransfers = govtTransfers + additionalTransfers;
   // Fix D: Include policy fiscal cost (UBI, wage subsidies, etc.) in government spending.
   const totalSpending = baselineG + totalTransfers + debtInterest + policyFiscalCost;
@@ -1407,7 +1860,10 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   const corporateTaxRate = inputs.corporateTaxRate ?? BASELINE_CORPORATE_TAX_RATE;
   const capitalGainsTaxRate = inputs.capitalGainsTaxRate ?? BASELINE_CAPITAL_GAINS_RATE;
   const corporateRetentionRate = inputs.corporateRetentionRate ?? BASELINE_CORPORATE_RETENTION_RATE;
-  const aiProfitGrowthRateParam = inputs.aiProfitGrowthRate ?? DEFAULT_AI_PROFIT_GROWTH_RATE;
+  // DEPRECATED (Stage 1): aiProfitGrowthRateParam drove the old market-power price passthrough,
+  // replaced by the explicit aiDeflationPassthrough parameter. inputs.aiProfitGrowthRate is still
+  // consumed elsewhere (asset-income P/E path) via previousMacro, not here.
+  // const aiProfitGrowthRateParam = inputs.aiProfitGrowthRate ?? DEFAULT_AI_PROFIT_GROWTH_RATE;
   const postTaxMpcWage = inputs.postTaxMPC_Wage ?? DEFAULT_POST_TAX_MPC_WAGE;
   const postTaxMpcAsset = inputs.postTaxMPC_Asset ?? DEFAULT_POST_TAX_MPC_ASSET;
   const postTaxMpcTransfer = inputs.postTaxMPC_Transfer ?? DEFAULT_POST_TAX_MPC_TRANSFER;
@@ -1468,7 +1924,10 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // Credit conditions require baseline captures from simulation.ts (baselineRealHouseholdIncome,
   // baselineCorporateProfits). These are NOT available when computeMacro is called directly
   // in unit tests or for the first year. Default to neutral (no tightening) when missing.
-  let consumerCredit: { consumerCreditMultiplier: number; consumerCreditTightening: number; incomeAdequacyRatio: number; underwritableIncome: number };
+  let consumerCredit: { consumerCreditMultiplier: number; consumerCreditTightening: number; unclippedConsumerTightening: number; incomeAdequacyRatio: number; underwritableIncome: number };
+  // E-1 state (examination): the adaptive credit bar
+  let creditBarLevel = inputs.baselineRealHouseholdIncome ?? 0;
+  let creditBarExpectationOut = baseInflationRate;
   let businessCredit: { businessCreditMultiplier: number; businessCreditTightening: number; profitCoverageRatio: number };
   let creditTighteningRate: number;
   let creditDeflationContribution: number;
@@ -1478,7 +1937,7 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
 
   if (isFirstYear || !hasBaselineCaptures) {
     // First year or missing baselines → neutral credit (no tightening, no loosening)
-    consumerCredit = { consumerCreditMultiplier: 1.0, consumerCreditTightening: 0, incomeAdequacyRatio: 1.0, underwritableIncome: 0 };
+    consumerCredit = { consumerCreditMultiplier: 1.0, consumerCreditTightening: 0, unclippedConsumerTightening: 0, incomeAdequacyRatio: 1.0, underwritableIncome: 0 };
     businessCredit = { businessCreditMultiplier: 1.0, businessCreditTightening: 0, profitCoverageRatio: 1.0 };
     creditTighteningRate = 0;
     creditDeflationContribution = 0;
@@ -1487,14 +1946,51 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     // This approximates ~1.6%/year (GDP growth minus population growth) — the rate the
     // real economy SHOULD be growing. The credit baseline grows at this rate so only
     // genuine deterioration (income falling below trend) triggers tightening.
-    const creditBaselineGrowth = Math.max(0,
-      (inputs.baselineGDPGrowth ?? BASELINE_GDP_GROWTH_RATE) - (inputs.populationGrowthRate ?? DEFAULT_POPULATION_GROWTH_RATE));
+    // Stage 2 (firewall): credit underwriting is now NOMINAL, so the income-adequacy baseline grows at
+    // the NOMINAL trend = potential real growth (baselineGDPGrowth ~2.0%) + base inflation. Banks expect
+    // nominal income to track the nominal economy; only nominal income falling BELOW that trend signals
+    // deficiency. In zero-AI nominal income grows at exactly this trend ⇒ incomeAdequacyRatio ≈ 1.0.
+    // (Stage 0 used the real 2.0% rate when underwriting was real-deflated; Stage 2 makes both nominal.)
+    // Stage 6 (config-consistency): the trend's population component uses the REALIZED population
+    // growth, not the constant baked into baselineGDPGrowth — banks expect income to track the
+    // economy that exists, including its actual demography. At the default populationGrowthRate this
+    // is bit-identical (terms cancel); in synthetic zero-population-growth configs it removes a
+    // manufactured ~0.4%/yr "deficiency" that the resized ceiling would otherwise amplify.
+    const realizedPopGrowth = previousMacro && previousMacro.dynamicPopulation > 0
+      ? population / previousMacro.dynamicPopulation - 1
+      : DEFAULT_POPULATION_GROWTH_RATE;
+    // ═══ F4/OD-8 EXAMINATION (E-1 + the E-3 sibling): the credit income-adequacy bar ═══
+    // INFLATION part (E-1, LAGGED-REALIZED via debt turnover): converges from the origination
+    // expectation (baseInflationRate) toward lagged realized composite at 1/duration ≈ 0.143/yr —
+    // Fisher preserved for the existing stock (the bar stays high for years into a deflation),
+    // immortality removed (stocks turn over, new originations re-price). turnover = 0 → legacy FIXED.
+    // REAL part (E-3 sibling, EMERGENT-CONSISTENT closed form): the post-D-1 potential real income
+    // growth = perWorkerProductivity × productivityPassthrough + realized population growth
+    // (≈ 1.6 × 0.90 + 0.4 = 1.84%) — the fixed 2.0% ignored the ratified D-1 passthrough; once E-1
+    // fixes the inflation part, that 0.16pp/yr wedge would manufacture tightening in zero-AI.
+    // creditBarRealTrend overrides for isolation runs (legacy = 0.02-equivalent).
+    const turnoverRate = inputs.creditExpectationTurnover ?? DEFAULT_CREDIT_EXPECTATION_TURNOVER;
+    const prevBarExpectation = previousMacro?.creditBarInflationExpectation ?? baseInflationRate;
+    const creditBarInflationExpectation = prevBarExpectation
+      + turnoverRate * ((previousMacro?.compositeInflation ?? baseInflationRate) - prevBarExpectation);
+    const creditBarRealTrend = inputs.creditBarRealTrend
+      ?? (((inputs.baselineGDPGrowth ?? BASELINE_GDP_GROWTH_RATE) - DEFAULT_POPULATION_GROWTH_RATE)
+        * (inputs.productivityPassthrough ?? DEFAULT_PRODUCTIVITY_PASSTHROUGH)
+        + realizedPopGrowth);
+    // Recursive bar level (replaces the internal (1+g)^years power compound — identical arithmetic
+    // for constant rates, and the only form that admits an adaptive expectation):
+    const prevBarLevel = previousMacro?.creditBarLevel ?? (inputs.baselineRealHouseholdIncome ?? 0);
+    const creditBarLevelVal = (isFirstYear || yearsSinceStart <= 1)
+      ? (inputs.baselineRealHouseholdIncome ?? 0)   // year-0/1: prevRealIncome IS the baseline (Phase 8 Fix 5 convention)
+      : prevBarLevel * (1 + Math.max(0, creditBarRealTrend + creditBarInflationExpectation));
+    creditBarLevel = creditBarLevelVal;
+    creditBarExpectationOut = creditBarInflationExpectation;
 
     consumerCredit = computeConsumerCreditConditions(
       inputs.prevRealWageIncome ?? 0,
       inputs.prevRealTransferIncome ?? 0,
       inputs.prevRealAssetIncome ?? 0,
-      inputs.baselineRealHouseholdIncome!,
+      creditBarLevelVal,                 // E-1: the recursive adaptive bar (was baselineRealHouseholdIncome)
       inputs.transferReliabilityWeight ?? DEFAULT_TRANSFER_RELIABILITY_WEIGHT,
       inputs.prevHomePriceChangeRate ?? 0,
       mortgageStressIdx,
@@ -1507,33 +2003,43 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
       inputs.inflationRiskSensitivity ?? DEFAULT_INFLATION_RISK_SENSITIVITY,
       inputs.maxConsumerTightening ?? DEFAULT_MAX_CONSUMER_TIGHTENING,
       inputs.consumerCreditImpact ?? DEFAULT_CONSUMER_CREDIT_IMPACT,
-      Math.max(0, yearsSinceStart - 1),  // Phase 8 Fix 5: years since baseline for growing credit baseline
-                                         // -1 because prevRealIncome is from PREVIOUS year; year-0 income
-                                         // IS the baseline, so comparing it to baseline×(1+g)^1 creates
-                                         // a false 1.6% deficiency in the very first year.
-      creditBaselineGrowth,              // Phase 8 Fix 5: structural productivity growth rate (~1.6%)
+      0,                                 // E-1: the bar is precomputed above; no internal compounding
+      0,
     );
 
     const prevGDPGrowthRate = previousMacro?.gdpGrowthRate ?? (inputs.baselineGDPGrowth ?? BASELINE_GDP_GROWTH_RATE);
     const maxBusinessLoosening = inputs.maxBusinessCreditLoosening ?? DEFAULT_MAX_BUSINESS_CREDIT_LOOSENING;
 
+    // Stage 0 (item 2): GDP-proportional profit-coverage baseline. prevAfterTaxCorporateProfits reflects
+    // year t-2 earnings (after-tax of year t-1 uses year t-2 profits), so scale the captured year-0
+    // endogenous baseline by year t-2 nominal GDP. With a stable profit share this keeps the ratio ≈ 1.0.
+    const laggedNominalGDP = nominalGDPHistory.length >= 2
+      ? nominalGDPHistory[nominalGDPHistory.length - 2]!
+      : BASELINE_GDP_NOMINAL_2025;
+    const profitBaselineScaled = (inputs.baselineCorporateProfits ?? 0)
+      * (laggedNominalGDP / BASELINE_GDP_NOMINAL_2025);
+
     businessCredit = computeBusinessCreditConditions(
       inputs.prevAfterTaxCorporateProfits ?? 0,
-      inputs.baselineCorporateProfits ?? 0,
+      profitBaselineScaled,
       prevGDPGrowthRate,
       inputs.profitabilitySensitivity ?? DEFAULT_PROFITABILITY_SENSITIVITY,
       inputs.growthTrajectorySensitivity ?? DEFAULT_GROWTH_TRAJECTORY_SENSITIVITY,
       inputs.maxBusinessTightening ?? DEFAULT_MAX_BUSINESS_TIGHTENING,
       maxBusinessLoosening,
       inputs.businessInvestmentImpact ?? DEFAULT_BUSINESS_INVESTMENT_IMPACT,
+      // Stage 0 (item 1): growth signal neutral at trend. Nominal trend = potential real growth +
+      // REALIZED prior-year inflation (tracks actual price dynamics rather than a fixed constant).
+      baselineGDPGrowth + (previousMacro?.compositeInflation ?? baseInflationRate), // trendNominalGrowthRate
     );
 
     // Credit deflation contribution: consumer credit tightening causes deflationary pressure
     // (less consumer borrowing → less money creation → deflationary)
-    const maxConsTightening = inputs.maxConsumerTightening ?? DEFAULT_MAX_CONSUMER_TIGHTENING;
-    creditTighteningRate = maxConsTightening > 0
-      ? consumerCredit.consumerCreditTightening / maxConsTightening
-      : 0;
+    // Stage 6 (R18): normalize by the GR-PEAK anchor (0.5), not the resized Depression-scale
+    // ceiling — a GR-level tightening produces the same deflation pressure it always did
+    // (rate 1.0 = one GR-unit); Depression-scale tightening can reach rate 2.0. Normalizing by
+    // the new ceiling would have silently halved sub-saturation deflation pressure.
+    creditTighteningRate = consumerCredit.consumerCreditTightening / CONSUMER_TIGHTENING_GR_PEAK;
     creditDeflationContribution = -creditTighteningRate * creditDeflationSensitivity;
   }
 
@@ -1566,83 +2072,285 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     return Math.max(0, AI_DEFLATION_COEFFICIENT * automationCoverage * (1 + costSavings));
   })();
 
-  // ═══ AI PROFIT GROWTH RATE → DEFLATION (Phase 5-tax) ═══
-  // Higher aiProfitGrowthRate = more market power = firms retain more savings as profit
-  // Lower rate = more competition = savings pass through to consumers as lower prices
-  const marketPowerRetention = Math.min(1.0, aiProfitGrowthRateParam / 10.0);
-  const pricePassThrough = 1.0 - marketPowerRetention;
-  const aiDeflationRate = aiDeflationRate_raw * pricePassThrough;
-  // MOVED: priceLevel now computed after compositeInflation — see below
+  // Stage 3: endogenous nominal wage GROWTH (replaces wagePressure). Computed here — ahead of the
+  // sectoral price block — so the labor-services Baumol term reads the CURRENT wage growth (R7), while
+  // the inflation-indexation input is the LAGGED prev-year composite (breaks the wage-price spiral).
+  const perWorkerProductivityGrowth = Math.max(0, baselineGDPGrowth - DEFAULT_POPULATION_GROWTH_RATE); // R1: genuine 1.6%
+  const wageGrowth = computeNominalWageGrowth({
+    prevCompositeInflation: previousMacro?.compositeInflation ?? baseInflationRate,
+    perWorkerProductivityGrowth,
+    unemploymentRate,
+    naturalRate: FRED_NAIRU_RATE,
+    automationCoverage,
+    prevScarcityPremiumLevel: previousMacro?.scarcityPremiumLevel ?? 0,
+    scarcityIntensity: inputs.scarcityIntensity ?? 0,
+    inflationIndexation: inputs.inflationIndexation ?? DEFAULT_INFLATION_INDEXATION,
+    productivityPassthrough: inputs.productivityPassthrough ?? DEFAULT_PRODUCTIVITY_PASSTHROUGH,
+    phillipsSlope: inputs.phillipsSlope ?? DEFAULT_PHILLIPS_SLOPE,
+    downwardWageRigidity: inputs.downwardWageRigidity ?? DEFAULT_DOWNWARD_WAGE_RIGIDITY,
+    // Stage 7: rent-sharing (t−1 profit share vs the drifting secular baseline, Q-2 B — same drift
+    // number D-1 calibrates to, no new free constant; at drift 0 the worldview fork flips to the
+    // post-2015-stabilization reading)
+    prevProfitShare: previousMacro && previousMacro.gdpNominal > 0
+      ? previousMacro.corporateProfits / previousMacro.gdpNominal
+      : BASELINE_PROFIT_GDP_RATIO,
+    baselineProfitShare: BASELINE_PROFIT_GDP_RATIO
+      + (inputs.secularProfitDriftRate ?? DEFAULT_SECULAR_PROFIT_DRIFT_RATE) * (year - DEFAULT_START_YEAR),
+    rentSharingElasticity: inputs.rentSharingElasticity ?? DEFAULT_RENT_SHARING_ELASTICITY,
+  });
+  const nominalWageGrowth = wageGrowth.nominalWageGrowth;
+  const scarcityPremiumLevel = wageGrowth.scarcityPremiumLevel;
+  // Compounded per-worker wage indices (relative to 2025). trendWageIndex = no-Phillips/scarcity reference.
+  const prevWageIndex = previousMacro?.wageIndex ?? 1.0;
+  const prevTrendWageIndex = previousMacro?.trendWageIndex ?? 1.0;
+  const trendWageIndex = isFirstYear ? 1.0 : prevTrendWageIndex * (1 + wageGrowth.trendWageGrowth);
+  const wageIndexRaw = isFirstYear ? 1.0 : prevWageIndex * (1 + nominalWageGrowth);
+  // R19: policy minimum-wage LEVEL floor (NOT a growth floor — they diverge under deflation). The effective
+  // wage level cannot fall below policyWageFloor × the trend wage level. policyWageFloor = minWage/baselineAvgWage;
+  // it never binds when wageIndex == trendWageIndex (zero-AI / no displacement) ⇒ invisible there.
+  const wageIndex = Math.max(wageIndexRaw, policyWageFloor * trendWageIndex);
+  // R2 + Stage 6b (F3): the COLA index — single source for obligation-G, baseline transfers, and
+  // incremental cash support. Growth = max(nominalWageGrowth, compositeInflation(t−1), 0):
+  //   wages lead (normal times)      → wage-indexed (AWI; new awards track wages)
+  //   prices lead (STAGFLATION)      → CPI-protected (existing benefits get CPI-W COLAs — the
+  //                                    Stage-5b max(0, wage) form froze benefits in D 2035-40
+  //                                    while prices rose, real cuts the statute doesn't deliver)
+  //   both negative (deflation)      → flat (benefits never cut nominally; 1930-33 pattern)
+  // Single-index approximation of the statute's stock-weighted blend (existing stock CPI-W-indexed,
+  // new awards AWI-indexed) — registered in DATA_MODEL.md. Zero-AI: wages 4.5% > CPI 2.9% → wage
+  // branch always active → identical to the pre-6b form (4.9% nominal with population = 2.0% real).
+  const prevObligationGCOLAIndex = previousMacro?.obligationGCOLAIndex ?? 1.0;
+  const colaIndexGrowth = Math.max(
+    nominalWageGrowth,
+    previousMacro?.compositeInflation ?? baseInflationRate,
+    0,
+  );
+  const obligationGCOLAIndex = isFirstYear ? 1.0 : prevObligationGCOLAIndex * (1 + colaIndexGrowth);
 
-  // Phase 5g: 7-component net inflation (matches design spec)
-  // Components: base + AI deflation + transfer inflation + demand effects
-  //           + min wage cost-push + credit deflation + labor scarcity
-  // transferInflation: wired from previous year's monetary.actualInflationFromTransfers (one-year lag)
-  // demandEffects: TODO — no demand-pull inflation computation yet; defaults to 0
-  // Phase 7: Prefer monetization-based inflation when available.
-  // inflationFromMonetization comes from Phase 7 monetization module (deficit × monetizationRate)
-  // and replaces the old transferInflation path (which used totalTransfers × moneyCreationShare ≈ 1.0).
-  const effectiveTransferInflation = inputInflationFromMonetization !== undefined
+  // ═══ STAGE 1: Sectoral price architecture (consumption-side 4-sector CPI partition) ═══
+  // AI cost deflation reaches consumer prices ONLY in AI-exposed sectors and ONLY through the
+  // passthrough fraction (the retained fraction accrues to producer margins/profits — Stage 7).
+  // Labor-intensive services track the nominal wage rate (Baumol) and resist AI deflation; food &
+  // energy are exogenous; shelter uses its own model below. Replaces the prior single "goods" bucket
+  // that applied AI deflation to ~64% of CPI. Stage 1 RETIRES the aiProfitGrowthRate-derived
+  // passthrough in favor of the explicit, user-adjustable aiDeflationPassthrough.
+  const aiDeflationPassthrough = inputs.aiDeflationPassthrough ?? DEFAULT_AI_DEFLATION_PASSTHROUGH;
+  const laborCostShare = inputs.laborCostShare ?? DEFAULT_LABOR_COST_SHARE;
+  const aiDeflationRate = aiDeflationRate_raw;  // raw AI cost deflation; passthrough applied per-sector
+
+  // Stage 4: monetary inflation is its own SIGNED component of composite (added uniformly across the
+  // nominal basket — OD-3 ratified; equivalent to adding it to every sector since the weights sum to 1).
+  // It is NO LONGER inside broadGoodsPressure. The Fisher term (computeMoneyCreation) is now signed and
+  // does NOT net against AI deflation (R9) — AI deflation lives only in the per-sector terms below.
+  const monetaryInflation = inputInflationFromMonetization !== undefined
     ? inputInflationFromMonetization
     : inputTransferInflation;
-  const netInflation = baseInflationRate
-    - aiDeflationRate
-    + effectiveTransferInflation
-    + inputDemandEffects
+
+  // Broad non-shelter cost/price pressures — everything EXCEPT AI supply deflation, shelter, and the
+  // monetary term (now separate). Applied uniformly across the 3 non-shelter sectors so their combined
+  // weight (≈0.64) reproduces the prior goods bucket → zero-AI composite preserved exactly.
+  const broadGoodsPressure = inputDemandEffects
     + inputMinWageCostPush
     + creditDeflationContribution
     + inputScarcityInflation
     + inputSupplyChainCostPush;  // Phase 9
 
-  // Phase 5i Change 1: Shelter vs Goods price decomposition
-  // AI deflates goods (software, manufacturing) but shelter (~36% of CPI) barely deflates
-  // until embodied AI automates construction. Consumers experience composite inflation.
-  const shelterWeight = inputs.shelterCPIWeight ?? BASELINE_SHELTER_CPI_WEIGHT;
-  const shelterStickiness = inputs.shelterInflationStickiness ?? DEFAULT_SHELTER_INFLATION_STICKINESS;
-  const embodiedCap = inputs.embodiedCapability ?? 0;
-  const inputForeclosureRate = inputs.foreclosureRateAggregate ?? 0;
+  // Stage 1.5: per-consumption-sector AI-supply deflation. Each sector's deflation RATE (routed from
+  // its clusters via the R10 mapping) × that sector's passthrough. Cognitive deflation concentrates in
+  // AI-exposed (× 0.70); embodied/physical deflation (construction→shelter, ag/food→food&energy,
+  // service robotics→labor-services) reaches prices only through the LOW embodied passthroughs
+  // (regulation/supply-management gated). Direct computeMacro callers (no routing) fall back to the
+  // scalar in AI-exposed only — so unit tests and zero-AI match Stage 1.
+  const secDefl = inputs.sectorDeflationByConsumption
+    ?? { aiExposed: aiDeflationRate, laborServices: 0, foodEnergy: 0, shelter: 0 };
+  const laborServicesPassthrough = inputs.laborServicesPassthrough ?? DEFAULT_LABOR_SERVICES_PASSTHROUGH;
+  const foodEnergyPassthrough = inputs.foodEnergyPassthrough ?? DEFAULT_FOOD_ENERGY_PASSTHROUGH;
+  const shelterPassthrough = inputs.shelterPassthrough ?? DEFAULT_SHELTER_PASSTHROUGH;
 
-  // Housing Market Stabilization — extract once, use in shelter + housing wealth
+  const aiExposedDeflation = secDefl.aiExposed * aiDeflationPassthrough;     // cognitive curve × 0.70
+  const foodEnergyDeflation = secDefl.foodEnergy * foodEnergyPassthrough;    // embodied (ag/food) × 0.10
+  // DEPRECATED (Stage 6.5): shelterEmbodiedDeflation (= secDefl.shelter × shelterPassthrough 0.05)
+  // is retired — construction-cluster embodied deflation now enters the construction COST index at
+  // full strength and reaches rents through the supply response (see computeHousingBlock).
+  // const shelterEmbodiedDeflation = secDefl.shelter * shelterPassthrough;
+  // Baumol: embodied automation of service labor erodes the labor-cost component from INSIDE the
+  // laborCostShare term (offsets wage-driven service inflation, not a free-standing subtraction).
+  // STAGE 3 SEAM: when wage growth is endogenous, the automation→labor-demand→wage loop is modeled fully.
+  const laborServicesEmbodiedErosion = secDefl.laborServices * laborServicesPassthrough;
+
+  // Baumol proxy: labor-intensive service prices track the nominal wage rate. Stage 1.5 uses the
+  // year-over-year deviation of wagePressure (0 in steady state); Stage 3 replaces it with the
+  // endogenous nominal wage-growth rate.
+  // Stage 3: Baumol pressure = wage growth ABOVE trend (= 0 in zero-AI; negative when a slump pushes
+  // wages below trend → service prices ease). Reads the CURRENT-year wage growth (R7).
+  const wageRateDeviation = nominalWageGrowth - wageGrowth.trendWageGrowth;
+
+  // ── Per-sector inflation ──
+  // E-9 item 1 (F-D, ratified): the NON-SHELTER sectors anchor to the coherent complement of the
+  // all-items series (≈2.22%), not to all-items itself (which already contains shelter's premium).
+  // All-items consumers (the credit bar, the anchor inits, nominal-trend slots) keep baseInflationRate.
+  const nonShelterBase = inputs.nonShelterBaseInflation ?? NON_SHELTER_BASE_INFLATION;
+  const aiExposedInflation = nonShelterBase + broadGoodsPressure - aiExposedDeflation;
+  const laborServicesInflation = nonShelterBase + broadGoodsPressure
+    + laborCostShare * (wageRateDeviation - laborServicesEmbodiedErosion);
+  const foodEnergyInflation = nonShelterBase + broadGoodsPressure - foodEnergyDeflation;
+
+  // netInflation kept for back-compat (= AI-exposed/goods-bucket-equivalent) and demand-drag isolation.
+  const netInflation = aiExposedInflation;
+
+  // ═══ STAGE 6.5: STOCK-FLOW HOUSING (replaces the Phase-5i additive shelter stack) ═══
+  const shelterWeight = inputs.shelterCPIWeight ?? BASELINE_SHELTER_CPI_WEIGHT;
+  const inputForeclosureRate = inputs.foreclosureRateAggregate ?? 0;
   const instBuyerRate = inputs.institutionalBuyerRate ?? 0.40;
-  const rentalSens = inputs.rentalDemandSensitivity ?? 0.50;
-  const shelterFloor = inputs.shelterInflationFloor ?? -0.05;
   const avgHomeownership = inputs.dynamicHomeownership
     ? inputs.dynamicHomeownership.reduce((a, b) => a + b, 0) / inputs.dynamicHomeownership.length
     : BASELINE_HOMEOWNERSHIP;
+  // DEPRECATED (Stage 6.5, dispositions per checkpoint): the additive shelter stack —
+  //   BASELINE_SHELTER_INFLATION constant → EMERGENT from the cost anchor (zero-AI ≈ 3.95%/yr);
+  //   shelterPassthrough × 0.05 hook → CC absorbs full embodied deflation; friction → supplyElasticity;
+  //   rentalDemandPressure (= rentersCreated × rentalDemandSensitivity, the +17.3pp artifact) →
+  //     tenure conservation + occupancy (renters and converted rental units are the same units);
+  //   foreclosure × 0.5 / mortgage −0.5×(rate−0.06) hand-set terms → fire-sale (cited 1.75) + capRate;
+  //   shelterInflationFloor (−0.05 "land scarcity") → real land (λ_eff → 1 limit).
+  // const rentalSens = inputs.rentalDemandSensitivity ?? 0.50;
+  // const shelterFloor = inputs.shelterInflationFloor ?? -0.05;
 
   // Goods inflation = all existing 7-component netInflation (non-shelter)
   const goodsInflation = netInflation;
 
-  // Shelter: sticky, responds to construction automation, foreclosures, credit
-  const shelterDeflationFromAI = -embodiedCap * shelterStickiness * 0.10;
+  // prev-year asset-income share (investor land bid, OD-9b) — year-0 sentinel = baseline share
+  const baselineAssetShare = inputs.baselineAssetIncomeShare ?? 0;
+  const prevAssetShare = previousMacro && previousMacro.totalIncome > 0
+    ? previousMacro.aggregateAssetIncome / previousMacro.totalIncome
+    : baselineAssetShare;
 
-  // A1. Institutional absorption reduces foreclosure supply effect
-  const rawForeclosureSupply = -inputForeclosureRate * 0.5;
-  const institutionalAbsorption = inputForeclosureRate * instBuyerRate * 0.5;
-  const foreclosureSupplyEffect = rawForeclosureSupply + institutionalAbsorption;
+  const housing = computeHousingBlock({
+    isFirstYear,
+    prevHousingStock: previousMacro?.housingStock ?? BASELINE_HOUSING_STOCK_2025,
+    prevHouseholds: previousMacro?.households ?? BASELINE_HOUSEHOLDS_2025,
+    prevHeadship: previousMacro?.headshipRate ?? (BASELINE_HOUSEHOLDS_2025 / US_POPULATION_2025),
+    prevRentIndex: previousMacro?.rentIndex ?? 1.0,
+    prevConstructionCost: previousMacro?.constructionCostIndex ?? 1.0,
+    prevLandCost: previousMacro?.landCostIndex ?? 1.0,
+    prevHomePriceIndex: previousMacro?.homePriceIndex ?? 1.0,
+    prevHousingStarts: previousMacro?.housingStarts
+      ?? (DEFAULT_HOUSING_DEPRECIATION_RATE * BASELINE_HOUSING_STOCK_2025
+        + (inputs.populationGrowthRate ?? DEFAULT_POPULATION_GROWTH_RATE) * BASELINE_HOUSING_STOCK_2025),
+    realizedPopulationGrowth: previousMacro && previousMacro.dynamicPopulation > 0
+      ? population / previousMacro.dynamicPopulation - 1
+      : (inputs.populationGrowthRate ?? DEFAULT_POPULATION_GROWTH_RATE),
+    // E-10: pipeline (init at the OBSERVED 2025 under-construction stock — the inheritance
+    // principle) + the builder's smoothed price (init = the spot price → λ=0 is bit-equivalent)
+    prevHousingPipeline: previousMacro?.housingPipeline ?? INITIAL_HOUSING_PIPELINE,
+    prevBuilderPriceIndex: previousMacro?.builderPriceIndex ?? (previousMacro?.homePriceIndex ?? 1.0),
+    builderAdjustmentLambda: inputs.builderAdjustmentLambda ?? DEFAULT_BUILDER_ADJUSTMENT_LAMBDA,
+    housingPipelineDuration: inputs.housingPipelineDuration ?? HOUSING_PIPELINE_DURATION_YEARS,
+    landClosureKappa: inputs.landClosureKappa ?? DEFAULT_LAND_CLOSURE_KAPPA,
+    opexPassthrough: inputs.opexPassthrough ?? DEFAULT_OPEX_PASSTHROUGH,
+    rentDownwardRigidity: inputs.rentDownwardRigidity ?? DEFAULT_RENT_DOWNWARD_RIGIDITY,
+    rentIncomeElasticity: inputs.rentIncomeElasticity ?? DEFAULT_RENT_INCOME_ELASTICITY,
+    diagSpotBuilderPrice: inputs.diagSpotBuilderPrice,
+    builderPriceMode: inputs.builderPriceMode,
+    prevBuilderTrendGrowth: previousMacro?.builderTrendGrowth ?? BUILDER_TREND_GROWTH_INIT_2025,
+    prevHomePriceChangeRate: inputs.prevHomePriceChangeRate ?? 0,
+    constructionCreditSensitivity: inputs.constructionCreditSensitivity ?? DEFAULT_CONSTRUCTION_CREDIT_SENSITIVITY,
+    prevBusinessCreditTightening: previousMacro?.businessCreditTightening ?? 0,
+    prevAfterTaxIncomeGrowth: previousMacro?.afterTaxIncomeGrowth
+      ?? ((inputs.baselineGDPGrowth ?? BASELINE_GDP_GROWTH_RATE) + baseInflationRate),
+    prevLandResidualTarget: previousMacro?.landResidualTarget ?? 1.0,
+    mortgageRateReference: inputs.mortgageRateReference,
+    population,
+    nominalWageGrowth,
+    baseInflationRate: nonShelterBase,  // E-9 item 1: construction materials = non-shelter goods
+    broadGoodsPressure,
+    secDeflShelter: secDefl.shelter,
+    embodiedCapability: inputs.embodiedCapability ?? 0,
+    prevRealIncomeGrowthRate: previousMacro?.realIncomeGrowthRate ?? 0,
+    prevCompositeInflation: previousMacro?.compositeInflation ?? baseInflationRate,
+    trendRealIncomeGrowth: baselineGDPGrowth,
+    foreclosureRateAggregate: inputForeclosureRate,
+    institutionalBuyerRate: instBuyerRate,
+    mortgageRate: inputMortgageRate ?? BASELINE_MORTGAGE_RATE_2025,
+    prevMortgageRate: inputs.prevMortgageRate ?? inputMortgageRate ?? BASELINE_MORTGAGE_RATE_2025,
+    prevAssetIncomeShare: prevAssetShare,
+    // E-2 (examination, ruled): the investor-bid baseline DRIFTS with the secular asset-share path
+    // (Q-2(B) symmetry) — derived from ratified constants only (payout × (1−tax) × secular drift);
+    // 0 = the frozen baseline that activated the bid in zero-AI (the Stage-7 Gate-A finding).
+    baselineAssetIncomeShare: baselineAssetShare
+      + (inputs.assetShareDriftRate ?? DEFAULT_ASSET_SHARE_DRIFT_RATE) * (year - DEFAULT_START_YEAR),
+    formationSensitivity: inputs.formationSensitivity ?? DEFAULT_FORMATION_SENSITIVITY,
+    headshipRecoveryRate: inputs.headshipRecoveryRate ?? DEFAULT_HEADSHIP_RECOVERY_RATE,
+    supplyElasticity: inputs.housingSupplyElasticity ?? DEFAULT_HOUSING_SUPPLY_ELASTICITY,
+    embodiedCapacityGain: inputs.embodiedCapacityGain ?? DEFAULT_EMBODIED_CAPACITY_GAIN,
+    depreciationRate: inputs.housingDepreciationRate ?? DEFAULT_HOUSING_DEPRECIATION_RATE,
+    landShare: inputs.landShare ?? DEFAULT_LAND_SHARE,
+    constructionLaborShare: inputs.constructionLaborShare ?? DEFAULT_CONSTRUCTION_LABOR_SHARE,
+    landIncomeBeta: inputs.landIncomeBeta ?? DEFAULT_LAND_INCOME_BETA,
+    landScarcityElasticity: inputs.landScarcityElasticity ?? DEFAULT_LAND_SCARCITY_ELASTICITY,
+    rentOccupancyElasticity: inputs.rentOccupancyElasticity ?? DEFAULT_RENT_OCCUPANCY_ELASTICITY,
+    rentCostAnchorWeight: inputs.rentCostAnchorWeight ?? DEFAULT_RENT_COST_ANCHOR_WEIGHT,
+    baselineCapRate: inputs.baselineCapRate ?? DEFAULT_BASELINE_CAP_RATE,
+    capRateMortgageBeta: inputs.capRateMortgageBeta ?? DEFAULT_CAP_RATE_MORTGAGE_BETA,
+    capRateInvestorCompression: inputs.capRateInvestorCompression ?? DEFAULT_CAP_RATE_INVESTOR_COMPRESSION,
+    fireSaleElasticity: inputs.fireSaleElasticity ?? DEFAULT_FIRE_SALE_ELASTICITY,
+    investorDemandIntensity: inputs.investorDemandIntensity ?? DEFAULT_INVESTOR_DEMAND_INTENSITY,
+    landRateSensitivity: inputs.landRateSensitivity ?? DEFAULT_LAND_RATE_SENSITIVITY,
+  });
 
-  // B. Rental demand from displaced homeowners
-  const rentersCreated = Math.max(0, BASELINE_HOMEOWNERSHIP - avgHomeownership);
-  const rentalDemandPressure = rentersCreated * rentalSens;
+  // Shelter CPI = structural rent growth (OD-9a: rent index, not home prices, feeds the CPI)
+  const shelterInflation = housing.rentGrowth;
+  // Legacy MacroOutput diagnostics re-pointed to their structural equivalents (fields retained):
+  //   shelterDeflationFromAI = the AI-supply flow actually transmitted into rents (cost-anchor ×
+  //   construction value-share × embodied construction deflation) — also the nonAI add-back term.
+  const rentAnchorW = inputs.rentCostAnchorWeight ?? DEFAULT_RENT_COST_ANCHOR_WEIGHT;
+  const shelterDeflationFromAI = -(rentAnchorW * (1 - housing.lambdaEffPrev) * secDefl.shelter);
+  const foreclosureSupplyEffect = housing.fireSalePressure;          // now a PRICE-side pressure
+  const institutionalAbsorption = inputForeclosureRate * instBuyerRate;  // share absorbed to rentals
+  const rentalDemandPressure = (inputs.rentOccupancyElasticity ?? DEFAULT_RENT_OCCUPANCY_ELASTICITY)
+    * housing.occupancyGap;                                          // the occupancy term of ΔR
 
-  // Phase 7: Use actual mortgage rate from bond market when available
-  // Higher rates → tighter credit → lower home prices → deflationary for shelter
-  // Baseline mortgage rate ≈ 10Y yield (4.3%) + spread (1.7%) ≈ 6.0%
-  const BASELINE_MORTGAGE_RATE_APPROX = 0.06;
-  const mortgageRateEffect = inputMortgageRate !== undefined
-    ? -0.5 * Math.max(0, inputMortgageRate - BASELINE_MORTGAGE_RATE_APPROX)
-    : -(creditTighteningRate) * 0.02;
+  // Composite = weighted across the 4 consumption sectors (weights normalized to sum to 1, so
+  // changing one re-scales the rest). In zero-AI (all sector AI deflations=0, broadGoodsPressure≈0,
+  // wageRateDeviation=0) all three non-shelter sectors equal base inflation, exactly reproducing
+  // the prior shelterWeight×shelter + (1−shelterWeight)×base composite.
+  const aiExposedWeight = inputs.aiExposedCPIWeight ?? AI_EXPOSED_CPI_WEIGHT;
+  const laborServicesWeight = inputs.laborServicesCPIWeight ?? LABOR_SERVICES_CPI_WEIGHT;
+  const foodEnergyWeight = inputs.foodEnergyCPIWeight ?? FOOD_ENERGY_CPI_WEIGHT;
+  const sectorWeightSum = shelterWeight + aiExposedWeight + laborServicesWeight + foodEnergyWeight;
+  const wSh = shelterWeight / sectorWeightSum;
+  const wAi = aiExposedWeight / sectorWeightSum;
+  const wLs = laborServicesWeight / sectorWeightSum;
+  const wFe = foodEnergyWeight / sectorWeightSum;
+  const compositeInflation = wSh * shelterInflation
+    + wAi * aiExposedInflation
+    + wLs * laborServicesInflation
+    + wFe * foodEnergyInflation
+    + monetaryInflation;  // Stage 4: signed monetary inflation, uniform across the basket (OD-3)
 
-  // Shelter inflation with stabilization forces
-  let shelterInflation = BASELINE_SHELTER_INFLATION + shelterDeflationFromAI
-    + foreclosureSupplyEffect + mortgageRateEffect + rentalDemandPressure;
+  // E-9 item 2 (ratified): the Fed's mandate variable — the SAME four sector inflations reweighted
+  // to PCE shares (NIPA-cited), minus the formula/scope component [α]. The CPI composite remains the
+  // price system everywhere else (the owner basis ruling: quintile CWI is CPI-concept; COLA is
+  // statute CPI-W; the E-7 anchor's evidence is TIPS-linked); ONLY the Fed boundary reads this.
+  const pceProxyInflation =
+    PCE_WEIGHT_SHELTER * shelterInflation
+    + PCE_WEIGHT_AI_EXPOSED * aiExposedInflation
+    + PCE_WEIGHT_LABOR_SERVICES * laborServicesInflation
+    + PCE_WEIGHT_FOOD_ENERGY * foodEnergyInflation
+    + monetaryInflation
+    - (inputs.pceFormulaEffect ?? PCE_FORMULA_EFFECT);
 
-  // C. Land scarcity floor
-  shelterInflation = Math.max(shelterFloor, shelterInflation);
-
-  // Composite = what consumers experience
-  const compositeInflation = shelterWeight * shelterInflation
-    + (1 - shelterWeight) * goodsInflation;
+  // Stage 2 firewall input: composite EXCLUDING AI supply deflation (the "non-AI" deflator). Loops
+  // that must not read AI cost-deflation as growth/abundance will deflate by this in Stage 2.
+  // Stage 1.5: add back EVERY sector's AI-supply deflation (cognitive + embodied) — this is the
+  // deflator Stage 2's firewall consumes (composite as if AI made nothing cheaper).
+  const nonAICompositeInflation = compositeInflation
+    + wAi * aiExposedDeflation
+    + wLs * laborCostShare * laborServicesEmbodiedErosion
+    + wFe * foodEnergyDeflation
+    // Stage 6.5: the shelter add-back is the AI-supply flow actually transmitted into rents —
+    // rentCostAnchorWeight × (1−λ_eff(t−1)) × secDefl.shelter (= −shelterDeflationFromAI). Exact by
+    // linearity of ΔR in Δreplacement; verified numerically per R25.
+    + wSh * (-shelterDeflationFromAI);
 
   // === Price level accumulation using COMPOSITE inflation ===
   // Previously used computePriceLevel() which only had 2 components (base - aiDeflation).
@@ -1654,6 +2362,22 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   const priceLevel = isFirstYear
     ? BASELINE_PRICE_LEVEL  // = 1.0
     : Math.min(MAX_PRICE_LEVEL, Math.max(0.01, prevPriceLevel * (1 + compositeInflation)));
+  // Stage 1: cumulative non-AI price index (excludes AI supply deflation) — Stage 2 deflates real
+  // quantities by this so AI cost-deflation no longer reads as real growth/abundance.
+  const prevNonAIPriceLevel = previousMacro?.nonAIPriceLevel ?? BASELINE_PRICE_LEVEL;
+  const nonAIPriceLevel = isFirstYear
+    ? BASELINE_PRICE_LEVEL
+    : Math.min(MAX_PRICE_LEVEL, Math.max(0.01, prevNonAIPriceLevel * (1 + nonAICompositeInflation)));
+  // Stage 5b (F2): cumulative LABOR-SERVICES price index — the deflator for in-kind (healthcare)
+  // support, which is consumption of labor-intensive services. Healthcare lives in this sector, so
+  // in-kind support automatically costs more when services inflate and less when the Baumol channel
+  // deflates them — the correct fiscal exposure. Includes monetaryInflation: OD-3 distributes the
+  // monetary term UNIFORMLY across the basket (added once at the composite for arithmetic
+  // equivalence), so any individual sector PRICE LEVEL must add it back.
+  const prevLaborServicesPriceLevel = previousMacro?.laborServicesPriceLevel ?? BASELINE_PRICE_LEVEL;
+  const laborServicesPriceLevel = isFirstYear
+    ? BASELINE_PRICE_LEVEL
+    : Math.min(MAX_PRICE_LEVEL, Math.max(0.01, prevLaborServicesPriceLevel * (1 + laborServicesInflation + monetaryInflation)));
 
   // Phase 5h: S-curve logistic deferral (replaces linear sensitivity)
   // Supply-driven deflation (AI making goods cheaper) historically INCREASES
@@ -1662,7 +2386,10 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // (credit contraction, demand collapse) causes purchase deferral.
   // aiDeflationRate is the supply-driven component. Adding it back to
   // netInflation isolates the demand-driven remainder.
-  const demandSideInflation = netInflation + aiDeflationRate;
+  // Demand-driven deflation only (AI supply deflation removed). aiExposedDeflation is the amount
+  // actually subtracted from the AI-exposed sector (= netInflation), so adding it back isolates
+  // the demand-driven remainder for the consumption deflation drag.
+  const demandSideInflation = netInflation + aiExposedDeflation + monetaryInflation;
   const deflationDrag = computeDeflationDrag(
     demandSideInflation,
     secondOrderParams.deferrableConsumptionShare,
@@ -1691,19 +2418,8 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     ? 1.0
     : Math.min(MAX_PRICE_LEVEL, prevInflationFactor * (1 + effectiveInflation));
 
-  // Phillips curve wage pressure (Phase 10.A rewrite: classic decay × (1 - aiShare) + scarcity premium).
-  // aiDisplacementUnemployment + aggregateReplacementDifficultyWagePremium come from simulation.ts
-  // as part of MacroInputs; when absent (e.g., legacy callers), the scarcity premium term is 0 and
-  // the Phillips side collapses to the classic exponential (since aiShare = 0).
-  const wagePressure = computeWagePressure(
-    unemploymentRate,
-    inputs.aiDisplacementUnemployment ?? 0,
-    inputs.aggregateReplacementDifficultyWagePremium ?? 0,
-    inputs.scarcityIntensity ?? 0,
-    inputs.laborForceBaseline ?? laborForce,
-    policyWageFloor,
-    secondOrderParams.phillipsCurveSensitivity,
-  );
+  // wagePressure is computed earlier (moved before the sectoral price block so the labor-services
+  // Baumol term can read it — Stage 1).
 
   // Phase 3c: Wages derive from actual GDP × labor's share.
   // Labor's share (57-62%) is one of the most stable relationships in macroeconomics.
@@ -1717,12 +2433,18 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // the 2% assumed by fullEmploymentGDP. Without this factor, a persistent output gap
   // triggers a displacement-demand feedback cycle even with zero AI displacement.
   // Source: baselineGDPGrowth (config, ~0.02) minus DEFAULT_POPULATION_GROWTH_RATE (0.004)
-  const structuralProductivityGrowth = Math.max(0, baselineGDPGrowth - DEFAULT_POPULATION_GROWTH_RATE);
-  // Cumulative productivity factor: compounds at ~1.6%/year from a static 2025 baseline.
-  // Used by wages, transfers, and non-corporate asset income so ALL income channels grow
-  // at productivity + inflation, breaking the GDP circularity that otherwise limits real
-  // GDP growth to ~1.0% even in a zero-AI economy.
-  const cumulativeProductivityFactor = Math.pow(1 + structuralProductivityGrowth, yearsSinceStart);
+  // Stage 0 (item 3) FIX: use FULL potential output growth (baselineGDPGrowth ~2.0%), not
+  // "minus population growth" (~1.6%). The prior subtraction assumed employmentRatio would re-add
+  // labor-force growth, but growingBaselineEmployment scales numerator AND denominator by lfGrowth,
+  // so it cancels — leaving aggregate real income/GDP growing at ~1.6% instead of the ~2.0% potential
+  // (fullEmploymentGDP). Restores zero-AI real growth to the 2% target (was ~1.45%).
+  const structuralProductivityGrowth = Math.max(0, baselineGDPGrowth);
+  // RETIRED (Stage 7): cumulativeProductivityFactor now has ZERO consumers — its lineage:
+  //   wages (Stage 3 → wageIndex), baseline transfers (Stage 5b → COLA index × population),
+  //   non-corporate asset income (Stage 7 D-2/Q-4 → wageIndex × employmentFactor).
+  // The Stage-3 guard comment ("do not clean up the 2.0% factor") retires with it.
+  // const cumulativeProductivityFactor = Math.pow(1 + structuralProductivityGrowth, yearsSinceStart);
+  void structuralProductivityGrowth;
   // Wage base: static 2025 baseline × cumulative inflation × cumulative productivity.
   // Previous approach (prevNominalGDP × share × (1+structProd)) was circular: wages derived
   // from GDP, GDP derived from consumption, consumption from wages. The (1+structProd) factor
@@ -1731,20 +2453,24 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // wage growth = inflation + productivity ≈ 2.3% + 1.6% = 3.9% nominal per year.
   // Displacement multipliers (employmentRatio, wageRatio, wagePressure) still modulate on top.
   const baselineAggregateWages = BASELINE_GDP_NOMINAL_2025 * BASELINE_WAGE_SHARE;
-  const wageBase = baselineAggregateWages * cumulativeInflationFactor * cumulativeProductivityFactor;
-  // Scale baseline employment with population growth so employmentRatio stays ~1.0 at zero displacement
-  const growingBaselineEmployment = BASELINE_TOTAL_EMPLOYMENT * lfGrowth;
-  const employmentRatio = totalRemainingEmployment / growingBaselineEmployment;
-  // FIX C: Use actual baseline wage (from BLS data) as denominator so wageRatio = 1.0 at t=0
+  // Stage 3: wage LEVEL = baseline aggregate wages × endogenous wageIndex (compounded nominalWageGrowth),
+  // replacing the exogenous wageBase = baseline × CIF × productivity (× wagePressure). NOTE: the
+  // cumulativeProductivityFactor (2.0%) above is RETAINED for non-corporate asset income + baseline
+  // transfers only — those are NOT employment-scaled, so they grow at the 2.0% economy trend; transfer
+  // wage-indexing is deferred to Stage 5. Do not "clean up" the 2.0% factor there into a regression.
+  // R1: employmentFactor is UN-NORMALIZED (÷ BASELINE_TOTAL_EMPLOYMENT, not × lfGrowth) so population/labor-
+  // force growth enters aggregate wage income via EMPLOYMENT, while per-worker productivity (1.6%) lives in
+  // the wage index. At zero displacement employmentFactor = lfGrowth (grows ~0.4%/yr).
+  const employmentFactor = totalRemainingEmployment / BASELINE_TOTAL_EMPLOYMENT;
+  // FIX C: BLS-derived cross-cluster wage composition (1.0 at t=0); orthogonal to the trend wage index.
   const wageRatio = weightedAverageWage / baselineAverageWage;
-  const adjustedWageRatio = wageRatio * wagePressure;
-  const existingWageIncome = wageBase * employmentRatio * adjustedWageRatio
+  const existingWageIncome = baselineAggregateWages * wageIndex * employmentFactor * wageRatio
     + policyEffects.wageChannelAddition;
 
-  // New job wage income: pays current nominal average wage (not frozen 2025 dollars)
+  // New job wage income: pays the current per-worker nominal wage (baseline per-worker × wageIndex).
   const newJobWageFrac = productionInputs?.newJobWageFraction ?? DEFAULT_NEW_JOB_WAGE_FRACTION;
-  const currentAvgWage = wageBase / growingBaselineEmployment;
-  const newJobWageIncome = totalHumanNewJobs * currentAvgWage * newJobWageFrac * wagePressure;
+  const currentAvgWage = baselineAggregateWages * wageIndex / BASELINE_TOTAL_EMPLOYMENT;
+  const newJobWageIncome = totalHumanNewJobs * currentAvgWage * newJobWageFrac;
 
   // Augmentation: workers capture their share of productivity gains from AI tools.
   // Flows through existing pipeline: → afterTaxWageIncome → wageConsumption (× MPC 0.95) → GDP.
@@ -1755,10 +2481,17 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // Must come BEFORE asset income: dividends depend on after-tax corporate profits.
   // At t=0, bootstrap from BEA baseline corporate profits.
   const baselineCorporateProfits = BASELINE_PROFIT_GDP_RATIO * BASELINE_GDP_NOMINAL_2025;
+  // Stage 7: prevCorpProfits is now the t−1 RESIDUAL (the documented simultaneity breaker —
+  // dividends follow earnings). Post-7 the year-0 endogenous residual EQUALS this BEA seed by the
+  // Q-1(ii) calibration, so the seed and the model agree by construction (bootstrap dissolved).
+  // Negative-profit treatments below are DEFINITIONS, not economic floors: tax law has no negative
+  // corporate tax (loss carryforwards unmodeled) and dividends are non-negative distributions —
+  // the negativity flows through retainedEarnings (cash burn → investment capacity ↓) instead.
   const prevCorpProfits = previousMacro?.corporateProfits ?? baselineCorporateProfits;
-  const corporateTaxRevenue = prevCorpProfits * corporateTaxRate;
-  const afterTaxCorporateProfits = prevCorpProfits * (1 - corporateTaxRate);
-  let retainedEarnings = afterTaxCorporateProfits * corporateRetentionRate;
+  const corporateTaxRevenue = Math.max(0, prevCorpProfits) * corporateTaxRate;
+  const afterTaxCorporateProfits = prevCorpProfits - corporateTaxRevenue;
+  const dividendIncomePre = Math.max(0, afterTaxCorporateProfits) * (1 - corporateRetentionRate);
+  let retainedEarnings = afterTaxCorporateProfits - dividendIncomePre;
 
   // ═══ ASSET INCOME — Exact Decomposition (dynamic P/E + endogenous capital gains) ═══
   //
@@ -1769,12 +2502,9 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // but feed into NEXT year's asset income through previousMacro.
 
   // ── Component 1: Dividends ──
-  // After-tax corporate profits distributed to shareholders.
-  // Dividends = after-tax profits × payout ratio. No extra productivity factor needed:
-  // profits derive from GDP, and GDP now grows at ~1.6% real because wages and transfers
-  // are exogenous (static baseline × cumulative inflation × cumulative productivity).
-  // Adding a productivity factor here would double-count.
-  const dividendIncome = afterTaxCorporateProfits * (1 - corporateRetentionRate);
+  // Stage 7: dividends = payout × max(0, after-tax residual profits(t−1)) — non-negative by
+  // definition (firms cut to zero and burn cash; the cash burn lives in retainedEarnings above).
+  const dividendIncome = dividendIncomePre;
 
   // ── Component 2: AI Capital Gains (dynamic P/E) ──
   // P/E = BASE_PE_ZERO_GROWTH + sensitivity × earnings growth rate (no max(0) clamp — let MIN_PE floor).
@@ -1816,38 +2546,65 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   const traditionalCapitalGains = Math.max(0, tradMarketCapChange * capitalGainsRealizationRate);
 
   // ── Component 4: Non-Corporate Asset Income ──
-  // Interest, rental, proprietor's income — static 2025 baseline × cumulative factors.
-  // Same pattern as wages: static baseline breaks the GDP circularity and ensures
-  // non-corporate asset income grows at productivity + inflation from the 2025 base.
+  // Stage 7 (D-2, Q-4 ruling A): proprietors'/rental/interest income tracks WAGES, not productivity —
+  // proprietors' income is predominantly small-business labor income (standard labor-share treatments
+  // assign ~2/3+ to labor), and proprietors share labor's fate in a collapse. Indexed exactly like the
+  // wage bill: baseline × wageIndex × employmentFactor. This retires the LAST consumer of
+  // cumulativeProductivityFactor (and the hot CIF — the Pass-2 over-indexation finding applies here too).
+  // Option B (consumption-index) documented in the checkpoint as the alternative.
   const baselineNonCorporateIncome = BASELINE_GDP_NOMINAL_2025 * NON_CORPORATE_ASSET_SHARE;
-  const nonCorporateAssetIncome = baselineNonCorporateIncome * cumulativeInflationFactor * cumulativeProductivityFactor;
+  // DEPRECATED (Stage 7): … × cumulativeInflationFactor × cumulativeProductivityFactor;
+  const nonCorporateAssetIncome = baselineNonCorporateIncome * wageIndex
+    * (totalRemainingEmployment / BASELINE_TOTAL_EMPLOYMENT);
 
   // ── Total Asset Income ──
   const aggregateAssetIncome = dividendIncome + aiCapitalGains + traditionalCapitalGains
     + nonCorporateAssetIncome + policyEffects.assetChannelAddition;
 
-  // Phase 3c (revised): Transfers grow with inflation (COLA) AND structural productivity.
-  // Social Security initial benefits are wage-indexed (grow with average wages, not just prices).
-  // Medicare/Medicaid expand with healthcare spending (tracks GDP). The aggregate transfer pool
-  // as a fraction of GDP is roughly constant — it grows with the tax base, not just inflation.
-  // CIF compounds inflation. cumulativeProductivityFactor compounds real productivity growth.
-  // Together: nominal transfer growth ≈ inflation + productivity ≈ nominal GDP growth.
-  // Phase 8a: Apply COLA dampening from fiscal response profile when CIF exceeds threshold.
-  // Dampening reduces the GROWTH portion only — base stays intact.
-  let effectiveCIF = cumulativeInflationFactor;
-  if (fiscalProfile && cumulativeInflationFactor > fiscalProfile.colaDampeningThreshold) {
+  // Stage 5b (Pass 2, ratified — R2 treatment for baseline transfers): wage-indexed via the
+  // COLA-floored obligation index (SS new awards track the AWI; existing benefits are never cut
+  // nominally) × beneficiary (population) growth — replacing effectiveCIF × productivity factor.
+  // Zero-AI equivalence: COLA index ~4.5%/yr × population 0.4% ≈ 4.9% nominal ≡ CIF 2.9% ×
+  // productivity 2.0% (to within the R7 lag) — demonstrated empirically in Gate A. In displacement,
+  // transfers hold FLAT nominally when wages fall (COLA floor) instead of shrinking with a deflating
+  // CIF, and stop compounding 2% real through a depression.
+  // Phase 8a COLA-dampening lever: now operates on the COLA index (same dampening shape — only the
+  // growth portion above 1.0 is dampened; base preserved), so austerity presets keep working.
+  let effectiveObligationCOLA = obligationGCOLAIndex;
+  if (fiscalProfile && obligationGCOLAIndex > fiscalProfile.colaDampeningThreshold) {
     const dampenRange = fiscalProfile.colaDampeningMaxCIF - fiscalProfile.colaDampeningThreshold;
     const dampenIntensity = dampenRange > 0
-      ? Math.min(1, (cumulativeInflationFactor - fiscalProfile.colaDampeningThreshold) / dampenRange)
+      ? Math.min(1, (obligationGCOLAIndex - fiscalProfile.colaDampeningThreshold) / dampenRange)
       : 1.0;
     const dampenFactor = 1.0 - dampenIntensity * fiscalProfile.colaDampeningRate;
-    const growth = cumulativeInflationFactor - 1.0;
-    effectiveCIF = 1.0 + growth * dampenFactor;
+    const growth = obligationGCOLAIndex - 1.0;
+    effectiveObligationCOLA = 1.0 + growth * dampenFactor;
   }
-  const baselineTransfers = BASELINE_TRANSFER_INCOME * effectiveCIF * cumulativeProductivityFactor;
+  const transferPopulationFactor = population / US_POPULATION_2025;
+  // DEPRECATED (Stage 5b / Pass 2): the Phase 3c/8a CIF × productivity path —
+  //   let effectiveCIF = cumulativeInflationFactor; … dampening on CIF …
+  //   const baselineTransfers = BASELINE_TRANSFER_INCOME * effectiveCIF * cumulativeProductivityFactor;
+  const baselineTransfers = BASELINE_TRANSFER_INCOME * effectiveObligationCOLA * transferPopulationFactor;
   const incrementalUnemployment = Math.max(0, totalUnemployment - BASELINE_UNEMPLOYMENT);
+  // ═══ STAGE 5 (H3): unified incremental-UE transfer support — SINGLE SOURCE OF TRUTH ═══
+  // CASH (UI + SNAP) → household transfer income (taxed, MPC → consumption).
+  // IN-KIND (Medicaid etc.) → consumption DIRECTLY below (NIPA: government health benefits are PCE);
+  // it is NOT household cash income, is not taxed, and does not pass the transfer MPC.
+  // The SUM is booked as a budget outlay in the fiscal block (t+1 per its uniform t−1 convention).
+  // Replaces the split-brain: income at $19,200/person (full-take-up) + reporting deficit at $65B/pp
+  // + NOTHING in the load-bearing budget.
+  const cashPerUnemployed = inputs.cashTransferPerUnemployed ?? DEFAULT_CASH_TRANSFER_PER_UNEMPLOYED;
+  const inKindPerUnemployed = inputs.inKindTransferPerUnemployed ?? DEFAULT_IN_KIND_TRANSFER_PER_UNEMPLOYED;
+  // Stage 5b (F2): component-appropriate indexation (the $8k/$5k are 2025 dollars, no longer flat-nominal):
+  //   CASH × the dampened COLA index — UI/SNAP benefit COLAs, never cut nominally, subject to the
+  //     same Phase-8a austerity dampening lever as baseline transfers.
+  //   IN-KIND × the cumulative labor-services price index — Medicaid support IS healthcare-services
+  //     consumption; it inflates with that sector and deflates with the Baumol channel.
+  const incrementalCashTransfers = incrementalUnemployment * cashPerUnemployed * effectiveObligationCOLA;
+  const inKindConsumption = incrementalUnemployment * inKindPerUnemployed * laborServicesPriceLevel;
+  const incrementalTransferSpending = incrementalCashTransfers + inKindConsumption;
   const aggregateTransferIncome = baselineTransfers
-    + incrementalUnemployment * BASELINE_TRANSFER_PER_UNEMPLOYED
+    + incrementalCashTransfers
     + policyEffects.transferChannelAddition;
 
   // ═══ INDIVIDUAL TAXES — Phase 5-tax (with decomposed asset tax) ═══
@@ -1863,6 +2620,15 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   const afterTaxWageIncome = aggregateWageIncome - wageIncomeTax - employeePayrollTax;
   const afterTaxAssetIncome = aggregateAssetIncome - capitalGainsTax - nonCorporateAssetTax;
   const afterTaxTransferIncome = aggregateTransferIncome - transferTax;
+  // L9b: the after-tax aggregate's growth — the income basis for the rent WTP term (per household
+  // after the housing block subtracts household growth). t−1 convention next year.
+  const afterTaxIncomeTotalL9b = afterTaxWageIncome + afterTaxAssetIncome + afterTaxTransferIncome;
+  const prevAfterTaxTotalL9b = previousMacro
+    ? (previousMacro.afterTaxWageIncome + previousMacro.afterTaxAssetIncome + previousMacro.afterTaxTransferIncome)
+    : afterTaxIncomeTotalL9b;
+  const afterTaxIncomeGrowth = prevAfterTaxTotalL9b > 0
+    ? afterTaxIncomeTotalL9b / prevAfterTaxTotalL9b - 1
+    : 0;
   const totalPostTaxIncome = afterTaxWageIncome + afterTaxAssetIncome + afterTaxTransferIncome;
 
   // FIX 3 (Phase 5-tax): totalIncome and incomeComposition use POST-TAX values
@@ -1890,7 +2656,10 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // Revenue pressure: GDP contraction triggers cost-cutting automation (Phase 1 overhaul)
   // Phase 8a: Use REAL GDP growth rate (deflated) so inflation doesn't mask real contraction
   const { revenuePressure, automationAcceleration } = computeRevenuePressure(
-    previousMacro?.realGDPGrowthRate ?? (previousMacro?.gdpGrowthRate ?? baselineGDPGrowth),
+    // Stage 2 firewall: read NON-AI real growth (nominal deflated by non-AI prices), not realGDPGrowthRate
+    // (which AI cost-deflation inflates). Firms respond to contraction in nominal-relative-to-non-AI-cost
+    // terms; AI making goods cheaper must NOT register as growth. = realGDPGrowthRate exactly in zero-AI.
+    previousMacro?.nonAIRealGDPGrowthRate ?? (previousMacro?.gdpGrowthRate ?? baselineGDPGrowth),
     previousMacro?.automationAcceleration ?? 0,
     secondOrderParams.revenuePressureSensitivity,
     secondOrderParams.revenuePressureCap,
@@ -1924,8 +2693,11 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   let consumption: number;
   let investment: number;
   let governmentSpending: number;
+  // FS-4b (the inheritance principle): the year-0 homePriceChangeRate init was a hardcoded 0.01;
+  // the year-1 builder trendG EMA ingests it once (1/10 weight). Now the OBSERVED 2025 value
+  // (FRED CSUSHPINSA annual growth ≈ +2.2%) — the same series the R2 init derives from.
   let housingWealthResult: { housingWealthDrag: number; homePriceChangeRate: number } = {
-    housingWealthDrag: 0, homePriceChangeRate: 0.01,
+    housingWealthDrag: 0, homePriceChangeRate: OBSERVED_2025_HOME_PRICE_GROWTH,
   };
   let housingWealthDrag = 0;
   // Phase 8 Fix 5: New housing model outputs — computed in else branch
@@ -1948,7 +2720,8 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     gdpNominal = BASELINE_GDP_NOMINAL_2025;
     gdpReal = BASELINE_GDP_NOMINAL_2025;
     // Phase 3: Differentiated MPC consumption (for display — GDP is forced to baseline)
-    consumption = wageConsumption + assetConsumption + transferConsumption;
+    // Stage 5: + in-kind support (≈0 at baseline since incremental unemployment ≈ 0 in year 0)
+    consumption = wageConsumption + assetConsumption + transferConsumption + inKindConsumption;
     // BEA's TRADITIONAL_INVESTMENT_GDP_FRACTION (0.175) already includes 2025 AI capex.
     // No separate BASELINE_AI_INVESTMENT_GDP_FRACTION needed — that would double-count.
     investment = BASELINE_GDP_NOMINAL_2025 * TRADITIONAL_INVESTMENT_GDP_FRACTION;
@@ -1969,21 +2742,18 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     // When income shifts from wages to assets, consumption drops.
     const baseConsumption = wageConsumption + assetConsumption + transferConsumption;
 
-    // Phase 8 Fix 5: New 5-channel housing model replaces computeHousingWealthEffect().
-    // GDP is NOT a direct input — it affects prices through income, foreclosures, and rates.
+    // STAGE 6.5: structural home prices replace the 5-channel computeHomePriceChange model.
+    // DEPRECATED (Stage 6.5): the 5-channel call and its parameters (affordabilityPriceSensitivity,
+    // incomeHousingElasticity, affordabilityReversionSensitivity, demographicHousingElasticity,
+    // downwardStickinessRatio) — rates now act via capRate, income via formation+land, demography
+    // via households, supply via starts/fire-sales, reversion via the supply equilibrium.
     const housingWealthMPCParam = inputs.housingWealthMPC ?? DEFAULT_HOUSING_WEALTH_MPC;
 
-    // Foreclosure supply pressure: reuse the same formula from the old function
-    const rawForeclosurePressure = -inputForeclosureRate * 3.0;
-    const institutionalDemand = inputForeclosureRate * instBuyerRate * 3.0;
-    const housingForeclosureSupply = rawForeclosurePressure + institutionalDemand;
-
-    // Mortgage rate change (YoY) — primary housing driver
-    // Previous mortgage rate is passed from simulation.ts (from last year's bond market)
+    // Mortgage rate change (YoY) — kept as a reported diagnostic
     const prevMortgageRate = inputs.prevMortgageRate ?? inputMortgageRate;
     computedMortgageRateChange = (inputMortgageRate ?? 0) - (prevMortgageRate ?? 0);
 
-    // Real income growth (YoY) — current real household income vs previous
+    // Real income growth (YoY) — feeds NEXT year's household formation (housing block, t−1 input)
     const currentRealHouseholdIncome = (afterTaxWageIncome + afterTaxTransferIncome + afterTaxAssetIncome) / priceLevel;
     const prevRealHouseholdIncome = previousMacro
       ? (previousMacro.afterTaxWageIncome + previousMacro.afterTaxTransferIncome + previousMacro.afterTaxAssetIncome) / previousMacro.priceLevel
@@ -1992,40 +2762,22 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
       ? (currentRealHouseholdIncome - prevRealHouseholdIncome) / prevRealHouseholdIncome
       : 0;
 
-    // Affordability deviation: normalized price-to-income vs baseline
-    // baselineRatio = 1.0 / baselineRealIncome (at year 0, homePriceIndex = 1.0)
-    // currentRatio = homePriceIndex / currentNormalizedIncome
-    // deviation = 1.0 - currentRatio (positive = cheap, negative = expensive)
+    // Affordability deviation: retained as a DIAGNOSTIC only (no longer drives prices)
     const baselineRealIncome = inputs.baselineRealHouseholdIncome ?? currentRealHouseholdIncome;
     const normalizedIncome = baselineRealIncome > 0
       ? currentRealHouseholdIncome / baselineRealIncome
       : 1.0;
+    computedHomePriceIndex = housing.homePriceIndex;
     computedAffordabilityDeviation = normalizedIncome > 0
       ? 1.0 - (computedHomePriceIndex / normalizedIncome)
       : 0;
 
-    // Population growth rate for demographic demand
-    const popGrowthRate = inputs.populationGrowthRate ?? DEFAULT_POPULATION_GROWTH_RATE;
+    const homePriceChangeRate = housing.homePriceGrowth;
 
-    // Call the new 5-channel housing model
-    const homePriceChangeRate = computeHomePriceChange(
-      computedMortgageRateChange,
-      computedRealIncomeGrowthRate,
-      housingForeclosureSupply,
-      popGrowthRate,
-      computedAffordabilityDeviation,
-      inputs.affordabilityPriceSensitivity ?? DEFAULT_AFFORDABILITY_PRICE_SENSITIVITY,
-      inputs.incomeHousingElasticity ?? DEFAULT_INCOME_HOUSING_ELASTICITY,
-      inputs.affordabilityReversionSensitivity ?? DEFAULT_AFFORDABILITY_REVERSION_SENSITIVITY,
-      inputs.demographicHousingElasticity ?? DEFAULT_DEMOGRAPHIC_HOUSING_ELASTICITY,
-      inputs.downwardStickinessRatio ?? DEFAULT_DOWNWARD_STICKINESS_RATIO,
-    );
-
-    // Update cumulative home price index
-    computedHomePriceIndex *= (1 + homePriceChangeRate);
-
-    // Compute wealth drag from price change (same as old function)
-    const wealthChange = BASELINE_HOUSING_WEALTH * homePriceChangeRate;
+    // Housing wealth (inventory flag iii FIXED): the wealth base scales with the price index —
+    // ΔW = BASELINE_HOUSING_WEALTH × (P(t) − P(t−1)), not BASELINE × rate against a frozen base.
+    const prevP = previousMacro?.homePriceIndex ?? 1.0;
+    const wealthChange = BASELINE_HOUSING_WEALTH * (housing.homePriceIndex - prevP);
     housingWealthDrag = wealthChange * housingWealthMPCParam * avgHomeownership;
 
     // Wrap in legacy result shape for downstream compatibility
@@ -2121,11 +2873,21 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     // Result: G drops ~8% when GDP drops 40% (vs. 40% under old procyclical formula).
     // Phase 8a: Apply COLA dampening (effectiveCIF) to obligations and fiscal consolidation multipliers.
     // Uses same multipliers as fiscal.ts computeGovernmentSpending() to prevent dual-G divergence.
-    const obligationG = G_OBLIGATION_SHARE * BASELINE_GOVT_SPENDING_2025 * effectiveCIF * consolidationObligationMult;
+    // Stage 0 (item 3): obligation spending grows with the real economy (× cumulativeProductivityFactor),
+    // not inflation only. Previously obligationG grew at effectiveCIF (inflation) → 0% real growth,
+    // dragging real GDP ~0.3pp below the 2% potential. Government obligations (SS beneficiaries,
+    // procurement, healthcare) scale with the economy → grow at inflation + potential real growth.
+    // Stage 3 (R2): obligation spending is wage-indexed (SS new awards track AWI) × beneficiary
+    // (population) growth, COLA-floored via obligationGCOLAIndex (computed with the wage indices above).
+    const populationFactor = population / US_POPULATION_2025;
+    const obligationG = G_OBLIGATION_SHARE * BASELINE_GOVT_SPENDING_2025 * obligationGCOLAIndex * populationFactor * consolidationObligationMult;
     const revenueSensitiveG = G_REVENUE_SENSITIVE_SHARE * prevNominalGDP * GOVERNMENT_SPENDING_GDP_FRACTION * consolidationDiscretionaryMult;
     governmentSpending = obligationG + revenueSensitiveG;
 
-    consumption = Math.max(0, adjustedConsumption);
+    // Stage 5 (H3): in-kind transfers enter consumption DIRECTLY (NIPA PCE — government-funded
+    // health benefits are household consumption). Added after the credit/velocity multipliers:
+    // Medicaid-funded care is not discretionary household spending and is not credit-constrained.
+    consumption = Math.max(0, adjustedConsumption) + inKindConsumption;
     investment = adjustedInvestment;
     // Nominal-first: sum of nominal components IS gdpNominal.
     // Real GDP derived as gdpNominal / priceLevel (accounting identity).
@@ -2184,7 +2946,8 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     secondOrderParams.baselineGovtTransfers,
     secondOrderParams.baselineDebtInterest,
     totalGovernmentRevenue,  // Phase 5-tax: decomposed revenue instead of taxRate × GDP
-    secondOrderParams.transferGrowthPerUEPoint,
+    // Stage 5 (H3): the SAME unified flow paid on the income/consumption side (was $65B/pp × excessUE)
+    incrementalTransferSpending,
     policyEffects.fiscalCost,
   );
 
@@ -2192,10 +2955,23 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     ? (gdpNominal - prevNominalGDP) / prevNominalGDP
     : baselineGDPGrowth;
 
-  // Phase 8a: Real GDP growth rate — deflated, for revenue pressure and reporting
+  // Phase 8a: Real GDP growth rate — deflated by full composite (for reporting / legacy).
   const prevRealGDP = previousMacro?.gdpReal ?? gdpReal;
   const realGDPGrowthRate = prevRealGDP > 0 && !isFirstYear
     ? (gdpReal - prevRealGDP) / prevRealGDP
+    : baselineGDPGrowth;
+
+  // Stage 2 (deflator firewall): NON-AI real GDP = nominal / nonAIPriceLevel — deflated by prices
+  // EXCLUDING all AI supply deflation. Its growth rate is what Loop 1 (revenue pressure) reads, so AI
+  // cost-deflation can no longer mask a nominal contraction as "growth." In a true zero-AI economy
+  // nonAIPriceLevel == priceLevel ⇒ nonAIRealGDP == gdpReal ⇒ this EQUALS realGDPGrowthRate exactly
+  // (firewall invisible by construction).
+  const nonAIRealGDP = nonAIPriceLevel > 0 ? gdpNominal / nonAIPriceLevel : gdpReal;
+  const prevNonAIRealGDP = (previousMacro?.nonAIPriceLevel ?? BASELINE_PRICE_LEVEL) > 0
+    ? prevNominalGDP / (previousMacro?.nonAIPriceLevel ?? BASELINE_PRICE_LEVEL)
+    : prevRealGDP;
+  const nonAIRealGDPGrowthRate = prevNonAIRealGDP > 0 && !isFirstYear
+    ? (nonAIRealGDP - prevNonAIRealGDP) / prevNonAIRealGDP
     : baselineGDPGrowth;
 
   // Depression detection (DATA_MODEL.md §5.7)
@@ -2299,26 +3075,35 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     + (productionInputs?.aiNetExportBoost ?? 0);
   const aiGDPContributionPct = gdpNominal > 0 ? aiGDPContribution / gdpNominal : 0;
 
-  // === Phase 5g Change 6: Corporate Profits (bottom-up) ===
-  // AI profits = AI GDP × AI margin. Traditional = (GDP - AI GDP) × traditional margin.
-  // Soft cap: profits ≤ GDP - total wage bill (accounting identity).
-  // When cap bites, re-proportion: AI keeps its share, traditional gets remainder.
-  // Phase 9: Labs absorb supply chain costs not passed through → margin reduction
-  const aiProfitMargin = Math.max(0, inputAiProfitMargin + inputLabProfitMarginAdjustment);
-  const rawAiProfits = aiGDPContribution * aiProfitMargin;
-  const traditionalGDP = Math.max(0, gdpNominal - aiGDPContribution);
-  // Phase 9 Fix: Automation dividend — deployers' cost savings from replacing labor with AI.
-  // Positive when AI is cheaper than humans, negative under supply shocks (margin compression).
-  // Augmentation profit boost: firms' share of output gains from AI-augmented remaining workers.
-  const rawTraditionalProfits = traditionalGDP * traditionalProfitMargin
-    + inputAutomationDividend + inputAugmentationProfitBoost;
-  const rawTotalProfits = rawAiProfits + rawTraditionalProfits;
+  // ═══ STAGE 7: RESIDUAL CORPORATE PROFITS (Phase 10.B core; OD-5 checkpoint ratified) ═══
+  // corporateProfits = GDP − wageBill − nonCorporateIncome − otherCosts. Margins are OUTPUTS.
+  // The min(raw, GDP − wageBill) cap is DELETED — the identity replaces it. SIGNED: total and
+  // traditional profits may go negative in a collapse (reported, not clamped).
+  // Labor share is now a COMPUTED OUTPUT: productivity gains flow to companies first; the wage
+  // equation (Phillips + passthrough + rent-sharing) determines labor's claw-back. The three-way
+  // split of AI gains is CLOSED: sector price passthroughs decide the consumer share (Stage 1);
+  // wage passthrough + rent-sharing decide the worker share (Stage 3/7); capital gets the residual.
+  // DEPRECATED (Stage 7) — the Phase 5g bottom-up margin model and its additive terms:
+  //   aiProfitMargin × aiGDP, traditionalGDP × DEFAULT_TRADITIONAL_PROFIT_MARGIN (0.11 is now a
+  //   VALIDATION REFERENCE only), inputAutomationDividend (deployers' cost savings — this WAS the
+  //   Stage-1 retained-margin proxy: lower wage bill at unchanged revenue lands in the residual
+  //   automatically), inputAugmentationProfitBoost (output↑ without proportional wage↑ — likewise
+  //   automatic). Keeping any of them would double-count.
+  // const aiProfitMargin = Math.max(0, inputAiProfitMargin + inputLabProfitMarginAdjustment);
+  // const rawAiProfits = aiGDPContribution * aiProfitMargin;
+  // const rawTraditionalProfits = traditionalGDP * traditionalProfitMargin
+  //   + inputAutomationDividend + inputAugmentationProfitBoost;
+  void inputAiProfitMargin; void inputLabProfitMarginAdjustment;
+  void inputAutomationDividend; void inputAugmentationProfitBoost; void traditionalProfitMargin;
   const totalWageBill = aggregateWageIncome;
-  const maxProfits = Math.max(0, gdpNominal - totalWageBill);
-  const corporateProfits = Math.min(rawTotalProfits, maxProfits);
-  // Re-proportion: AI takes up to its raw value (capped at total), traditional gets remainder
-  const aiCorporateProfits = Math.min(rawAiProfits, corporateProfits);
-  const traditionalCorporateProfits = Math.max(0, corporateProfits - aiCorporateProfits);
+  const otherCostsShare = inputs.otherCostsShare ?? DEFAULT_OTHER_COSTS_SHARE;
+  const otherCosts = otherCostsShare * gdpNominal;
+  const corporateProfits = gdpNominal - totalWageBill - nonCorporateAssetIncome - otherCosts;
+  // AI/traditional split (Q-3: AI bears proportionate otherCosts — conservative on AI profits since
+  // AI-sector CFC plausibly exceeds the average; per-sector multiplier = registered refinement):
+  const aiSectorLaborShareVal = inputs.aiSectorLaborShare ?? DEFAULT_AI_SECTOR_LABOR_SHARE;
+  const aiCorporateProfits = aiGDPContribution * (1 - aiSectorLaborShareVal) * (1 - otherCostsShare);
+  const traditionalCorporateProfits = corporateProfits - aiCorporateProfits;  // SIGNED — no floor
   const profitGDPRatio = gdpNominal > 0 ? corporateProfits / gdpNominal : 0;
 
   // ═══ AI Cost Indices (Phase 5-tax) ═══
@@ -2371,6 +3156,7 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     gdpReal,
     gdpGrowthRate,
     realGDPGrowthRate,
+    nonAIRealGDPGrowthRate,
     consumption,
     investment,
     governmentSpending,
@@ -2389,7 +3175,9 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     automationAcceleration,
     isDepression,
     consecutiveDeclineQuarters,
-    wagePressure,
+    // Stage 3: back-compat — wagePressure now = wage level relative to trend (1.0 in zero-AI, <1 when
+    // a slump pushes wages below trend). The endogenous driver is nominalWageGrowth / wageIndex.
+    wagePressure: trendWageIndex > 0 ? wageIndex / trendWageIndex : 1.0,
     sectorWeightedDeflationRate: sectorWeightedDeflationRate ?? aiDeflationRate,
     // Demand spillover fields — populated by simulation.ts after computeMacro returns
     consumerDemandRatio: 1.0,
@@ -2407,6 +3195,11 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     // Phase 6: Separated credit outputs
     consumerCreditMultiplier: consumerCredit.consumerCreditMultiplier,
     consumerCreditTightening: consumerCredit.consumerCreditTightening,
+    unclippedConsumerTightening: consumerCredit.unclippedConsumerTightening,  // Stage 6 (R18): binding diagnostics
+    // E-1 (examination): adaptive credit-bar state
+    creditBarLevel,
+    creditBarInflationExpectation: creditBarExpectationOut,
+    pceProxyInflation,  // E-9: the Fed's mandate variable (PCE-reweighted sector inflation − formula effect)
     incomeAdequacyRatio: consumerCredit.incomeAdequacyRatio,
     underwritableIncome: consumerCredit.underwritableIncome,
     businessCreditMultiplier: businessCredit.businessCreditMultiplier,
@@ -2473,6 +3266,33 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     goodsInflation,
     shelterInflation,
     compositeInflation,
+    // Stage 1: sectoral price architecture
+    aiExposedInflation,
+    laborServicesInflation,
+    foodEnergyInflation,
+    nonAICompositeInflation,
+    nonAIPriceLevel,
+    laborServicesPriceLevel,  // Stage 5b (F2): in-kind support deflator
+    // Stage 6.5: stock-flow housing state + diagnostics
+    housingStock: housing.housingStock,
+    households: housing.households,
+    headshipRate: housing.headshipRate,
+    rentIndex: housing.rentIndex,
+    constructionCostIndex: housing.constructionCostIndex,
+    landCostIndex: housing.landCostIndex,
+    occupancyRate: housing.occupancyRate,
+    housingStarts: housing.housingStarts,
+    housingPipeline: housing.housingPipeline,
+    housingCompletions: housing.housingCompletions,
+    builderPriceIndex: housing.builderPriceIndex,
+    landResidualTarget: housing.landResidualTarget,
+    builderTrendGrowth: housing.builderTrendGrowth,
+    afterTaxIncomeGrowth,
+    monetaryInflation,  // Stage 4: signed monetary-inflation component of composite
+    // Stage 5 (H3): unified incremental-UE transfer flows (single source of truth)
+    incrementalCashTransfers,
+    inKindConsumption,
+    incrementalTransferSpending,
     shelterDeflationFromAI,
     foreclosureSupplyEffect,
     rentalDemandPressure,
@@ -2498,6 +3318,7 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     capitalGainsTax,
     corporateTaxRevenue,
     stateLocalRevenue,
+    transferTax,  // FS-6f: exposed for the direct fiscal bridge + the completeness assertion
     totalGovernmentRevenue,
     // After-Tax Income
     afterTaxWageIncome,
@@ -2542,7 +3363,12 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     affordabilityDeviation: computedAffordabilityDeviation,
     realIncomeGrowthRate: computedRealIncomeGrowthRate,
     mortgageRateChange: computedMortgageRateChange,
-    nominalWageGrowth: 0,  // Overridden in simulation.ts macroWithJobs
+    // Stage 3: endogenous wage path
+    nominalWageGrowth,
+    wageIndex,
+    trendWageIndex,
+    scarcityPremiumLevel,
+    obligationGCOLAIndex,
     // Phase 10.A: α driver inputs + cumulative AI displacement
     corporateMarginRatio: gdpNominal > 0 ? corporateProfits / gdpNominal : 0,
     aiDisplacementUnemployment: 0,  // Overridden in simulation.ts (cumulative across years)

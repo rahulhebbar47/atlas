@@ -15,9 +15,20 @@ import type {
 import {
   US_POPULATION_2025,
   BASELINE_AVERAGE_ANNUAL_WAGE,
-  BASELINE_TRANSFER_PER_UNEMPLOYED,
+  // DEPRECATED (Stage 5): netting switched to the current-law statutory UI equivalent
+  // BASELINE_TRANSFER_PER_UNEMPLOYED,
+  CURRENT_LAW_UI_REPLACEMENT_RATE,
+  CURRENT_LAW_UI_DURATION_WEEKS,
   DEFAULT_START_YEAR,
   AGE_THRESHOLD_FRACTIONS,
+  HOURS_PER_WORK_YEAR,
+  MONTHS_PER_YEAR,
+  WEEKS_PER_YEAR,
+  DOLLARS_PER_BILLION,
+  DEFAULT_INDEXED_UBI_BASE_MONTHLY,
+  DEFAULT_INDEXED_UBI_START_YEAR,
+  DEFAULT_UBI_PRODUCTIVITY_INDEX_RATE,
+  INDEXED_UBI_AI_GDP_FLOOR,
 } from './constants';
 import { interpolatePolicy } from '@/utils/policyInterpolation';
 
@@ -53,8 +64,7 @@ export function computeWagePolicyEffect(
       effectiveMinWage *= priceLevel;
     }
 
-    // Convert hourly to annual (2080 hours = 40hr * 52 weeks)
-    const annualMinWage = effectiveMinWage * 2080;
+    const annualMinWage = effectiveMinWage * HOURS_PER_WORK_YEAR;
 
     // DEPRECATED: Direct wage addition from minimum wage removed in Phase 1 overhaul.
     // Minimum wage is now enforced through the Phillips curve wage floor in computeWagePressure().
@@ -118,7 +128,7 @@ export function computeAssetPolicyEffect(
     updatedFundSize = fundSize + returns + annualContrib - distribution;
 
     // Dividend per capita (billions → dollars: * 1e9 / population)
-    const dividendPerCapita = (distribution * 1_000_000_000) / population;
+    const dividendPerCapita = (distribution * DOLLARS_PER_BILLION) / population;
     assetAddition += dividendPerCapita * population;
   }
 
@@ -129,7 +139,7 @@ export function computeAssetPolicyEffect(
     const totalProfits = swf.totalAICompanyProfits * Math.pow(1 + swf.profitGrowthRate, yearsSinceStart);
     // Equity income: ownership_fraction * total_profits
     const ownershipFrac = interpolatePolicy(swf.ownershipFraction, year);
-    const equityIncome = ownershipFrac * totalProfits * 1_000_000_000; // billions → dollars
+    const equityIncome = ownershipFrac * totalProfits * DOLLARS_PER_BILLION;
     assetAddition += equityIncome;
   }
 
@@ -142,7 +152,7 @@ export function computeAssetPolicyEffect(
     const aiProfits = config.sovereignWealthFund.totalAICompanyProfits *
       Math.pow(1 + config.sovereignWealthFund.profitGrowthRate, yearsSinceStart);
     const sharePct = interpolatePolicy(ps.mandatorySharePercentage, year);
-    const sharedProfits = aiProfits * sharePct * 1_000_000_000;
+    const sharedProfits = aiProfits * sharePct * DOLLARS_PER_BILLION;
     assetAddition += sharedProfits;
   }
 
@@ -195,15 +205,14 @@ export function getEffectiveUBI(
   startYearAiGDP: number,
 ): number {
   if (config.mode === 'indexed') {
-    const baseAmount = config.indexedBaseAmount ?? 1000;
-    const startYear = config.indexedStartYear ?? 2032;
-    const indexRate = config.productivityIndexRate ?? 1.0;
+    const baseAmount = config.indexedBaseAmount ?? DEFAULT_INDEXED_UBI_BASE_MONTHLY;
+    const startYear = config.indexedStartYear ?? DEFAULT_INDEXED_UBI_START_YEAR;
+    const indexRate = config.productivityIndexRate ?? DEFAULT_UBI_PRODUCTIVITY_INDEX_RATE;
 
     if (year < startYear) return 0;
 
-    // Floor AI GDP at $1B to avoid division by near-zero
-    const baseAiGDP = Math.max(1_000_000_000, startYearAiGDP);
-    const currentAiGDP = Math.max(1_000_000_000, aiGDPContribution);
+    const baseAiGDP = Math.max(INDEXED_UBI_AI_GDP_FLOOR, startYearAiGDP);
+    const currentAiGDP = Math.max(INDEXED_UBI_AI_GDP_FLOOR, aiGDPContribution);
     const growthRatio = currentAiGDP / baseAiGDP;
 
     return baseAmount * Math.max(1, Math.pow(growthRatio, indexRate));
@@ -223,9 +232,13 @@ export function getEffectiveUBI(
  * @param year - Current year
  * @param population - Total population
  * @param totalUnemployment - Total unemployed
- * @param averageWage - Current average wage (for UI replacement rate)
+ * @param averageWage - Current average wage (remaining-workers average; wage subsidies etc.)
  * @param priceLevel - Current price level (for indexing)
  * @param displacedWorkers - Number of displaced workers eligible for retraining
+ * @param displacedPoolCount - Size of the AI-displaced pool (direct + second-order; the
+ *   incidence object's count). 0 when no displacement exists.
+ * @param displacedPoolWage - The displaced pool's employment-weighted PRIOR wage (year-0
+ *   vintage, from computeDisplacedPool). 0 when the pool is empty.
  * @returns Aggregate transfer income (dollars)
  */
 export function computeTransferPolicyEffect(
@@ -236,10 +249,18 @@ export function computeTransferPolicyEffect(
   averageWage: number,
   priceLevel: number,
   displacedWorkers: number,
+  displacedPoolCount: number,
+  displacedPoolWage: number,
   aiGDPContribution?: number,     // Phase 5g: for UBI productivity indexing
   startYearAiGDP?: number,        // Phase 5g: AI GDP at index start year
-): number {
+): { transferAddition: number; enhancedUIAddition: number; displacedFlatAddition: number; uiPricingWage: number } {
+  // FS-6b: the transfer total now returns DECOMPOSED so the quintile measurement layer can
+  // route each component by its honest incidence (UBI flat per-capita; the wage-proportional
+  // UI increment by displaced wage mass; flat per-head support by displaced headcount). The
+  // total is arithmetically unchanged — the decomposition is measurement-layer surface only.
   let transferAddition = 0;
+  let enhancedUIAddition = 0;      // wage-proportional (benefit ∝ prior wage)
+  let displacedFlatAddition = 0;   // flat per displaced/unemployed head
 
   // UBI (POLICY_MODEL.md §4.1)
   const ubiAmount = getEffectiveUBI(
@@ -255,7 +276,7 @@ export function computeTransferPolicyEffect(
       monthlyAmount *= priceLevel;
     }
 
-    const annualUBI = monthlyAmount * 12;
+    const annualUBI = monthlyAmount * MONTHS_PER_YEAR;
 
     // Eligible population (above age threshold — Census Bureau data)
     const eligibleFraction = getEligibleFraction(config.ubi.ageThreshold);
@@ -270,27 +291,46 @@ export function computeTransferPolicyEffect(
   // @deprecated and hidden from UI until this can be modeled correctly.
 
   // Enhanced unemployment insurance (POLICY_MODEL.md §4.2)
-  // FIX: The baseline transfer per unemployed ($19,200/yr from
-  // BASELINE_TRANSFER_PER_UNEMPLOYED) already models standard UI payments at the
-  // default 45% replacement rate. The enhanced UI policy should only add the
-  // INCREMENTAL benefit above baseline — otherwise the income composition at
-  // year 2025 is skewed because standard UI gets double-counted (once in the
-  // baseline transfer calculation and again here).
+  // FIX: current-law UI is already in the model twice over — as statutory generosity (this lever's
+  // default 45%/26wk settings) and as realized stock-average cost (the Stage 5 cash support
+  // constant). The lever must therefore charge only generosity ABOVE the current-law statutory
+  // benefit, computed with the SAME formula at CURRENT_LAW_UI_REPLACEMENT_RATE × DURATION — exactly
+  // $0 at default settings. Stage 5: do NOT net against the $8,000 stock-average (that is a
+  // realized-cost figure at ~28% recipiency — a different take-up basis; netting against it would
+  // charge the recipiency gap as if it were new policy). Baseline IN-KIND (Medicaid) continues
+  // alongside policy UI — benefit-cliff interactions are not modeled.
+  // THE UI PRICING WAGE (the close-out §9 item-3 ruled fix): UI benefits replace the
+  // unemployed pool's PRIOR wages. The pool is priced by composition — the AI-displaced at
+  // their own pool average (year-0 vintage; they carry ~1.2× the remaining-workers average
+  // in deep scenarios because displacement skews up the wage distribution), the frictional
+  // remainder at the economy average. Zero displacement → the blend IS averageWage exactly
+  // (the Gate-A bit-identity leg). Exposed on PolicyEffects for the attribution assertion.
+  const displacedInPool = Math.min(displacedPoolCount, totalUnemployment);
+  const frictionalInPool = Math.max(0, totalUnemployment - displacedInPool);
+  const uiPricingWage = totalUnemployment > 0 && displacedPoolWage > 0
+    ? (displacedInPool * displacedPoolWage + frictionalInPool * averageWage) / totalUnemployment
+    : averageWage;
+
   if (config.enhancedUI.enabled) {
     const ui = config.enhancedUI;
     const replRate = interpolatePolicy(ui.replacementRate, year);
-    const weeklyBenefit = (averageWage / 52) * replRate;
+    const weeklyBenefit = (uiPricingWage / WEEKS_PER_YEAR) * replRate;
     const annualBenefit = weeklyBenefit * Math.min(52, ui.durationWeeks);
 
-    // Only add the amount ABOVE the baseline transfer per unemployed.
-    // At default settings (45% replacement, 26 weeks), this should be ~$0
-    // since that's already captured in BASELINE_TRANSFER_PER_UNEMPLOYED.
-    const incrementalBenefit = Math.max(0, annualBenefit - BASELINE_TRANSFER_PER_UNEMPLOYED);
-    transferAddition += incrementalBenefit * totalUnemployment;
+    // Only add the amount ABOVE the current-law statutory benefit (same formula, current-law
+    // parameters) — $0 at default settings, monotone in added generosity.
+    const currentLawAnnualBenefit = (uiPricingWage / WEEKS_PER_YEAR)
+      * CURRENT_LAW_UI_REPLACEMENT_RATE
+      * Math.min(52, CURRENT_LAW_UI_DURATION_WEEKS);
+    const incrementalBenefit = Math.max(0, annualBenefit - currentLawAnnualBenefit);
+    enhancedUIAddition = incrementalBenefit * totalUnemployment;
+    transferAddition += enhancedUIAddition;
 
     // Retraining bonus (always incremental — not part of baseline)
     if (ui.retrainingBonus > 0) {
-      transferAddition += ui.retrainingBonus * totalUnemployment;
+      const bonus = ui.retrainingBonus * totalUnemployment;
+      displacedFlatAddition += bonus;
+      transferAddition += bonus;
     }
   }
 
@@ -301,10 +341,12 @@ export function computeTransferPolicyEffect(
     const annualStipend = stipend * Math.min(12, rt.durationMonths);
     // Only a fraction of displaced workers are in retraining at any given time
     const inRetraining = displacedWorkers * config.retraining.participationRate;
-    transferAddition += annualStipend * inRetraining;
+    const stipendTotal = annualStipend * inRetraining;
+    displacedFlatAddition += stipendTotal;
+    transferAddition += stipendTotal;
   }
 
-  return transferAddition;
+  return { transferAddition, enhancedUIAddition, displacedFlatAddition, uiPricingWage };
 }
 
 /**
@@ -320,6 +362,8 @@ export function computeTransferPolicyEffect(
  * @param gdp - Current GDP
  * @param previousFundSize - Previous year's sovereign wealth fund size
  * @param displacedWorkers - Displaced workers eligible for retraining
+ * @param displacedPoolCount - Size of the AI-displaced pool (see computeTransferPolicyEffect)
+ * @param displacedPoolWage - The displaced pool's prior wage (see computeTransferPolicyEffect)
  * @returns PolicyEffects object
  */
 export function computePolicyEffects(
@@ -333,6 +377,8 @@ export function computePolicyEffects(
   gdp: number,
   previousFundSize: number,
   displacedWorkers: number,
+  displacedPoolCount: number,
+  displacedPoolWage: number,
   aiGDPContribution?: number,     // Phase 5g: for UBI productivity indexing
   startYearAiGDP?: number,        // Phase 5g: AI GDP at index start year
 ): PolicyEffects {
@@ -347,8 +393,14 @@ export function computePolicyEffects(
   );
 
   // Transfer channel
-  const transferChannelAddition = computeTransferPolicyEffect(
+  const {
+    transferAddition: transferChannelAddition,
+    enhancedUIAddition,
+    displacedFlatAddition,
+    uiPricingWage,
+  } = computeTransferPolicyEffect(
     config, year, population, totalUnemployment, averageWage, priceLevel, displacedWorkers,
+    displacedPoolCount, displacedPoolWage,
     aiGDPContribution, startYearAiGDP,
   );
 
@@ -357,7 +409,7 @@ export function computePolicyEffects(
   // Fiscal cost = wage subsidies + transfers + SWF government contribution
   // Phase 5h (Fix 5): SWF annual contribution is a government outlay — include in fiscal cost.
   // swfAnnualContribution is in billions, wage/transfer channels are in dollars → ×1e9 conversion.
-  const fiscalCost = wageChannelAddition + transferChannelAddition + (swfAnnualContribution * 1_000_000_000);
+  const fiscalCost = wageChannelAddition + transferChannelAddition + (swfAnnualContribution * DOLLARS_PER_BILLION);
   const fiscalCostAsPercentGDP = gdp > 0 ? fiscalCost / gdp : 0;
 
   // Required asset ownership and transfer levels are computed in simulation.ts
@@ -370,6 +422,9 @@ export function computePolicyEffects(
     wageChannelAddition,
     assetChannelAddition,
     transferChannelAddition,
+    enhancedUIAddition,
+    displacedFlatAddition,
+    uiPricingWage,
     totalPolicyIncome,
     fiscalCost,
     fiscalCostAsPercentGDP,

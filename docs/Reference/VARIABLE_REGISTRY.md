@@ -124,7 +124,10 @@
 | `BASELINE_GDP_REAL_2025` | const | constants.ts:386 | 23,000,000,000,000 | monetary.ts (Fisher); macro.ts (potential GDP) | dollars (2017 chained) |
 | `BASELINE_GDP_GROWTH_RATE` | const | constants.ts:370 | 0.02 | macro.ts → computeGDP; defaults | percent (0-1) |
 | `BASELINE_AVERAGE_ANNUAL_WAGE` | const | constants.ts:441 | round(govData.avgHourlyEarnings × hours × 52) | policy.ts; wage comparisons | dollars/year |
-| `BASELINE_TRANSFER_PER_UNEMPLOYED` | const | constants.ts:447 | 19,200 | policy.ts → computeUI | dollars/year |
+| `BASELINE_TRANSFER_PER_UNEMPLOYED` | const (DEPRECATED) | constants.ts | 19,200 — RETIRED from the loop (100%-recipiency UI-only figure) | none (historical reference) | dollars/year |
+| `DEFAULT_CASH_TRANSFER_PER_UNEMPLOYED` | const | constants.ts | 8,000 — UI ($430/wk × 28% stock recipiency, DOL ETA) + SNAP ($345/mo × 40%, USDA FNS) | macro.ts income block → transfer income; budget via incrementalTransferSpending | dollars/year |
+| `DEFAULT_IN_KIND_TRANSFER_PER_UNEMPLOYED` | const | constants.ts | 5,000 — Medicaid (KFF FY2021 per-enrollee × 0.75 enrollment elasticity) + ACA APTC | macro.ts → consumption directly (NIPA PCE); budget via incrementalTransferSpending | dollars/year |
+| `CURRENT_LAW_UI_REPLACEMENT_RATE` / `_DURATION_WEEKS` | const | constants.ts | 0.45 / 26 (DOL) | policy.ts enhanced-UI netting anchor ($0 increment at current-law settings) | fraction / weeks |
 | `BASELINE_PRICE_LEVEL` | const | constants.ts:459 | 1.0 | macro.ts; monetary.ts | index |
 | `BASELINE_GOVT_TRANSFERS` | const | constants.ts:1862 | 4,500,000,000,000 | macro.ts (baseline) | dollars |
 | `BASELINE_DEBT_INTEREST` ⚠️ DEPRECATED | const | constants.ts:1869 | 1,050,000,000,000 | fiscal.ts (legacy) | dollars |
@@ -454,7 +457,8 @@ Formula: `J_new(t) = innovationRate × GDP × rdMultiplier`; `durable = J_new ×
 | `potentialGDP` | state | macro.ts:2049 | gdpReal + aiConsumerGoodsPotential | capacityUtilization | N/A | dollars |
 | `capacityUtilization` | derived | macro.ts:2051 | `min(1.0, gdpReal / potentialGDP)` | MacroOutput | N/A | ratio |
 | `gdpGrowthRate` | derived | macro.ts:2101 | `(gdpNom - prev) / prev` | MacroOutput | N/A | percent |
-| `realGDPGrowthRate` | derived | macro.ts:2106 | `(gdpReal - prev) / prev` | revenue pressure | N/A | percent |
+| `realGDPGrowthRate` | derived | macro.ts | `(gdpReal - prev) / prev` (full-composite deflated; reporting/legacy) | reporting | N/A | percent |
+| `nonAIRealGDPGrowthRate` | derived | macro.ts | growth of `nominalGDP / nonAIPriceLevel` (prices excl. ALL AI supply deflation) — **the revenue-pressure firewall input** (AI-supply deflation excluded so the loop reads real contraction, not deflation) | revenue pressure | N/A | percent |
 | `BASELINE_CONSUMPTION_2025` | const | constants.ts:978 | derived from GDP shares (~0.65 × GDP) | macro.ts (year-0 ref) | N/A | dollars |
 | `BASELINE_GOVT_SPENDING_2025` | const | constants.ts:980 | BASELINE_GDP × GOVERNMENT_SPENDING_GDP_FRACTION | macro.ts (baseline) | N/A | dollars |
 | `BASELINE_INVESTMENT_2025` | const | constants.ts:981 | BASELINE_GDP × TRADITIONAL_INVESTMENT_GDP_FRACTION | macro.ts (baseline) | N/A | dollars |
@@ -505,9 +509,12 @@ The model splits inflation into shelter and goods, then weighted-blends. Inflati
 | `BASELINE_PRICE_LEVEL` | const | constants.ts:459 | 1.0 | macro.ts year-0 | N/A | index |
 | `MAX_PRICE_LEVEL` | const | constants.ts:669 | 1e15 | monetary.ts (safety cap) | N/A | index cap |
 | `MONETARY_COLLAPSE_THRESHOLD_FRACTION` | const | constants.ts:677 | 0.99 | monetary.ts → flagMonetaryCollapse | N/A | ratio |
-| `compositeInflation` | state | macro.ts:1568 | `shelterWeight × shelterInflation + (1-shelterWeight) × goodsInflation` | priceLevel update | N/A | percent |
-| `shelterInflation` | state | macro.ts:1561 | 7-component model: BASELINE_SHELTER + shelterDeflationFromAI + mortgageImpact + creditImpact + rentalPressure + foreclosure + ... | compositeInflation | N/A | percent |
-| `goodsInflation` | state | macro.ts:1538 | netInflation (non-shelter) | compositeInflation | N/A | percent |
+| `compositeInflation` | state | macro.ts | `Σ_sector weight_s × sectorInflation_s` over 4 consumption sectors (shelter/AI-exposed/labor-services/food-energy), normalized | priceLevel update | N/A | percent |
+| `nonAICompositeInflation` | state | macro.ts | composite + Σ_s (sector AI-supply deflation contribution) = composite as if AI deflated nothing — **the firewall counterpart** | nonAIPriceLevel | N/A | percent |
+| `nonAIPriceLevel` | state | macro.ts | compounds from `nonAICompositeInflation` (excl. all cognitive+embodied AI deflation) | nonAIRealGDP, Stage-2 firewall | N/A | index (1.0=base) |
+| `aiExposedInflation` / `laborServicesInflation` / `foodEnergyInflation` | state | macro.ts | per-sector inflation: base + broad pressures − sector AI deflation × sector passthrough (sector-routed consumption shares) | compositeInflation | N/A | percent |
+| `shelterInflation` | state | macro.ts | BASELINE_SHELTER − shelterEmbodiedDeflation + mortgage + foreclosure + rental | compositeInflation | N/A | percent |
+| `goodsInflation` | state | macro.ts | = aiExposedInflation (back-compat alias) | reporting | N/A | percent |
 | `netInflation` | state | macro.ts:1502-1521 | `base - aiDefl + transferInfl + demand + minWageCostPush + creditDefl + scarcityInfl` | goodsInflation | N/A | percent (can be neg) |
 | `aiDeflationRate` | state | macro.ts:1477 | `computeSectorWeightedDeflation(clusters, year)` | netInflation | N/A | percent |
 | `sectorWeightedDeflationRate` | state | macro.ts:189-242 | `Σ(clusterAutoCoverage × deflationIntensity × costSavings × cpiWeight)` | aiDeflationRate | N/A | percent |
@@ -537,7 +544,10 @@ The model splits inflation into shelter and goods, then weighted-blends. Inflati
 | `totalEmployment` | state | macro.ts:1361-1367 | `prevEmpl - displacement + newJobCreation` | MacroOutput | N/A | persons |
 | `totalUnemployment` | state | macro.ts:1372 | `max(0, laborForce - totalEmployment)` | MacroOutput | N/A | persons |
 | `unemploymentRate` | derived | macro.ts:1373 | `totalUnemployment / laborForce` | many — wage pressure, credit, cycle | N/A | ratio |
-| `wagePressure` | state | macro.ts:354–363 (Phase 10.A rewrite) | `max(policyFloor, classicPhillips × (1−aiShare) + scarcityPremium + aiWagePremium)` | wageIncome scaling | N/A | multiplier |
+| `wagePressure` | derived | macro.ts | back-compatibility alias: `wageIndex / trendWageIndex` (=1.0 zero-AI, <1 when wages below trend). The (1−aiShare) gate is RETIRED. | reporting | N/A | multiplier |
+| `wageIndex` | state | macro.ts | compounded per-worker nominal wage (1.0=2025) from `computeNominalWageGrowth`; floored at `policyWageFloor × trendWageIndex` (a wage-LEVEL floor, not a growth floor) | wage income | N/A | index |
+| `trendWageIndex` | state | macro.ts | wage index with NO Phillips/scarcity (policy-floor + Baumol reference) | wageIndex floor, Baumol | N/A | index |
+| `obligationGCOLAIndex` | state | macro.ts | compounds `max(nominalWageGrowth, compositeInflation(t−1), 0)` — wage-indexed when wages lead, CPI-protected in stagflation, flat in deflation; single-index approximation of the statute's stock-weighted blend | obligation-G, baseline transfers, incremental cash (one index, three consumers) | N/A | index |
 | `scarcityPremium` | derived | macro.ts:354–363 | `aiShare × scarcityIntensity × aggregateReplacementDifficultyWagePremium` | wagePressure | N/A | premium |
 | `scarcityIntensity` | param | types/index.ts (SimulationConfig) → macro.ts:344 input | `DEFAULT_SCARCITY_INTENSITY` | macro.ts computeWagePressure; displacement.ts computeClusterDisplacement | AugmentationAndScarcityControls "Scarcity Intensity" | ratio (0–1) |
 | `DEFAULT_SCARCITY_INTENSITY` | const | constants.ts:2530 | 0.4 | macro.ts; simulation.ts (fallback) | N/A | ratio |
@@ -547,8 +557,22 @@ The model splits inflation into shelter and goods, then weighted-blends. Inflati
 | `NATURAL_UNEMPLOYMENT_RATE` | const | constants.ts:698 | `BASELINE_UNEMPLOYMENT / US_LABOR_FORCE_2025` (~0.044) | macro.ts | N/A | ratio |
 | `FRED_NAIRU_RATE` | const | constants.ts:706 | govData.fredNairuRate (~0.044) | UI display only | N/A | ratio |
 | `automationCoverage` | state | macro.ts:255-270 | `computeAutomationCoverageFromClusters(clusters, baseline)` | wage premium, deflation | N/A | ratio (0-1) |
-| `nominalWageGrowth` | derived | macro.ts:737 | implicit in wageIncome × wagePressure | MacroOutput | N/A | percent |
-| `TRANSFER_GROWTH_PER_UE_POINT` | const | constants.ts:1980 | 65,000,000,000 ($65B per pp UE) | macro.ts:1228 → automatic stabilizer | N/A | dollars per pp UE |
+| `nominalWageGrowth` | state | macro.ts (computeNominalWageGrowth) | the endogenous wage equation: `indexation×composite(t−1) + passthrough×perWorkerProd − phillipsSlope×excessUE + Δscarcity`, ×(1−rigidity) if <0 | wageIndex, Baumol, obligation-G | N/A | percent |
+| `TRANSFER_GROWTH_PER_UE_POINT` | const (DEPRECATED) | constants.ts | 65e9 — RETIRED: CBO first-year-flow estimate that fed ONLY the reporting deficit (~3× the consistent per-person value); both deficits now derive from CASH+IN-KIND × headcount | none (historical reference) | N/A | dollars per pp UE |
+| `incrementalTransferSpending` | state | macro.ts income block | `incrementalUnemployment × (cashPerUnemployed + inKindPerUnemployed)` | computeFiscalPressure (reporting, t); computeGovernmentSpending (load-bearing budget, t+1) | MacroOutput | N/A | dollars |
+| `stabilizerTransfers` | state | fiscal.ts computeGovernmentSpending | = prev-year `incrementalTransferSpending` (extended Gate C: residual ≡ 0) | totalGovernmentSpending → totalDeficit → debt/yields/monetization | FiscalState | N/A | dollars |
+| `laborServicesPriceLevel` | state | macro.ts | cumulative labor-services sector index, compounds `laborServicesInflation + monetaryInflation` (the uniform monetary term added back at sector level) | in-kind support deflator | MacroOutput | N/A | index |
+| `housingStock` / `households` / `headshipRate` | state | macro.ts computeHousingBlock | stock-flow housing demography (Census HVS/TTLHH init) | occupancy → rents | MacroOutput | N/A | units / households / ratio |
+| `rentIndex` | state | computeHousingBlock | ΔR = costAnchor×Δrepl + occElast×occGap — shelter CPI = its growth | composite → priceLevel → wage/COLA indexation | MacroOutput | N/A | index |
+| `constructionCostIndex` / `landCostIndex` | state | computeHousingBlock | ΔCC = laborShare×wage + materials − FULL secDefl.shelter; ΔL = income×β + scarcity×gap + investorLandBid (R24: one-sided) | replacement cost → starts, rents | MacroOutput | N/A | index |
+| `housingStarts` / `occupancyRate` | state | computeHousingBlock | starts = base × max(0, 1+Saiz×gap), capacity-capped; occ = HH/H (natural 0.897) | stock evolution; rent/land occupancy terms | MacroOutput | N/A | units/yr, ratio |
+| `homePriceIndex` (re-derived) | state | computeHousingBlock | ΔP = ΔR − Δcap/cap + fireSale (1.75, Mian-Sufi-Trebbi) | wealth effect (base × P), credit collateral, affordability diagnostic | MacroOutput | N/A | index |
+| (retired) `computeHomePriceChange` 5-channel + additive shelter stack | — | macro.ts (deprecated comments) | replaced by computeHousingBlock (decision record: docs/FABLE_AUDIT_SUMMARY.md) | — | — | — |
+| `corporateProfits` (re-derived) | state | macro.ts | **RESIDUAL IDENTITY: GDP − wageBill − nonCorpIncome − otherCostsShare×GDP** — signed, no cap (the min(raw, GDP−wageBill) is deleted); margins are OUTPUTS | dividends/tax/retained (t−1), equity market, α margin driver, profit coverage, investor bid via asset share | MacroOutput | N/A | dollars |
+| `rentSharingContribution` | internal | macro.ts computeNominalWageGrowth | `rentSharingElasticity × (profitShare(t−1) − driftingBaseline)` — two-sided | nominal wage growth | N/A | N/A | fraction/yr |
+| (retired) `cumulativeProductivityFactor` | — | macro.ts (commented out) | ZERO consumers post-Stage-7 (wages→S3 wageIndex; transfers→S5b COLA; nonCorp→S7 wageIndex) | — | — | — |
+| (retired) `automationDividend`/`augmentationProfitBoost` additive profit terms + `DEFAULT_AI_PROFIT_MARGIN`/`DEFAULT_TRADITIONAL_PROFIT_MARGIN` (0.11 → validation reference) | — | macro.ts | the residual captures un-passed AI cost savings automatically (double-counts removed) | — | — | — |
+| `effectiveObligationCOLA` | internal | macro.ts | `obligationGCOLAIndex` with the COLA-dampening lever applied | baselineTransfers, incremental cash indexation; mirrored to `fiscal.effectiveCOLAFactor` | N/A | N/A | index |
 | `DEPRESSION_CONSECUTIVE_DECLINE_QUARTERS` | const | constants.ts:426 | 4 | macro.ts → flagDepression | N/A | quarters |
 | `DEPRESSION_UNEMPLOYMENT_THRESHOLD` | const | constants.ts:432 | 0.15 | macro.ts → flagDepression | N/A | ratio |
 | `is_depression` | derived | macro.ts | boolean from depression test | MacroOutput | N/A | boolean |
@@ -584,7 +608,7 @@ The model splits inflation into shelter and goods, then weighted-blends. Inflati
 | `BASELINE_CORPORATE_RETENTION_RATE` | const | constants.ts:1894 | govData.corporateRetentionRate (~0.40) | macro.ts | N/A | ratio |
 | `corporateRetentionRate` | param | types/index.ts:1304 | 0.40 | macro.ts → computeCorporateIncome | InvestmentCorporateControls | ratio |
 | `CORPORATE_PAYOUT_RATIO` | const | constants.ts:1234 | IIFE: `1 - corporateRetentionRate` | equity.ts → computeDividends | N/A | ratio |
-| `profitCoverageRatio` | derived | macro.ts:852 | `corporateProfits / baselineCorporateProfits` | businessCreditConditions | N/A | ratio |
+| `profitCoverageRatio` | derived | macro.ts | `prevAfterTaxProfits / (baselineProfits × laggedNominalGDP/baseGDP)` (GDP-proportional baseline) | businessCreditConditions | N/A | ratio |
 | `nonCorporateAssetIncome` | state | macro.ts:1719 | `NON_CORPORATE_ASSET_SHARE × totalAssetIncome` | assetIncome composition | N/A | dollars |
 | `aiSectorPE` | derived | macro.ts:687 | dynamic P/E for AI sector | MacroOutput | N/A | multiple |
 | `traditionalSectorPE` | derived | macro.ts:688 | dynamic P/E for trad sector | MacroOutput | N/A | multiple |
@@ -1471,27 +1495,27 @@ Every config-mutating action calls `recompute()`, which runs `runSimulation(conf
 | D2 | `MPC_ASSET` (0.35) vs `DEFAULT_POST_TAX_MPC_ASSET` (0.42) | Same — pre vs post tax | Same |
 | D3 | `MPC_TRANSFER` (0.90) vs `DEFAULT_POST_TAX_MPC_TRANSFER` (0.95) | Same | Same |
 | D4 | `AI_COST_COMPOSITION` (constants.ts:1942-1947 DEPRECATED) vs `DEPLOYMENT_COST_COMPOSITION` (constants.ts:2169-2174) | Phase 9 refactor; field names changed (inference→compute, etc.) | Verify no callers use old constant. |
-| D5 | `CREDIT_INVESTMENT_SENSITIVITY` const (0.35) vs UI default (1.2 in CreditFinancialControls) | UI shows different default than constant | ⚠️ VERIFY which is authoritative |
-| D6 | `CREDIT_CONSUMPTION_SENSITIVITY` const (0.06) vs UI default (1.5) | Same | ⚠️ VERIFY |
-| D7 | `CREDIT_UE_SENSITIVITY` const (8.0) vs UI default (3.0) | Same | ⚠️ VERIFY |
+| D5 | `CREDIT_INVESTMENT_SENSITIVITY` (0.35) | RESOLVED — no UI divergence in source: the control reads `config.creditInvestmentSensitivity ?? CREDIT_INVESTMENT_SENSITIVITY` (CreditFinancialControls.tsx); the recorded "1.2" does not exist in the codebase (stale audit capture, the D23 class) | None |
+| D6 | `CREDIT_CONSUMPTION_SENSITIVITY` (0.06) | RESOLVED — same pattern, same verification; recorded "1.5" not in source | None |
+| D7 | `CREDIT_UE_SENSITIVITY` (8.0) | RESOLVED — same; recorded "3.0" not in source | None |
 | D8 | `MAX_CREDIT_TIGHTENING` const (0.70) vs UI default (0.70) | Match | None |
-| D9 | `BOTTOM80_WAGE_SHARE` const (0.45) vs UI default in ConsumerDemandControls (0.52) | Different defaults | ⚠️ VERIFY |
-| D10 | `BOTTOM80_TRANSFER_SHARE` const (0.78) vs UI default (0.75) | Different | ⚠️ VERIFY |
-| D11 | `BOTTOM80_ASSET_SHARE` const (0.12) vs UI default (0.15) | Different | ⚠️ VERIFY |
-| D12 | `DEFAULT_INFERENCE_ANNUAL_CHANGE` const (-0.45) vs UI default (-0.30) | Different | ⚠️ VERIFY |
-| D13 | `BASELINE_SHELTER_CPI_WEIGHT` const (0.36) vs UI default (0.35) | Slight difference | ⚠️ VERIFY |
-| D14 | `DEFAULT_SHELTER_INFLATION_STICKINESS` const (0.80) vs UI default (0.70) | Different | ⚠️ VERIFY |
-| D15 | `DEFAULT_FORECLOSURE_LAG` const (0.75) vs UI default (1.5) | Different | ⚠️ VERIFY |
-| D16 | `DEFAULT_AI_PRODUCTION_INVESTMENT_FRACTION` const (0.30) vs UI default (0.25) | Different | ⚠️ VERIFY |
-| D17 | `DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION` const (0.10) vs UI default (0.40) | Different | ⚠️ VERIFY |
-| D18 | `DEFAULT_NEW_JOB_WAGE_FRACTION` const (0.70) vs UI default (0.55) | Different | ⚠️ VERIFY |
-| D19 | `DEFAULT_AI_PE_SENSITIVITY` const (100) vs UI default (1.5) | Vastly different — likely UI displays a "multiplier" form | ⚠️ VERIFY mapping |
-| D20 | `DEFAULT_TRADITIONAL_PE_SENSITIVITY` const (60) vs UI default (0.8) | Same | ⚠️ VERIFY |
-| D21 | `DEFAULT_AI_PROFIT_MARGIN` const (0.25) vs UI default (0.35) | Different | ⚠️ VERIFY |
-| D22 | `DEFAULT_TRADITIONAL_PROFIT_MARGIN` const (0.11) vs UI default (0.15) | Different | ⚠️ VERIFY |
-| D23 | `BASELINE_INCOME_TAX_RATE` const (govData ~0.132) vs UI/autopilot default (0.145) | Different | ⚠️ VERIFY |
-| D24 | `BASELINE_CAPITAL_GAINS_RATE` const (0.165) vs UI default (0.20) | Different | ⚠️ VERIFY |
-| D25 | `DEFAULT_POPULATION_GROWTH_RATE` const (0.004) vs UI default (0.007) | Different | ⚠️ VERIFY |
+| D9 | `BOTTOM80_WAGE_SHARE` (0.45) | RESOLVED — `?? BOTTOM80_WAGE_SHARE` pattern; recorded "0.52" not in source | None |
+| D10 | `BOTTOM80_TRANSFER_SHARE` (0.78) | RESOLVED — same class | None |
+| D11 | `BOTTOM80_ASSET_SHARE` (0.12) | RESOLVED — same class | None |
+| D12 | `DEFAULT_INFERENCE_ANNUAL_CHANGE` (−0.45) | RESOLVED — same class | None |
+| D13 | `BASELINE_SHELTER_CPI_WEIGHT` (0.36) | RESOLVED — same class | None |
+| D14 | `DEFAULT_SHELTER_INFLATION_STICKINESS` (0.80) | RESOLVED — same class | None |
+| D15 | `DEFAULT_FORECLOSURE_LAG` (0.75) | RESOLVED — same class | None |
+| D16 | `DEFAULT_AI_PRODUCTION_INVESTMENT_FRACTION` (0.30) | RESOLVED — same class | None |
+| D17 | `DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION` (0.10) | RESOLVED — same class | None |
+| D18 | `DEFAULT_NEW_JOB_WAGE_FRACTION` (0.70) | RESOLVED — same class | None |
+| D19 | `DEFAULT_AI_PE_SENSITIVITY` (100) | RESOLVED — same class; no "multiplier form" mapping exists, the constant is the default | None |
+| D20 | `DEFAULT_TRADITIONAL_PE_SENSITIVITY` (60) | RESOLVED — same class | None |
+| D21 | `DEFAULT_AI_PROFIT_MARGIN` (0.25) | RESOLVED — same class | None |
+| D22 | `DEFAULT_TRADITIONAL_PROFIT_MARGIN` (0.11) | RESOLVED — same class | None |
+| D23 | `BASELINE_INCOME_TAX_RATE` vs a recorded UI/autopilot default | RESOLVED — claim not found: no 0.145 exists in source. One chain: `config.taxConfig?.incomeTaxRate ?? BASELINE_INCOME_TAX_RATE` = `govData.effectiveIncomeTaxRate`, derived ≈ 0.1242 from the committed BEA table (personalCurrentTaxes / totalPersonalIncome, 2025 vintage). The "~0.132" this row previously recorded was a retired parse-failure fallback literal, never the live derived value. | None |
+| D24 | `BASELINE_CAPITAL_GAINS_RATE` (0.165) | RESOLVED — same class; recorded "0.20" not in source | None |
+| D25 | `DEFAULT_POPULATION_GROWTH_RATE` (0.004) | RESOLVED — same class; recorded "0.007" not in source | None |
 | D26 | Tax rates: `autopilot.ts:45-50` baseline vs `constants.ts` BASELINE_*_RATE | Both referenced; autopilot reads config, falls back to constants | Acceptable design |
 | D27 | Inflation: `netInflation` (macro.ts:1502) vs deprecated `computePriceLevel` | Resolved Phase 5g; deprecated function in comments only | None |
 | D28 | ARPP vs CWI: old function in comments; current uses CWI | Resolved Phase 5g | None |
@@ -1499,7 +1523,7 @@ Every config-mutating action calls `recompute()`, which runs `runSimulation(conf
 | D30 | `BASELINE_AVERAGE_ANNUAL_WAGE` (per-capita) vs `BASELINE_WAGE_INCOME` (aggregate) | Different aggregation levels — not a duplicate | None |
 | D31 | `DEFAULT_TRAINING_COMPOSITION` (cost-driven) vs `DEFAULT_PROCUREMENT_SHARES` (procurement-driven) | Used in costVsProcurementBlend; intentional | None |
 
-**⚠️ CRITICAL: Items D5-D25 represent likely bugs.** The "default" shown in UI controls audit does NOT match the named constant from `constants.ts`. Either the UI audit captured stale/example values, OR the controls hardcode different defaults than the named constants. The Plan agent should verify whether these are agent inference errors vs real divergences in source code before trusting them. Run a focused grep for each to confirm.
+**D5–D25 RESOLVED (one-pass sweep at the engagement close-out).** Every flagged parameter resolves through `config.<field> ?? NAMED_CONSTANT` — the named constant IS the UI default; no control hardcodes a numeric default for any of these fields (verified by pattern search over components, stores, and hooks). The divergent "UI defaults" previously recorded here were stale captures from an earlier automated audit — the same failure class as the resolved D23 row. Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 ### ⚠️ ORPHAN (defined but never read)
 

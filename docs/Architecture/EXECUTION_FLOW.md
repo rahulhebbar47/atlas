@@ -962,7 +962,7 @@ The user's prompt mentions "5 feedback loops". ATLAS actually contains **6** in-
 **Limitations:**
 - Line numbers are accurate at audit time but will drift as code evolves
 - The internal structure of `computeMacro()` (2450 lines) is documented at the function-call boundary; deeper line-by-line tracing of macro.ts internals is left to a follow-up audit if needed
-- Phase 9 supply chain integration is in-flight; some bindings may not yet be fully wired
+- The supply-chain module is fully integrated but dormant in the default configuration: no `supplyChainConfig` is set by default, so its consumers are gated off and it contributes nothing to baseline runs. It activates only in user scenarios that set that configuration.
 
 **Recommended follow-up audits:**
 1. Trace `computeMacro()` internals to document the exact order of operations inside the macro module (currently treated as a black box at step 22)

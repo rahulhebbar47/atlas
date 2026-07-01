@@ -8,21 +8,6 @@ This document defines the complete mathematical model that powers ATLAS. Every e
 
 ### 1.1 Capability Categories
 
-<!-- UPDATED 2026-03-02: Replaced 8-vector system with 3-vector consolidated system (Phase 8 Consolidation).
-Eight distinct AI technology vectors, each with independent capability trajectories:
-
-| ID | Category | Description | Key Benchmarks |
-|----|----------|-------------|----------------|
-| `lang` | Language / Reasoning | NLP, analysis, synthesis, legal/medical reasoning | Contract review accuracy, diagnostic accuracy |
-| `code` | Code Generation | Writing, reviewing, debugging, deploying code | SWE-bench scores, autonomous PR completion |
-| `agent` | Agentic AI | Multi-step workflows, tool use, autonomous task completion | End-to-end task completion rates |
-| `decide` | Decision-Making | Risk assessment, strategy, resource allocation | Portfolio performance, logistics optimization |
-| `robot` | Robotics | Physical manipulation, navigation, dexterity | Task completion in unstructured environments |
-| `auto` | Autonomous Vehicles | Self-driving for freight, passenger, delivery | Miles per disengagement, safety multiples vs human |
-| `gen` | Generative AI | Image, video, audio, 3D content creation | Human indistinguishability rates, creative quality |
-| `sci` | Scientific / Discovery | Hypothesis generation, experiment design, simulation | Novel discoveries, drug candidate success rates |
--->
-
 Three consolidated AI technology vectors, each with independent capability trajectories:
 
 | ID | Category | Description | Consolidates |
@@ -62,25 +47,6 @@ Where:
 **User controls**: The user adjusts `S_c_floor`, `S_c_ceil`, `k_c`, and `t_c_mid` for each vector via sliders. The UI shows the resulting S-curve in real-time.
 
 ### 1.4 Baseline Trajectories
-
-<!-- UPDATED 2026-03-02: Replaced 8-vector baseline trajectories with 3-vector defaults (Phase 8 Consolidation).
-The model offers baseline trajectories derived from observable trends. The user can load these as starting points and adjust.
-
-For robotics baselines, use Tesla Optimus production/capability milestones:
-- Current state (2025): S_robot ≈ 0.2 (basic warehouse tasks, controlled environments)
-- Tesla's stated goal: millions of units by early 2030s
-- Scale trajectory: manufacturing ramp follows Tesla's own production curve estimates
-
-For autonomous vehicles, use Tesla fleet only:
-- Cybercab (robotaxi): post-2025 Austin launch, scaling to additional cities
-- Semi: long-haul freight, fleet conversion timelines
-- Current FSD safety multiple vs. human: ~10x (not enough for many regulators, see BFCS)
-
-For software AI (lang, code, agent):
-- Trajectory is steeper — no physical manufacturing constraint
-- Capability gains track with compute scaling and model improvements
-- Current state: code ≈ 0.7 (junior dev equivalent), lang ≈ 0.75, agent ≈ 0.4
--->
 
 Default 3-vector baseline trajectories from `constants.ts`:
 
@@ -129,10 +95,6 @@ B(c, o, r) = min(1, normalized_score × quality_multiplier)
 
 > **NOTE**: Normalization by total_weight ensures the Better score is comparable across clusters regardless of how many capability dimensions are relevant. Without normalization, clusters with more relevant capabilities would systematically score higher. The quality_multiplier uses (2 - seniority) rather than (1 / seniority) for more linear and predictable scaling: junior roles (seniority ~0.4) get multiplier ~1.6, senior roles (~0.85) get ~1.15.
 
-<!-- UPDATED 2026-03-02: Capability weights now use 3 vectors instead of 8 (Phase 8 Consolidation).
-The `weight_c` values come from `relevance(c, o)`, which maps how much each capability vector matters for each occupation. E.g., trucking depends heavily on `auto` (0.9) and `decide` (0.3) but barely on `code` (0.0).
--->
-
 The `weight_c` values come from `capabilityRelevance.weights` on each `OccupationCluster`, which maps the 3 consolidated capability vectors (`generative`, `agentic`, `embodied`) to each occupation. E.g., trucking has weights: generative=0.05, agentic=0.15, embodied=0.80. Software engineering: generative=0.70, agentic=0.25, embodied=0.05. Per-cluster weights sum to 1.0.
 
 **Faster (F):**
@@ -145,12 +107,71 @@ F(o, t) = min(1, inference_speed(t) × TASK_PARALLELISM[deployment_type])
 > **NOTE**: Inference speed improves linearly at an effective rate of 0.03/year (0.3 × 0.1 calibration factor), from a 2025 baseline of 0.7. This is a technology-wide improvement not tied to specific capability vectors.
 
 **Cheaper (C):**
+
+The Cheaper score measures how much money an employer saves by automating a role instead of
+employing a person in it. The model compares the cost of running AI against the cost of the
+human it would replace. The human side uses the role's actual average wage from government
+survey data, relative to the economy-wide average wage, and tracks the economy's wage level
+over time. This makes the comparison respond to economic conditions in both directions: in a
+depression, falling wages make human workers cheaper to keep and automation less attractive;
+in a scenario where wages are held up by indexed policies, automation becomes attractive
+sooner. Labor scarcity in a cluster also raises its human cost, which accelerates automation
+of the roles that remain.
+
+The specification:
+
 ```
-C(c, o, r, t) = (human_cost(o, r, t) - ai_cost(c, t)) / human_cost(o, r, t)
-              + priorYearWageAdjustmentByCluster[o](t−1)        -- Phase 10.A scarcity feedback
+C(o, r, t) = clamp[0,1]( 1 − ai_cost_fraction(t) / human_cost_factor(o, r, t) )
+
+human_cost_factor(o, r, t) = (role_mean_wage(o, r) / economy_mean_wage)
+                           × wage_index(t−1)
+                           × (1 + scarcity_wage_adjustment(o, t−1))
 ```
 
-The wage-adjustment term closes the scarcity → cost loop: if last year's labor scarcity pushed wages up in cluster `o`, this year's Cheaper-score is correspondingly higher, accelerating adoption. See §4.3a for the per-cluster aggregation.
+where:
+
+- `ai_cost_fraction(t)` is the composition-weighted AI cost index (inference, manufacturing,
+  and energy components; dimensionless, anchored to 1.0 in 2025; nominal). The component
+  curves and their user dials are specified in §4 (AI cost trajectories).
+- `role_mean_wage(o, r)` is the role's mean annual wage in dollars from the BLS Occupational
+  Employment and Wage Statistics survey (OEWS — the committed data the model loads; see §11),
+  and `economy_mean_wage` is the economy-wide mean annual wage from the same source. Their
+  ratio is dimensionless. The observed ratios span more than a factor of eight across roles.
+- `wage_index(t−1)` is the model's economy-wide nominal wage index (1.0 in 2025), taken from
+  the previous year so wages and adoption do not interact within a single year. Both sides of
+  the comparison are nominal: the AI cost curves are nominal price records, and the wage leg
+  is the nominal index.
+- `scarcity_wage_adjustment(o, t−1)` is the prior year's scarcity-driven wage premium for the
+  cluster (see §4.3a), a dimensionless rate, usually small and positive when displacement has
+  made the remaining workers in a cluster scarce.
+- Six government administrative roles have no OEWS series; they use a seniority-based
+  substitute for the wage ratio and are flagged as estimated in the model's diagnostics.
+
+**The Cheaper threshold bridge.** Each role's stored Cheaper threshold `C*` was calibrated
+against an older wage basis. At load time the model re-derives the threshold on the OEWS
+basis so that each role keeps its observed 2025 proximity to triggering, measured as a
+fraction of the remaining score headroom:
+
+```
+frac = (C*_old − C_2025,old) / (1 − C_2025,old)
+C*_new = C_2025,new + frac × (1 − C_2025,new)
+```
+
+`C_2025,old` and `C_2025,new` are the role's 2025 Cheaper scores under the old and new bases.
+The bridge is a pure load-time computation — no stored data is rewritten — and it guarantees
+that no role's trigger status changes at 2025; trigger timing after 2025 moves only through
+the basis's own dynamics. Proximity is preserved as a fraction of headroom rather than as an
+absolute score difference because score velocity differs across bases; the absolute form
+produces thresholds outside the valid range for high-wage roles.
+
+User adjustability: every BFCS threshold, including the bridged Cheaper threshold, can be
+overridden per cluster and role (`bfcsOverrides`). The wage basis and the wage-index
+connection each have a configuration toggle that reverts them independently
+(`legacyCheaperProxy`, `seamBasisOnly`).
+
+Implementation: `computeCheaperScore` and `deriveSeamCheaperThreshold` in
+`src/models/bfcs.ts`; the load-time basis map is built in `src/models/simulation.ts`.
+Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 **Safer (S):**
 ```
@@ -237,9 +258,9 @@ adoption_rate_adjusted(o, t) = adoption_rate(o, t) * (1 + competitive_pressure(o
 
 This creates the "meaningful displacement → full displacement gap is small" dynamic.
 
-### 3.4 Augmentation Adoption — Pre-BFCS S-Curve (Phase 10.A Part 7)
+### 3.4 Augmentation Adoption — Pre-BFCS S-Curve
 
-Phase 10.A separates **augmentation** (humans using AI as a productivity tool) from **replacement** (jobs eliminated via BFCS triggers). Augmentation adoption runs on its own logistic S-curve, triggered by a viability threshold that fires well before all four BFCS thresholds are met.
+The model separates **augmentation** (humans using AI as a productivity tool) from **replacement** (jobs eliminated via BFCS triggers). Augmentation adoption runs on its own logistic S-curve, triggered by a viability threshold that fires well before all four BFCS thresholds are met.
 
 Source: `src/models/augmentationAdoption.ts` (entire file; called from `simulation.ts:1238`).
 
@@ -266,33 +287,15 @@ clusterAugmentationOutput(o, t) = Σ_r remaining(o, r, t) × augAdoptionRate(o, 
 
 where `remaining(o, r, t) = baseline(o, r) × (1 − displacement(o, r, t))` and `augmentationMultiplier` is the user-adjustable per-worker productivity boost (default `DEFAULT_AUGMENTATION_MULTIPLIER = 2.0`, recalibrated upward from 0.20 in commit `537e4ee`).
 
-A parallel **head-count fraction** `augmentedHeadcountByCluster[o]` ∈ [0,1] is recorded for use in the sector-deflation pipeline (Phase 10.A fix #1 — pure fraction, independent of wage / score amplification).
+A parallel **head-count fraction** `augmentedHeadcountByCluster[o]` ∈ [0,1] is recorded for use in the sector-deflation pipeline (a pure fraction, independent of wage / score amplification).
 
 ---
 
 ## 4. Displacement Model
 
-### 4.1 Displacement Formula — α-Driven Model (Phase 10.A V2)
+### 4.1 Displacement Formula — the α-Driven Model
 
-> ⚠ **Phase 10.A V2 (commit `86e2dc2`) replaces the quadratic `weighted_capability²` formula with an explicit α-driven decomposition.** The historical quadratic narrative is preserved below for context; the current implementation is in the **"V2 — Current Formula"** box at the end of this section. Source: `src/models/displacement.ts:40–70` (`computeSimplifiedDisplacement` marked DEPRECATED; `computeDisplacementV2` is current); `src/models/alphaDrivers.ts`.
-
-<!-- UPDATED 2026-03-02: Replaced old task erosion + headcount ratio with quadratic displacement formula (Phase 8 Consolidation).
-Not all automation eliminates jobs immediately. Task erosion comes first:
-
-```
-task_erosion(o, r, t) = adoption_rate(o, r, t) * task_automatable_fraction(o, r)
-```
-
-Where `task_automatable_fraction` is the % of tasks in that role that the relevant AI capability can perform. A junior software dev might have 80% automatable tasks (write code, write tests, fix bugs) but 20% non-automatable (stakeholder communication, ambiguous requirements).
-
-**Headcount reduction** follows task erosion with a lag:
-
-```
-headcount_multiplier(o, r, t) = 1 - (task_erosion(o, r, t) * productivity_to_headcount_ratio)
-```
-
-Where `productivity_to_headcount_ratio` captures: if a team of 10 now needs only 60% of tasks done by humans, do they fire 4 people or keep all 10 doing 60% of the work? Empirically, this ratio is ~0.6–0.8 (firms do reduce headcount, but not 1:1 with task reduction).
--->
+> ⚠ **The α-driven decomposition replaces the earlier quadratic `weighted_capability²` formula.** The quadratic narrative is preserved below for context; the current implementation is in the **"Current Formula"** box at the end of this section. Source: `src/models/displacement.ts:40–70` (`computeSimplifiedDisplacement` marked DEPRECATED; `computeDisplacementV2` is current); `src/models/alphaDrivers.ts`.
 
 Displacement uses a quadratic formula that provides natural dynamics — gentle early displacement that accelerates as AI capability increases:
 
@@ -322,9 +325,9 @@ remaining_wage(o, r, t) = baseline_wage(o, r) × wage_multiplier(o, r, t)
 
 Where `wage_elasticity` is per-cluster (default 0.6) — high for easily substitutable roles (data entry: 0.9), low for licensed/union (electricians: 0.3).
 
-#### V2 — Current Formula (Phase 10.A)
+#### The Current Formula (α-driven)
 
-The quadratic `weighted_capability²` term was a convenient stand-in for "things that make AI displacement gentler at low capability." Phase 10.A makes those forces explicit by decomposing α — the effective automation share — into five drivers. The product `adoptionRate × weightedCapability × α` replaces the quadratic.
+The quadratic `weighted_capability²` term was a convenient stand-in for "things that make AI displacement gentler at low capability." The current model makes those forces explicit by decomposing α — the effective automation share — into five drivers. The product `adoptionRate × weightedCapability × α` replaces the quadratic.
 
 ```
 displacement_pct(o, r, t) = clamp(adoption_rate(o, r, t) × weighted_capability(o, t) × α(o, r, t), 0, 1)
@@ -353,16 +356,6 @@ The cluster's `effectiveAlpha` (output field) is the employment-weighted mean of
 
 2. **Demand spillover** = jobs lost due to falling aggregate demand. Each cluster's remaining employment is reduced by its weighted demand ratio.
 
-<!-- UPDATED 2026-03-02: Replaced economic_activity_factor with demand spillover (Phase 3c.1) and Okun's Law (Phase 1 overhaul, later replaced).
-```
-ai_displaced(o, r, t) = baseline_employment(o, r) × (1 - headcount_multiplier(o, r, t))
-remaining_after_ai(o, r, t) = baseline_employment(o, r) - ai_displaced(o, r, t)
-total_employment(t) = Σ remaining_after_ai(o, r, t) × economic_activity_factor(t)
-```
-
-The `total_displaced` metric reports ONLY AI-driven displacement. The `economic_activity_factor` is a separate macro adjustment. When capabilities are near zero and no BFCS thresholds are crossed, `total_displaced = 0` regardless of economic conditions.
--->
-
 ```
 ai_displaced(o, r, t) = baseline_employment(o, r) × (1 - headcount_multiplier(o, r, t))
 remaining_after_ai(o, r, t) = baseline_employment(o, r) - ai_displaced(o, r, t)
@@ -385,51 +378,34 @@ The `total_displaced` metric reports ONLY AI-driven displacement. Demand spillov
 
 Even before displacement, and independently from task erosion, wages face downward pressure when unemployment rises above the natural rate. This reflects surplus labor competing for surviving jobs:
 
-<!-- UPDATED 2026-03-02: Fixed PHILLIPS_CURVE_SENSITIVITY from 1.5 to 2.5 (matches code) and added exponential formulation + AI productivity premium + policy wage floor.
+The model uses an **exponential** Phillips curve, **dampened by labor's non-AI share** and topped up with an **AI-driven scarcity premium**. Source: `src/models/macro.ts:354–363` (`computeWagePressure`); `macro.ts:367–385` (`computeClusterScarcityPremium`).
+
+**The endogenous nominal wage GROWTH equation** (the earlier exp-decay `wage_pressure` level multiplier and the `(1−ai_share)` gate are both retired):
 ```
-wage_pressure(t) = max(0.3, 1 - β × max(0, unemployment_rate(t) - NATURAL_UNEMPLOYMENT_RATE))
-average_wage(t) = baseline_average_wage × baseline_growth_factor(t) × wage_pressure(t) × task_erosion_wage_effect(t)
-```
+excess_UE(t)            = max(0, unemployment_rate(t) − NATURAL_UNEMPLOYMENT_RATE)
+per_worker_prod         = max(0, BASELINE_GDP_GROWTH_RATE − DEFAULT_POPULATION_GROWTH_RATE)  -- 1.6% (R1, genuine per-worker)
+scarcity_premium_level(t) = scarcityIntensity × coverage(t) × (1 − coverage(t))               -- hump LEVEL
 
-Where:
-- `β` = `PHILLIPS_CURVE_SENSITIVITY` = 1.5 (calibrated so 10% unemployment above natural rate causes ~15% wage decline)
-- `NATURAL_UNEMPLOYMENT_RATE` = `BASELINE_UNEMPLOYMENT / US_LABOR_FORCE_2025` = 12,998,000 / 171,495,000 ≈ 0.0758 (derived from BLS government data)
-- `baseline_growth_factor(t)` = `(1 + nominal_growth_rate)^(t - t_start)` — see §5.2.2
-- `task_erosion_wage_effect(t)` = weighted average of per-cluster `wage_multiplier(o, r, t)` from Section 4.1
+nominal_wage_growth(t) = inflationIndexation × composite_inflation(t−1)       -- LAGGED by design — breaks wage-price simultaneity
+                       + productivityPassthrough × per_worker_prod            -- genuine per-worker; population enters via employment
+                       − phillipsSlope × excess_UE(t)                         -- ONE-SIDED (below-NAIRU does not boost)
+                       + ( scarcity_premium_level(t) − scarcity_premium_level(t−1) )   -- growth = YoY Δ of the level
+if nominal_wage_growth(t) < 0:  nominal_wage_growth(t) ×= (1 − downwardWageRigidity)    -- total-growth nominal rigidity
 
-> **NOTE**: The 0.3 floor prevents unrealistic wage collapse — even in extreme unemployment scenarios, wages cannot fall below 30% of trend. NATURAL_UNEMPLOYMENT_RATE is derived from BLS government data (158.5M employed, 171.5M labor force) rather than assumed.
-
-At baseline (~7.6% unemployment, zero displacement): `wage_pressure = 1.0`, `task_erosion_wage_effect = 1.0`, wages grow at nominal rate (real + inflation).
-
-At 15% unemployment: `wage_pressure = max(0.3, 1 - 1.5 × (0.15 - 0.0758)) = max(0.3, 0.889) = 0.889` — wages fall ~11% below trend.
-
-At 25% unemployment: `wage_pressure = max(0.3, 1 - 1.5 × (0.25 - 0.0758)) = max(0.3, 0.739) = 0.739` — wages fall ~26% below trend.
--->
-
-The model uses an **exponential** Phillips curve, **dampened by labor's non-AI share** and topped up with an **AI-driven scarcity premium** (Phase 10.A Part 12). Source: `src/models/macro.ts:354–363` (`computeWagePressure`); `macro.ts:367–385` (`computeClusterScarcityPremium`).
-
-```
-excess_unemployment(t) = max(0, unemployment_rate(t) - NATURAL_UNEMPLOYMENT_RATE)
-ai_share(t) = ai_displacement_stock(t) / total_displaced(t)        -- 0 if no displacement
-classic_phillips(t) = exp(-β × excess_unemployment(t) × (1 − ai_share(t)))
-
-scarcity_premium(t) = ai_share(t) × scarcityIntensity
-                      × aggregateReplacementDifficultyWagePremium(t)
-
-ai_wage_premium(t) = ai_wage_productivity_multiplier × automation_coverage(t) × (1 - automation_coverage(t))
-
-wage_pressure(t) = max(policy_wage_floor, classic_phillips(t) + scarcity_premium(t) + ai_wage_premium(t))
+wage_index(t)        = wage_index(t−1) × (1 + nominal_wage_growth(t))          -- compounded per-worker wage (1.0 = 2025)
+effective_wage_index = max(wage_index(t), policy_wage_floor × trend_wage_index(t))   -- R19 LEVEL floor (not a growth floor)
+aggregate_wage_income = baseline_aggregate_wages × effective_wage_index × employment_factor × wage_ratio
+  employment_factor = total_remaining_employment / BASELINE_TOTAL_EMPLOYMENT   -- UN-NORMALIZED (population enters here)
 ```
 
 Where:
-- `β` = `PHILLIPS_CURVE_SENSITIVITY` = 2.5
-- `(1 − ai_share)` **dampens classic Phillips** when unemployment is AI-caused — laid-off workers can't undercut wages in roles AI is doing, so slack stops biting where displacement is high. The classic mechanism dominates when joblessness is cyclical/demand-driven, not AI-driven.
-- `scarcityIntensity` (default `DEFAULT_SCARCITY_INTENSITY = 0.4`) — user knob on how strongly labor scarcity in AI-resistant roles bids wages up.
-- `aggregateReplacementDifficultyWagePremium(t)` is the employment-weighted mean of role-level `aiReplacementDifficultyWagePremium` (per-role property — high for licensed/embodied/high-trust roles, low for routine cognitive roles). See §4.3a.
-- `ai_wage_productivity_multiplier` = 0.5 (default) — hump-shaped premium peaks at 50% automation coverage
-- `policy_wage_floor` = `annual_min_wage / BASELINE_AVERAGE_ANNUAL_WAGE`
+- `phillipsSlope` = `DEFAULT_PHILLIPS_SLOPE` = 0.30 (Blanchard 2016 / Galí wage-Phillips semi-elasticity); `inflationIndexation`/`productivityPassthrough` = 1.0; `downwardWageRigidity` = 0.60 (Daly-Hobijn vs 1930-33).
+- **R7 (lag):** wages index off the PRIOR year's composite inflation, computed before sector prices, so there is no within-year wage→price→wage loop. Zero-AI reproduces the Stage-0 wage path to within this 1-year lag (negligible at steady inflation).
+- **Population handling:** population/labor-force growth enters aggregate wage income through `employment_factor` (un-normalized); the wage *level* carries genuine per-worker productivity (1.6%) only. The lumped 2.0% `cumulative_productivity_factor` is retired from the wage path (retained for non-corporate asset income + baseline transfers, which are not employment-scaled; transfer wage-indexing is handled in the transfer block, §5.2).
+- **The minimum-wage floor** is a LEVEL constraint on the wage index, not a floor on growth (they diverge under deflation). Invisible when `wage_index == trend_wage_index` (zero-AI).
+- **R2 (obligation-G):** obligation spending is wage-indexed (SS new awards track AWI) × population (beneficiary) growth, COLA-floored (`obligationGCOLAIndex` compounds `max(0, nominal_wage_growth)` — existing benefits never cut nominally). Zero-AI: 4.5% wage-index growth + 0.4% population = 4.9% nominal = 2.0% real, reproducing the Stage-0 obligation-G trajectory to within the R7 lag.
 
-The classic Phillips channel and the scarcity channel sit on opposite sides of the AI-displacement spectrum: classic dominates where AI hasn't moved, scarcity dominates where AI has moved and remaining human roles are scarce.
+The classic exp `wage_pressure` and the hump `ai_wage_premium` are retired; `AI_WAGE_PRODUCTIVITY_MULTIPLIER` is vestigial. The back-compat `wagePressure` output = `wage_index / trend_wage_index` (1.0 in zero-AI).
 
 **AI Productivity Premium** — Four phases:
 - **Phase 1 (UE 4-10%)**: Premium offsets Phillips → wages flat/rise
@@ -439,7 +415,7 @@ The classic Phillips channel and the scarcity channel sit on opposite sides of t
 
 Source: Goldman Sachs, McKinsey (2023-2024) — firms raising compensation for AI-proficient senior staff while laying off junior staff.
 
-### 4.3a Scarcity Premium → Cheaper-Score Feedback (Phase 10.A Part 12)
+### 4.3a Scarcity Premium → Cheaper-Score Feedback
 
 The per-cluster scarcity premium computed in §4.3 is not just a macro wage adjustment — it **feeds back into next year's Cheaper-score**, closing the loop between labor scarcity and the relative attractiveness of automation. Source: `src/models/macro.ts:367–385` (`computeClusterScarcityPremium`); `src/models/displacement.ts:176–228` (cluster aggregation).
 
@@ -478,14 +454,6 @@ Cluster outputs:
 ## 5. Macro Feedback Loop
 
 ### 5.1 Consumer Welfare Index (CWI)
-
-<!-- UPDATED 2026-03-02: CWI replaced ARPP as the headline metric (Phase 5g). ARPP (Aggregate Real Purchasing Power) deprecated.
-The central metric for tracking the tipping point. ARPP is **per-capita real purchasing power** — the average person's ability to buy goods and services:
-
-```
-ARPP(t) = total_nominal_income(t) / (N × P(t))
-```
--->
 
 The central metric for tracking economic welfare. CWI is **per-capita real disposable income** — the average person's purchasing power after taxes:
 
@@ -551,14 +519,43 @@ NATURAL_UNEMPLOYMENT_RATE = BASELINE_UNEMPLOYMENT / US_LABOR_FORCE_2025
 Income channels that derive from static 2025 baselines use a **cumulative productivity factor** to grow at the structural productivity rate:
 
 ```
-structural_productivity_growth = max(0, BASELINE_GDP_GROWTH_RATE - DEFAULT_POPULATION_GROWTH_RATE)
-                               = max(0, 0.020 - 0.004) = 0.016  (1.6%/year)
+# uses FULL potential output growth, NOT minus population growth.
+structural_productivity_growth = max(0, BASELINE_GDP_GROWTH_RATE)
+                               = max(0, 0.020) = 0.020  (2.0%/year)
 cumulative_productivity_factor(t) = (1 + structural_productivity_growth)^(t - t_start)
 ```
 
-This compounds at ~1.6%/year from a static 2025 baseline. Combined with `cumulative_inflation_factor`, it ensures exogenous income channels grow at the correct nominal rate (inflation + productivity ≈ 2.6% + 1.6% = 4.2%) independently of GDP — breaking the GDP circularity that previously caused 0% real growth in zero-AI scenarios.
+This compounds at ~2.0%/year from a static 2025 baseline. **Why full growth:** an earlier form subtracted population growth (→1.6%) on the assumption that `employmentRatio` re-adds labor-force growth, but `growingBaselineEmployment` scales numerator *and* denominator by `lfGrowth`, so it cancels — leaving aggregate real income/GDP growing at ~1.6% instead of the ~2.0% `fullEmploymentGDP` potential (realized zero-AI growth was ~1.45%). Using the full `BASELINE_GDP_GROWTH_RATE` keeps zero-AI real growth at the 2% target. Combined with `cumulative_inflation_factor`, exogenous income channels grow at inflation + 2.0% (≈ 4.9% nominal), independently of GDP — breaking the GDP circularity.
 
 > **DESIGN NOTE — Static Baselines**: Wages, non-corporate asset income, and transfers all derive from `BASELINE_GDP_NOMINAL_2025` (a static constant), NOT from `prev_nominal_GDP`. This is critical. If income derives from GDP, and GDP derives from income (via consumption), you get a circular system where the growth rate tracks GDP rather than compounding at the structural productivity rate. Static baselines break this circularity while still allowing AI effects (displacement, wage pressure) to modulate the outcome.
+
+#### 5.2.3 Sectoral Price Architecture
+
+Composite CPI is a weighted blend of **four consumption sectors**. AI cost deflation reaches consumer prices only through each sector's **passthrough** (the retained fraction accrues to producer margins/profits — the residual identity, §5.2.4). Weights are normalized to sum to 1.
+
+| Sector | CPI weight | Passthrough (default) | AI-supply deflation driver |
+|---|---|---|---|
+| Shelter | 0.36 | 0.05 | embodied (construction clusters); existing shelter model |
+| AI-exposed goods & services | 0.22 | 0.70 | cognitive (inference cost curve) |
+| Labor-intensive services | 0.22 | 0.15 | embodied (service robotics); Baumol wage term |
+| Food & energy | 0.20 | 0.10 | embodied (agriculture); else exogenous base |
+
+```
+sector_inflation_s = base + broad_pressures − sector_deflation_rate_s × passthrough_s   (shelter via its own model)
+composite          = Σ_s weight_s × sector_inflation_s
+nonAI_composite    = composite + Σ_s weight_s × (sector AI-supply deflation contribution)   ← the deflator-firewall input
+```
+
+`sector_deflation_rate_s` is the CPI-weighted average AI deflation of the **occupation clusters routed to sector s** (R10 mapping). Labor-services embodied automation erodes the labor-cost component from inside the `laborCostShare` term (offsets the Baumol wage term). In a true zero-AI economy every `sector_deflation_rate_s = 0`, so `nonAI_composite == composite` and the architecture is bit-identical to a single-bucket model.
+
+**R10 — cluster → consumption-sector mapping** (load-bearing; `clusterConsumptionSector()` in constants.ts):
+
+| Consumption sector | Cluster prefixes | Judgment-call notes |
+|---|---|---|
+| Shelter | construction | construction trades feed housing costs |
+| Food & energy | ag, food | restaurant/fast-food labor folded here ("food away from home" in CPI food) |
+| Labor-intensive services | health (incl. admin), edu, legal, prof, gov, **transport_taxi** | transport-of-PEOPLE (taxi) split from freight; prof_real_estate → service, not shelter |
+| AI-exposed goods & services | tech, finance, mfg, retail, creative, sci, transport (freight: trucking/delivery/warehouse), other | finance (trading/banking/insurance) = information-intensive → AI-exposed; retail price = goods price → AI-exposed; freight = input to goods |
 
 #### 5.2.3 Wage Income
 
@@ -589,17 +586,6 @@ In a zero-AI economy: wages compound at inflation + productivity ≈ 4.2% nomina
 
 #### 5.2.4 Asset Income — Exact Decomposition
 
-<!-- UPDATED 2026-03-02: Replaced simple AI profit boost with exact decomposition (Phase 5g + Phase 5-tax).
-```
-ai_profit_boost(t) = AI_PROFIT_GROWTH_RATE × automation_coverage(t)
-
-aggregate_asset_income(t) = BASELINE_ASSET_INCOME
-                            × baseline_growth_factor(t)
-                            × (1 + ai_profit_boost(t))
-                            + policy_asset_addition(t)
-```
--->
-
 Asset income is decomposed into four components with dynamic P/E ratios and endogenous capital gains realization:
 
 ```
@@ -617,9 +603,12 @@ ai_capital_gains = max(0, ai_market_cap_change × realization_rate)
 trad_sector_PE = max(MIN_PE, BASE_PE_ZERO_GROWTH + trad_PE_sensitivity × trad_profit_growth_rate)
 trad_capital_gains = max(0, trad_market_cap_change × realization_rate)
 
--- Component 4: Non-Corporate Asset Income (static baseline, same pattern as wages)
+-- Component 4: Non-Corporate Asset Income — tracks WAGES, not productivity (proprietor income moves with labor earnings by design).
+-- Proprietors income is predominantly small-business labor income (~2/3+ labor in standard
+-- treatments); proprietors share labor's fate in a collapse. Retires the LAST consumer of
+-- cumulative_productivity_factor (now extinct).
 non_corporate_asset_income = BASELINE_GDP_NOMINAL_2025 × NON_CORPORATE_ASSET_SHARE
-                             × cumulative_inflation_factor × cumulative_productivity_factor
+                             × wage_index × employment_factor
 
 -- Endogenous Realization Rate
 blended_market_performance = ai_weight × ai_growth_rate + (1 - ai_weight) × trad_growth_rate
@@ -640,11 +629,30 @@ Constants (from `constants.ts`):
 - `REALIZATION_SENSITIVITY` = 1.0
 - `MIN_REALIZATION_RATE` = 0.04, `MAX_REALIZATION_RATE` = 0.12
 
-**Corporate Profits** (bottom-up, computed per year):
+**Corporate Profits — the RESIDUAL identity (the bottom-up margin model is RETIRED):**
 ```
-ai_corporate_profits = ai_GDP_contribution × ai_profit_margin       (default margin: 0.25)
-traditional_corporate_profits = (GDP - ai_GDP) × traditional_margin  (default margin: 0.11)
-total_corporate_profits = min(ai + traditional, GDP - total_wage_bill)  -- accounting identity cap
+corporate_profits(t) = nominal_GDP(t) − wage_bill(t) − non_corporate_income(t) − otherCostsShare × GDP(t)
+   -- SIGNED: no cap, no floor. Margins are OUTPUTS. Labor share is a COMPUTED OUTPUT.
+   -- otherCostsShare ≈ 0.113 (Q-1 ii): init-derived so the year-0 residual = the BEA profit ratio
+   -- (govData 0.1285) EXACTLY — the model-frame proxy of NIPA CFC (≈17% GDP) + production taxes
+   -- (≈6.6%) NET of the PI-frame wedge (the model wage share 0.604 is wages/personal-income on GDP
+   -- vs NIPA compensation/GDP ≈0.53 — the raw 0.235 cannot be imported). Bootstrap dissolved;
+   -- the 2026 capacityGate transient closed.
+ai_corporate_profits = ai_GDP_contribution × (1 − aiSectorLaborShare 0.15) × (1 − otherCostsShare)
+traditional_corporate_profits = corporate_profits − ai_corporate_profits     -- SIGNED, can be negative
+
+-- The wage equation gains RENT-SHARING (two-sided; Card-Cardoso-Heining-Kline 2018):
+nominal_wage_growth(t) += rentSharingElasticity(0.10) × (profit_share(t−1) − baseline_profit_share(t))
+baseline_profit_share(t) = share₀ + secularProfitDriftRate(0.001/yr) × t     -- Q-2(B): drifts at the
+   -- D-1 observed rate; at 0 the dial flips to the post-2015-stabilization worldview.
+
+-- THE THREE-WAY SPLIT IS CLOSED: sector price passthroughs decide the consumer share;
+-- wage passthrough (D-1: 0.90) + rent-sharing decide the worker share; capital receives the
+-- residual BY IDENTITY. No share is double-counted; the user controls two splits, the third emerges.
+-- (automationDividend / augmentationProfitBoost retired — un-passed AI cost savings land in the
+-- residual automatically; keeping them would double-count.)
+-- Negative-profit treatments are DEFINITIONS, not floors: corporate tax floored at 0 (tax law);
+-- dividends non-negative (distributions); cash burn flows through retainedEarnings (signed).
 ```
 
 #### 5.2.5 Transfer Income
@@ -660,24 +668,49 @@ if fiscal_profile AND CIF > cola_dampening_threshold:
     dampen_factor = 1.0 - dampen_intensity × cola_dampening_rate
     effective_CIF = 1.0 + (CIF - 1.0) × dampen_factor    -- only the GROWTH portion is dampened
 
--- Baseline transfers grow at inflation + productivity (static baseline):
-baseline_transfers(t) = BASELINE_TRANSFER_INCOME × effective_CIF × cumulative_productivity_factor(t)
+-- Baseline transfers are wage-indexed via the COLA-floored
+-- obligation index × beneficiary (population) growth; the Phase-8a COLA-dampening lever now
+-- operates on the COLA index (same shape — only growth above 1.0 dampened):
+-- COLA index growth = max(nominal_wage_growth, composite_inflation(t−1), 0):
+--   wage-indexed when wages lead (AWI), CPI-protected in stagflation (existing benefits get CPI-W
+--   COLAs), flat-floored in deflation (never cut nominally). NOTE: the exact statute is a
+--   STOCK-WEIGHTED BLEND — existing beneficiaries CPI-W-indexed, new awards AWI-indexed; the max()
+--   is the registered single-index approximation (one index, three consumers: obligation-G,
+--   baseline transfers, incremental cash support).
+effective_obligation_COLA(t) = dampen(obligationGCOLAIndex(t))    -- compounds max(wage growth, lagged CPI, 0)
+baseline_transfers(t) = BASELINE_TRANSFER_INCOME × effective_obligation_COLA(t) × population_factor(t)
+-- (replaces effective_CIF × cumulative_productivity_factor; zero-AI equivalent to within the R7 lag:
+--  COLA 4.5% × population 0.4% ≡ CIF 2.9% × productivity 2.0% ≈ 4.9% nominal)
+
+-- Unified incremental-UE support — single source of truth for income, C, and budget
+-- Component-appropriate indexation (per-person defaults are 2025 dollars):
+incremental_cash(t)    = incremental_unemployment(t) × cashTransferPerUnemployed × effective_obligation_COLA(t)
+                         -- default $8,000 (UI+SNAP, stock-average); COLA-indexed, never cut nominally
+in_kind_consumption(t) = incremental_unemployment(t) × inKindTransferPerUnemployed × labor_services_price_level(t)
+                         -- default $5,000 (Medicaid etc.); deflated by the CUMULATIVE labor-services
+                         -- sector price index (healthcare IS labor-services consumption; includes the
+                         -- uniform monetary-inflation term)
 
 aggregate_transfer_income(t) = baseline_transfers(t)
-                               + incremental_unemployment(t) × BASELINE_TRANSFER_PER_UNEMPLOYED
+                               + incremental_cash(t)                                    -- CASH only; in-kind is NOT income
                                + policy_transfer_addition(t)
+
+consumption(t)              += in_kind_consumption(t)    -- NIPA: government health benefits are PCE; enters C
+                                                          -- directly (post credit/velocity multipliers), untaxed
+budget_outlay(t+1)          += incremental_cash(t) + in_kind_consumption(t)   -- booked in computeGovernmentSpending
+                                                          -- (the fiscal block's uniform t−1 convention, like revenue)
 ```
 
 > **NOTE**: Transfers grow with inflation (COLA) AND structural productivity. The cumulative inflation factor uses compositeInflation (goods + shelter blend) — matching Social Security COLA's CPI-W basis. The cumulative productivity factor ensures transfers maintain purchasing power relative to the growing economy.
 
 > **NOTE on COLA dampening**: Under fiscal austerity presets (e.g., "Balanced Reduction" with `colaDampeningRate = 0.30`), COLA growth is reduced by up to 30% when cumulative inflation exceeds the threshold. This is a critical policy lever — full COLA protection (dampening = 0, "Tax the Winners") can feed a transfer-inflation spiral during mass displacement, while partial dampening breaks the feedback loop. Only the growth portion above 1.0 is dampened; the base is always preserved.
 
-> **NOTE on BASELINE_TRANSFER_PER_UNEMPLOYED**: This constant ($19,200/year, from DOL data) represents the all-in annual transfer per incrementally unemployed person, including UI benefits, SNAP, Medicaid, and other automatic stabilizers — not just UI alone.
+> **Transfer unification (a single source of truth)**: an earlier configuration was inconsistent three ways — the income side paid `BASELINE_TRANSFER_PER_UNEMPLOYED` ($19,200/yr — a 100%-recipiency UI-only figure), the *reporting* deficit charged the independent `TRANSFER_GROWTH_PER_UE_POINT` ($65B/pp — a CBO first-year-flow estimate, ≈3× the consistent value), and the *load-bearing* budget (debt → yields → monetization) booked **nothing**. Now both deficits and the income/consumption sides derive from the same two user-adjustable per-person constants (forward-derived stock averages with recipiency/exhaustion baked in — DOL ETA AWBA × 28% stock recipiency; USDA FNS SNAP × 40% receipt; KFF Medicaid per-enrollee × 0.75 Great-Recession enrollment elasticity). Gate C extends to: `stabilizer_outlay(t) == incremental_cash(t−1) + in_kind(t−1)` exactly, every year, every scenario.
 
 **Three components**:
 1. **Baseline transfers** growing at inflation + productivity: Social Security, Medicare, Medicaid, etc. — these grow with CPI and structural productivity regardless of automation.
-2. **Incremental transfers**: As unemployment rises above baseline, additional transfers kick in at `BASELINE_TRANSFER_PER_UNEMPLOYED` ($19,200/year) per incrementally unemployed person.
-3. **Policy additions**: UBI, enhanced UI, retraining stipends from ATLAS policy toggles.
+2. **Incremental support**: cash $8,000/person (→ income → MPC) + in-kind $5,000/person (→ PCE directly) per incrementally unemployed person; the sum is a real budget outlay.
+3. **Policy additions**: UBI, enhanced UI, retraining stipends from ATLAS policy toggles. Enhanced UI nets against the **current-law statutory benefit** (45% × 26wk via `CURRENT_LAW_UI_REPLACEMENT_RATE/DURATION_WEEKS`) — $0 at default settings; it does NOT net against the $8,000 stock-average (different take-up basis — that would charge the recipiency gap as if it were new policy).
 
 #### 5.2.6 Total Income and Shares
 
@@ -700,7 +733,7 @@ AI does not reduce all prices equally. Prices fall **sector by sector** as AI au
 Each occupation cluster maps to a sector of the consumer economy. The cluster's automation level directly reduces prices in its sector:
 
 ```
--- Phase 10.A floored decay curve (constants.ts:2517–2521 — DEFAULT_INFERENCE_COST_CURVE):
+-- The floored decay curve (constants.ts — DEFAULT_INFERENCE_COST_CURVE):
 cost_ratio(t)         = floor + (1 − floor) × exp(−k × (t − t_start)^decayExponent)
 inference_cost_savings(t) = 1 − cost_ratio(t)
 sector_deflation(o, t)    = cluster_automation_coverage(o, t) × deflation_intensity(o) × inference_cost_savings(t)
@@ -761,15 +794,70 @@ goods_inflation(t) = base_inflation_rate
                    + credit_deflation(t)               -- consumer credit tightening → less borrowing
                    + scarcity_inflation(t)             -- labor scarcity where AI can't fill gaps
 
--- Shelter inflation (sticky, separate channel):
-shelter_inflation(t) = BASELINE_SHELTER_INFLATION
-                     + shelter_deflation_from_AI(t)     -- embodied_capability × stickiness × 0.10
-                     + foreclosure_supply_effect(t)     -- with institutional buyer absorption
-                     + mortgage_rate_effect(t)          -- credit tightening → higher rates
-                     + rental_demand_pressure(t)        -- displaced homeowners → renters
+-- STOCK-FLOW HOUSING — shelter CPI = structural rent growth (the earlier additive stack is RETIRED).
+-- Rent and home price are SEPARATE, LINKED indices. Decision record: docs/FABLE_AUDIT_SUMMARY.md.
+-- 1. DEMAND:  HH(t) = population × headship; Δln(headship) = formationSensitivity × min(0, incomeDev)
+--             + recovery × ln(baseline/headship)   [one-sided collapse, GR-calibrated; 0 disables]
+-- 2. SUPPLY:  starts = baselineStarts × max(0, 1 + supplyElasticity × (P − replCost)/replCost),
+--             capped by capacity × (1 + embodiedCapacityGain × embodiedCapability);
+--             H(t+1) = H + starts(t−1) − 0.25%×H   [HUD CINCH]
+--             NOTE (known limitation, documented): baselineStarts = the MODEL-equilibrium 0.95M/yr
+--             (holds occupancy at natural given 0.4%/yr demography); empirical HOUST ≈ 1.36M — the gap
+--             is real-world household-size decline + immigration the model demography does not carry.
+-- 3. COST:    replCost = (1−λ)×CC + λ×L, λ = 0.40 (Davis-Heathcote/Lincoln research snapshot — no gov API).
+--             ΔCC = laborShare×wage_growth + (1−laborShare)×goods_inflation − secDefl.shelter  [FULL strength]
+--             ΔL  = landIncomeBeta×nominal_income_growth(t−1) + landScarcityElasticity×occupancyGap
+--                 + investorLandBid + g_L*(feedforward) + κ×(L*/L − 1)     [the land residual closure]
+--             where L* = (P − (1−s)·CC)/s in value-consistent terms (Davis-Heathcote construction) and
+--             κ = landClosureKappa (0.45, calibrated to the 2022-23 land correction). The closure ties
+--             land to its residual value under the price system (error-correction form: the feedforward
+--             carries the cointegrating trend so the correction term is zero at equilibrium); a direct
+--             land interest-rate term is retired (rate capitalization arrives through P).
+--             λ_eff → 1 as CC → 0 (land = the terminal constraint).
+--             investorLandBid = investorDemandIntensity × max(0, assetIncomeShare(t−1) − assetShare₀)
+--             *** STATED DESIGN CHOICE: the investor bid is ONE-SIDED — land RATCHETS UP
+--             with the asset-income share and does NOT surrender gains when the share recedes
+--             (land is held, not dumped). ***
+-- 4. RENT:    ΔR/R = rentCostAnchorWeight × Δrepl  [production-cost anchor, Glaeser-Gyourko — RATIFIED]
+--                  + rentOccupancyElasticity × (occupancy − natural)   [Rosen-Smith]
+--             shelter_inflation(t) = ΔR/R   — BASELINE_SHELTER_INFLATION is EMERGENT (zero-AI ≈ 3.8-3.95%/yr)
+-- 5. PRICE:   ΔP/P = ΔR/R − Δcap/cap + fireSale;  cap = 0.052 + 0.4×(mortgage − 6%);
+--             fireSale = −1.75 × (1 − institutionalBuyerRate) × foreclosureRate   [Mian-Sufi-Trebbi]
+-- 6. CONSERVATION: foreclosed units STAY in H; institutional conversions house renters — tenure shifts
+--             cannot manufacture rental inflation (kills the pre-6.5 +17.3pp artifact).
+-- Firewall add-back (verified to machine precision): the AI-supply component of shelter inflation
+--             = rentCostAnchorWeight × (1−λ_eff(t−1)) × secDefl.shelter — exact by linearity.
 
--- Composite (what consumers experience):
-composite_inflation(t) = shelter_weight × shelter_inflation(t) + (1 - shelter_weight) × goods_inflation(t)
+**The rent equation's economics (the entry-margin tether).** Rents are what sitting tenants
+and landlords renegotiate; land is a sunk cost that prices ENTRY into the housing stock, not
+its operation. The rent equation therefore reads occupancy (elasticity 2.0), landlord
+operating costs (pass-through 0.40 — National Apartment Association / IREM expense share),
+and tenant income willingness-to-pay (elasticity θ = 0.47, derived from a 40-year
+decomposition of rent-to-income growth and invariant to the rent-measure basis), with
+one-sided nominal rigidity (0.85 — Genesove 2003; recalibration to the new-tenant basis is a
+registered open item). The system is tethered: at a zero profitability gap, price equals
+replacement cost and rent equals the capitalization rate times replacement cost — zero
+steady-state error. Under trend growth the builder's trend-aware perception (below) sets the
+secular perception lag to zero.
+
+**The builder.** Builders act on PERCEIVED prices: `perceived = λ·prev·(1+trendG) + (1−λ)·P`
+with trendG a ten-year moving average of price growth — the trend term removes secular bias
+(perceived ≡ P at constant growth) while keeping the observed 2022–23 starts-adjustment
+cadence (λ = 0.6, calibrated to Census HOUST). A construction pipeline of 1.2 years
+(length-biased Census construction-duration blend, initialized at the observed 1.45M units
+under construction) separates starts from completions. A one-sided construction-credit gate
+(1 − 2.0 × max(0, businessCreditTightening); solved against the 2006–2012
+construction-lending episode) chokes starts in credit crunches; the boom-side credit edge
+is a registered open item.
+
+**The rent concept, declared.** The model's rentIndex re-prices at MARKET (the new-tenant
+concept, matching the BLS New Tenant Rent Index); official CPI shelter is a 12–18-month
+lagged stock average of that concept (BLS-documented). θ is basis-invariant (40-year growth
+averages are identical across the two concepts). Where a quintile's shelter exposure needs
+an owner-equivalent measure, the rent index serves as the proxy per BLS methodology.
+Implementation: `computeHousingBlock` (macro.ts). Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
+
+-- Composite (what consumers experience): 4-sector weighted + the uniform monetary term
 
 -- Price level accumulation:
 P(t) = P(t-1) × (1 + composite_inflation(t))     for t > t_start
@@ -803,15 +891,6 @@ GDP_real(t) = GDP_nominal(t) / P(t)
 At t = t_start, GDP_nominal is forced to BASELINE_GDP_NOMINAL_2025. For t > t_start, the full expenditure approach is used:
 
 #### Consumption — Differentiated Post-Tax MPC
-
-<!-- UPDATED 2026-03-02: Replaced single-MPC consumption with differentiated post-tax MPC system (Phase 5-tax).
-```
-C(t) = ARPP(t) × N × MPC
-```
-Where `MPC = MARGINAL_PROPENSITY_TO_CONSUME = 0.6789` (BEA NIPA Table 1.1.5).
-
-ARPP drives consumption: as real purchasing power rises (Phase 1 — deflation benefits), consumption grows. As ARPP falls (Phase 3 — displacement-demand feedback), consumption contracts.
--->
 
 Consumption uses differentiated post-tax marginal propensities to consume:
 
@@ -886,7 +965,7 @@ G(t) = obligation_G + revenue_sensitive_G
 
 Where `effective_CIF` is the COLA-dampened cumulative inflation factor (same as transfers, §5.2.5). `consolidation_obligation_multiplier` and `consolidation_discretionary_multiplier` are computed by `computeFiscalConsolidation()` — they ramp linearly from 1.0 toward (1 - maxCut) as debt/GDP rises from `consolidationThreshold` to `consolidationMaxThreshold`.
 
-Source: CBO mandatory/discretionary split. ~80% obligation-driven (federal mandatory + discretionary — grows with inflation), ~20% revenue-sensitive (state/local — tracks GDP via tax revenue).
+Source: CBO mandatory/discretionary split. ~80% obligation-driven (federal mandatory + discretionary — grows with inflation **+ structural productivity**, i.e. with the real economy), ~20% revenue-sensitive (state/local — tracks GDP via tax revenue).
 
 #### Net Exports
 ```
@@ -950,15 +1029,6 @@ Phase classification is now continuous (from CWI growth rate + acceleration), no
 
 ### 5.6 Displacement-Demand Feedback
 
-<!-- UPDATED 2026-03-02: Replaced ARPP-based revenue pressure with GDP-contraction-based (Phase 1 overhaul).
-When ARPP falls, firms face revenue pressure, which accelerates automation:
-
-```
-revenue_pressure(t) = max(0, -ΔARPP(t) / ARPP(t))
-automation_acceleration(t) = revenue_pressure(t) × pressure_sensitivity
-```
--->
-
 When GDP contracts, firms face revenue pressure, which accelerates automation adoption:
 
 ```
@@ -979,19 +1049,6 @@ wage income falls → GDP falls more → revenue_pressure rises more → ...
 ```
 
 ### 5.7 Demand Spillover & Revenue Pressure
-
-<!-- UPDATED 2026-03-02: Replaced economic_activity_factor with demand spillover (Phase 3c.1) and GDP-based revenue pressure (Phase 1 overhaul).
-```
-economic_activity_factor(t) = f(gdp_growth_rate(t-1), is_past_tipping_point(t))
-```
-
-This is a macro-level multiplier on employment that captures demand-side effects:
-- When GDP is growing: `eaf ≥ 1.0` (some displaced workers reabsorbed)
-- When GDP is shrinking: `eaf < 1.0` (demand contraction causes additional job losses beyond AI displacement)
-- When past tipping point: `eaf` declines faster (revenue pressure acceleration)
-
-`economic_activity_factor` affects `total_employment` but does NOT contribute to `total_displaced` or `cluster_*_displacement_pct` — those metrics track AI displacement only (see Section 4.2).
--->
 
 #### 5.7a Demand Spillover
 
@@ -1244,7 +1301,7 @@ Where:
 - `P(t)` = price level (from Section 5.3)
 - `Y(t)` = real GDP (from Section 5.4)
 
-**Dynamic Velocity** (Phase 5g):
+**Dynamic Velocity**:
 ```
 V(t) = V_baseline × f(unemployment_rate, consumption_ratio, velocity_sensitivity, floor_ratio)
 ```
@@ -1531,6 +1588,42 @@ Where:
 
 Source: Gordon (1962) "The Investment, Financing, and Valuation of the Corporation"; Damodaran (2024) implied ERP.
 
+### 7.9 Inflation Expectations, the Fed's Measure, and the Fiscal Premium
+
+**What this is.** Bond yields and monetary policy respond to what markets and the central
+bank BELIEVE about inflation, not only to realized inflation. The model carries an explicit
+expectations state, gives the Federal Reserve its own price measure, and prices fiscal risk
+into long yields.
+
+- **The market inflation anchor** (`marketInflationAnchor`) adjusts toward realized composite
+  inflation at rate 1/τ_cred per year, where τ_cred (default 10 years, user-adjustable 3–30)
+  is the credibility horizon: 10 matches the post-1980 anchored-expectations era (confirmed
+  by the 2021–23 episode); 5–8 represents the 1970s de-anchoring pole. It initializes at the
+  observed 2025 expectations state (0.027, derived from market pricing two independent ways).
+  The expected policy path projects an INERTIAL Taylor rule (smoothing ρ = 0.5 at annual
+  frequency; Clarida–Galí–Gertler 2000, Coibion–Gorodnichenko) on the Fed's own measure.
+- **The Fed's mandate variable** is an endogenous PCE-class proxy: the four sector inflations
+  at NIPA consumption weights (0.155 / 0.15 / 0.35 / 0.345) minus the CPI-vs-PCE formula
+  effect (0.002). The CPI-style composite remains the price system everywhere else — the Fed
+  watches its actual target measure while households live the CPI basket. The non-shelter
+  sector anchor is CPI-U all-items with shelter removed (≈2.22% = (allItems − 0.36×3.3)/0.64).
+- **The fiscal premium** on the 10-year yield: 3.5 basis points per percentage point of
+  debt-to-GDP above the 2025 anchor (Laubach 2009) plus 25 basis points per percentage point
+  of PRIMARY deficit above its same-basis anchor (Engen–Hubbard 2004 — the citations'
+  projected-deficit identification excludes the endogenous interest spiral, so the premium
+  reads the primary deficit; a separate supply-pressure premium is retired as a double-count).
+  Monetization-as-yield-response is a fiscal-dominance event (Sargent–Wallace threshold:
+  debt service over revenue > 0.50 AND premium > 1 percentage point; the Volcker episode is
+  the encoded counter-example guard).
+- **Potential output** follows a Friedman "plucking" ceiling: output is pulled DOWN from
+  potential by demand shortfalls and the ceiling ratchets up only with demonstrated
+  production — so the Taylor rule's output-gap arm can only ease (the gap is never
+  positive); its inflation and employment arms remain two-sided.
+
+Implementation: `federalReserve.ts` (Taylor rule, plucking ceiling), `bondMarket.ts`
+(yield composition), `monetization.ts` (dominance events). Decision record:
+[the audit summary](../FABLE_AUDIT_SUMMARY.md).
+
 ---
 
 ## 8. Policy Simulation
@@ -1633,18 +1726,42 @@ Second-order displacement is bounded: cannot exceed remaining employment in the 
 
 ### 9.2 Cascading Displacement
 
-When a major employer category is automated, second-order effects hit adjacent service jobs:
+The model's second-order employment effect is the scalar per-cluster multiplier specified in
+§9.1: `total_displacement = direct × employment_multiplier(o)`, with industry-specific
+multipliers sourced from BEA input-output–class estimates at `EMPLOYMENT_MULTIPLIERS` in
+`constants.ts`, and bounded so second-order losses cannot exceed a cluster's remaining
+employment. When trucking falls, the adjacent jobs (warehousing, fueling, lodging, corridor
+restaurants) fall through trucking's own 3.4× multiplier — as a scalar on the source cluster,
+not as routed per-target flows.
+
+A pairwise adjacency cascade — routing each cluster's losses to named target industries —
+is **not part of the simulation**. An illustrative matrix form
 
 ```
 adjacent_displacement(o_adj, t) = Σ(displacement(o, t) × adjacency_weight(o, o_adj))
 ```
 
-The adjacency matrix captures relationships like:
-- Trucking → Truck stops, diners, motels, fuel stations
-- Office workers → Downtown restaurants, dry cleaners, commercial real estate
-- Manufacturing → Supplier towns, local retail
+exists in code (`ADJACENCY_WEIGHTS` + `computeAdjacentDisplacement` in `multipliers.ts`) but
+is not wired into the simulation and its weights are uncited; it is kept, marked do-not-wire,
+as the reference shape for the possible extension below. The `MultiplierFlowDiagram` panel
+renders it as a labeled illustration; its flows are not simulation output.
+
+> **Possible extension — second-order incidence by target industry:** who absorbs the cascade
+> (trucking → truck stops, diners, motels; office work → downtown services; manufacturing →
+> supplier towns), not just how large it is. The citable source would be BEA input-output
+> tables (inter-industry requirements are exactly what input-output accounting measures — the
+> same source family as §9.1's scalars). Building it requires the cited matrix, a design pass
+> reconciling it against §9.1's scalar (which already carries the aggregate effect), and a
+> re-derivation of the model's feedback-loop inventory. Decision record:
+> [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 ### 9.3 Supply Chain Multipliers (Phase 9)
+
+> **Dormant by default:** no `supplyChainConfig` is set in the default configuration, so every
+> consumer of this module is gated off — it contributes exactly zero to baseline runs. It is
+> scenario-only machinery, and most of its ~20 default magnitudes are uncited. Any analysis
+> built on it should first validate the module against the 2021–22 chip-shortage record. See
+> USER_PARAMETERS for the user-facing dial note; decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 The Phase 9 Supply Chain Uncertainty model (commit `8315d88`, `src/models/supplyChain.ts`) introduces a **non-demand** multiplier path: chip / energy / datacenter constraints delay AI capability trajectories and pass costs through to BFCS, throttling the adoption side of the displacement cascade rather than the demand side.
 
@@ -1673,6 +1790,17 @@ Adoption itself has memory under supply uncertainty — firms postpone commitmen
 **Output fields** (per year):
 - `supplyChainState`: `effectiveComputeDecline`, `cascadeBacklog`, `hysteresisWidth`, current shock decomposition
 - `cumulativeCapabilityDelay`: per-vector capability-S-curve lag (in years)
+
+> **Known missing structure — AI datacenter energy demand.** The model does not represent the
+> electricity demand of AI infrastructure. If built, the supply side would host here: this
+> module's `energyPrice`/`energyCapacity` shock inputs and their lag/pass-through machinery
+> are fit for purpose. What does not exist: (i) a demand object — an AI datacenter electricity
+> path (terawatt-hours per year) scaling with a compute-quantity series, which the model does
+> not currently have; (ii) the macro hook — energy-price pass-through into the food-energy
+> consumption sector, plus a datacenter asset class on the investment side. Candidate data:
+> EIA Annual Energy Outlook datacenter-electricity projections and the LBNL United States Data
+> Center Energy Usage Report, committed as cited tables like the model's other data. Decision
+> record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 ---
 
@@ -1750,3 +1878,106 @@ Every timestep produces:
 - Housing: homeownership quintiles, mortgage stress, shelter inflation, wealth effect
 - Consumer + business credit conditions
 - Investment pipeline: retained earnings, credit capacity, capacity gate
+
+
+---
+
+# 11. The Quintile Welfare Measurement Layer
+
+**What this is.** Aggregate real income divided by an aggregate price level answers "how big
+is the pie" — it cannot answer "who can afford to live." Households in different income
+fifths buy very different baskets (the lowest fifth spends about half its budget on shelter
+and food-energy; the highest fifth is far more exposed to AI-deflating goods and services),
+so the same year can be deflationary for one fifth and inflationary for another. This layer
+measures welfare per population fifth at that fifth's OWN cost of living. It is pure
+post-processing on the finished simulation: it never feeds back into the model.
+
+**The five price indices.** Each quintile's inflation is its consumption-share-weighted
+blend of the four sector inflations plus the uniform monetary term. The shares are the
+Consumer Expenditure Survey quintile means (CEX Table 1101, 2023) on the CONSUMPTION base —
+pensions, personal insurance, and cash contributions are excluded, matching CPI weight
+practice. The shelter input is the STOCK-VINTAGE measure (a kernel over past market-rent
+growth with mean lag `rentVintageLagYears`, default 1.0 year, matching the roughly
+four-quarter lead of new-tenant rents over the stock average); the marginal (new-tenant)
+measure is displayed alongside so the wedge between the two concepts is visible.
+
+**The five income measures.** CWI_q = income_q / (population_q × index_q). The income side
+routes each source by its distribution: wages and asset income by the CBO quintile source
+shares (consistent with the model's bottom-80 constants); baseline transfers by the CBO
+transfer shares; UBI-class cash (universal payments and the incremental-unemployment
+stabilizers) FLAT per capita — routing universal payments through the transfer-heavy
+baseline shares would hand the lowest fifth roughly twice its actual dollars; **the
+wage-proportional enhanced-UI increment by the DISPLACED WAGE-MASS shares and flat per-head
+displaced support by the displaced HEADCOUNT shares** — both from the displaced-worker
+incidence object, which builds the displaced pool's quintile distribution from the
+simulation's own cluster-by-role outputs. Displacement skews UP the wage distribution
+(high-wage cognitive roles displace hardest), so unemployment-insurance dollars flow
+disproportionately to the upper-middle quintiles; the model also PRICES those dollars at
+the displaced pool's own prior wage (`PolicyEffects.uiPricingWage`). The insurance routing
+is uncapped — real-world benefit caps would compress the top quintiles' shares, so the
+uncapped shares are an upper bound on top-quintile incidence; a cap dial citing state
+benefit maxima is a registered candidate.
+
+**The guards.** A conservation assertion requires the five quintile incomes to reconstruct
+the aggregate by source exactly (residual < 1e-9, every year, every scenario), and a
+separate routing assertion reconstructs each quintile's policy dollars independently —
+conservation alone cannot catch dollars routed to the wrong quintile. Real growth is always
+displayed as nominal growth minus the deflator contribution, so a price-level artifact can
+never masquerade as an income change.
+
+Implementation: `computeQuintileSeries` (quintileCWI.ts); the incidence object
+(uiIncidence.ts); the default Consumer Welfare chart renders these five measures
+(QuintileCWIChart.tsx). Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
+
+---
+
+# 12. Model Boundaries and Known Limitations
+
+The model states its own edges. Each entry below is a deliberate boundary or a documented
+behavior, not an error; where a magnitude is uncited, that status is stated. Decision
+record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
+
+**Labor force participation is constant (the no-exit bound).** Nobody exits the labor force:
+a displaced worker stays counted as jobless indefinitely. The model's unemployment rate is
+therefore TOTAL JOBLESSNESS — an upper bound on the official U-3 rate, which counts only
+active searchers. Compare model unemployment to employment-to-population statistics, not to
+U-3 (the joblessness display carries this caveat). Institutions the model represents that
+key off U-3 in reality (the monetary reaction function; unemployment-insurance eligibility)
+read the broader measure here: the modeled Federal Reserve sees a larger employment gap
+(bounded in deep scenarios by the zero lower bound), and insurance transfers pay the whole
+jobless pool (an overstatement relative to real recipiency, consistent with the model's own
+unemployment semantics).
+
+**Demand recovery does not re-hire.** Employment lost to automation returns only through
+innovation-driven new-job creation (§6), never through demand recovery — automation
+deployment is one-way on the default path (a modeling choice with switching frictions; the
+supply-chain scenario machinery carries a freeze/decline state, and a full reversal design
+with hysteresis and asymmetric speeds is chartered as the successor program).
+
+**Investor housing capital is a land-price story, not a rent-extraction story (tested and
+bounded).** Quadrupling investor demand intensity raises 2050 LAND values by about 9.7%
+while moving rents only about 1.4%, through the occupancy channel — a store-of-value price
+effect. No mechanism exists by which investor ownership directly extracts higher rents from
+sitting tenants; a stock-withholding (vacancy) channel is registered and would be built only
+with episode-level citations in hand.
+
+**Zero-AI late-path growth glides below trend.** With AI capability fixed at zero, real
+growth runs ≈2.1% mid-path and eases to ≈1.75% by 2050 — about 0.25 percentage points below
+the 2.0% supply trend — because the capacity-utilization gate sits just under 1. The glide
+is insensitive to the observed-data anchors and is a documented behavior of the demand
+system, not a calibration target.
+
+**Government occupation data are estimated.** Six government occupation clusters have no
+occupation-level wage/employment data in the loaded BLS tables (their SOC codes cut across
+agency structures), so their baselines come from a documented estimator whose magnitudes
+are internally consistent but uncited. All private-sector clusters use observed OEWS data.
+
+**New-job creation has no gross-flows concept.** The innovation channel creates NET new
+jobs; the model does not represent the gross churn (simultaneous creation and destruction)
+underneath, so flow statistics like hires and separations have no model counterpart.
+
+**Citation-thin parameter sets (honest status).** The realization-sensitivity constants,
+the role-level estimation heuristics, the government-cluster estimator magnitudes, and the
+supply-chain block's rates and trajectories carry thin or absent citations. Each is a named
+constant with its status stated at the definition; users adjusting them are moving expert
+judgment, not measured quantities.

@@ -31,8 +31,8 @@ describe('FiscalPolicyProfile presets', () => {
     'consolidationThreshold', 'consolidationMaxThreshold', 'consolidationLag',
   ];
 
-  it('has exactly 5 presets', () => {
-    expect(presetNames.length).toBe(5);
+  it('has exactly 7 presets (E-8b added observed_political_economy)', () => {
+    expect(presetNames.length).toBe(7);
   });
 
   it('includes all expected preset names', () => {
@@ -45,8 +45,8 @@ describe('FiscalPolicyProfile presets', () => {
     }
   });
 
-  it('default preset is balanced_reduction', () => {
-    expect(DEFAULT_FISCAL_POLICY_PRESET).toBe('balanced_reduction');
+  it('default preset is observed_political_economy (E-8b R-C default)', () => {
+    expect(DEFAULT_FISCAL_POLICY_PRESET).toBe('observed_political_economy');
   });
 
   it.each(presetNames)('preset "%s" has all 11 required fields', (name) => {
@@ -185,8 +185,8 @@ describe('resolveCombinedProfile', () => {
       DEFAULT_FISCAL_POLICY_PRESET,
       DEFAULT_FEDERAL_RESERVE_PRESET,
     );
-    expect(profile.name).toBe('Balanced Deficit Reduction + Balanced Mandate');
-    expect(profile.maxDiscretionaryCut).toBe(0.15); // from balanced_reduction
+    expect(profile.name).toBe('Observed Political Economy (R-C default) + Balanced Mandate');
+    expect(profile.maxDiscretionaryCut).toBe(0.10);  // E-8b R-C default profile // from balanced_reduction
     expect(profile.taylorInflationCoeff).toBe(1.5); // from balanced_mandate
   });
 
@@ -216,8 +216,8 @@ describe('resolveCombinedProfile', () => {
 
   it('falls back to defaults for unknown preset names', () => {
     const profile = resolveCombinedProfile('nonexistent_fiscal', 'nonexistent_fed');
-    expect(profile.name).toBe('Balanced Deficit Reduction + Balanced Mandate');
-    expect(profile.maxDiscretionaryCut).toBe(0.15);
+    expect(profile.name).toBe('Observed Political Economy (R-C default) + Balanced Mandate');
+    expect(profile.maxDiscretionaryCut).toBe(0.10);  // E-8b R-C default profile
     expect(profile.taylorInflationCoeff).toBe(1.5);
   });
 

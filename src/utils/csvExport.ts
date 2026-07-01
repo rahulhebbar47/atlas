@@ -155,10 +155,14 @@ function buildHeaders(): string[] {
   // J8. Investment Demand Constraint (3)
   headers.push('investment_realization', 'ai_investment_realized', 'ai_exports_realized');
 
-  // J9. Tax Revenue & After-Tax Income (Phase 5-tax) — 11 columns
+  // J9. Tax Revenue & After-Tax Income (Phase 5-tax) — 12 columns
+  // FS-6f: total_government_revenue is the CURRENT-YEAR macro total; the fiscal column
+  // fm_booked_revenue_t1 is the SAME dollar object booked one year later (the budget's t−1
+  // convention) — same-row values differ by exactly that offset, by design.
   headers.push(
     'wage_income_tax', 'employee_payroll_tax', 'employer_payroll_tax',
     'capital_gains_tax', 'corporate_tax_revenue', 'state_local_revenue',
+    'transfer_tax',
     'total_government_revenue',
     'after_tax_wage_income', 'after_tax_asset_income', 'after_tax_transfer_income',
     'total_post_tax_income',
@@ -216,7 +220,9 @@ function buildHeaders(): string[] {
   headers.push(
     'fm_federal_debt_stock', 'fm_debt_gdp_ratio', 'fm_interest_expense',
     'fm_debt_service_revenue_ratio', 'fm_weighted_average_debt_rate',
-    'fm_total_government_revenue', 'fm_revenue_gdp_ratio',
+    // FS-6f (was fm_total_government_revenue): the booked revenue = the previous row's
+    // total_government_revenue exactly (the budget's t−1 convention; see column J9).
+    'fm_booked_revenue_t1', 'fm_revenue_gdp_ratio',
     'fm_labor_tax_revenue', 'fm_corporate_tax_revenue',
     'fm_primary_deficit', 'fm_total_deficit',
     'fm_weighted_average_maturity', 'fm_effective_rollover_rate',
@@ -454,6 +460,7 @@ function buildRow(
   row.push(
     macro.wageIncomeTax, macro.employeePayrollTax, macro.employerPayrollTax,
     macro.capitalGainsTax, macro.corporateTaxRevenue, macro.stateLocalRevenue,
+    macro.transferTax,
     macro.totalGovernmentRevenue,
     macro.afterTaxWageIncome, macro.afterTaxAssetIncome, macro.afterTaxTransferIncome,
     macro.totalPostTaxIncome,
@@ -523,7 +530,7 @@ function buildRow(
     row.push(
       fm.fiscal.federalDebtStock, fm.fiscal.debtGDPRatio, fm.fiscal.interestExpense,
       fm.fiscal.debtServiceRevenueRatio, fm.fiscal.weightedAverageDebtRate,
-      fm.fiscal.totalGovernmentRevenue, fm.fiscal.revenueGDPRatio,
+      fm.fiscal.bookedRevenueT1, fm.fiscal.revenueGDPRatio,
       fm.fiscal.laborTaxRevenue, fm.fiscal.corporateTaxRevenue,
       fm.fiscal.primaryDeficit, fm.fiscal.totalDeficit,
       fm.fiscal.weightedAverageMaturity, fm.fiscal.effectiveRolloverRate,

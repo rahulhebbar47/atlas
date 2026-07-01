@@ -1,0 +1,87 @@
+{
+  "source": "FRED DGS10 (10-Year Treasury Constant Maturity Rate)",
+  "seriesOrTable": "DGS10",
+  "fetchedAt": "2026-06-11T17:55:48.563Z",
+  "latestDate": "2026-06-09",
+  "yieldPercent": 4.53,
+  "yieldDecimal": 0.0453,
+  "recentValues": [
+    {
+      "date": "2026-06-09",
+      "value": 4.53
+    },
+    {
+      "date": "2026-06-08",
+      "value": 4.56
+    },
+    {
+      "date": "2026-06-05",
+      "value": 4.55
+    },
+    {
+      "date": "2026-06-04",
+      "value": 4.47
+    },
+    {
+      "date": "2026-06-03",
+      "value": 4.49
+    },
+    {
+      "date": "2026-06-02",
+      "value": 4.46
+    },
+    {
+      "date": "2026-06-01",
+      "value": 4.47
+    },
+    {
+      "date": "2026-05-29",
+      "value": 4.45
+    },
+    {
+      "date": "2026-05-28",
+      "value": 4.45
+    },
+    {
+      "date": "2026-05-27",
+      "value": 4.48
+    },
+    {
+      "date": "2026-05-26",
+      "value": 4.5
+    },
+    {
+      "date": "2026-05-22",
+      "value": 4.56
+    },
+    {
+      "date": "2026-05-21",
+      "value": 4.57
+    },
+    {
+      "date": "2026-05-20",
+      "value": 4.57
+    },
+    {
+      "date": "2026-05-19",
+      "value": 4.67
+    },
+    {
+      "date": "2026-05-18",
+      "value": 4.61
+    },
+    {
+      "date": "2026-05-15",
+      "value": 4.59
+    },
+    {
+      "date": "2026-05-14",
+      "value": 4.47
+    },
+    {
+      "date": "2026-05-13",
+      "value": 4.46
+    }
+  ],
+  "notes": "Daily (business days). 10-year constant maturity Treasury yield in percent. Used as initial 10Y yield for Phase 7 bond market module."
+}

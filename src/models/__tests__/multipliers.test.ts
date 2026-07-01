@@ -45,15 +45,17 @@ function makeClusterResult(
 // getEmploymentMultiplier
 // ============================================================
 
+// FS-5b: getEmploymentMultiplier is DISPLAY/TEST-ONLY (not on the simulation path) —
+// these tests guard the lookup as a utility, not as live model behavior.
 describe('getEmploymentMultiplier', () => {
   it('returns known value for trucking (transport_trucking)', () => {
     const multiplier = getEmploymentMultiplier('transport_trucking' as OccupationClusterId);
     expect(multiplier).toBe(3.4);
   });
 
-  it('returns 1.5 for unknown cluster', () => {
+  it('throws-or-undefined for unknown cluster (FS-2b: the dead 1.5 fallback retired; exhaustiveness test-enforced)', () => {
     const multiplier = getEmploymentMultiplier('nonexistent_cluster_xyz' as OccupationClusterId);
-    expect(multiplier).toBe(1.5);
+    expect(multiplier).toBeUndefined();  // FS-2b: the silent 1.5 retired (exhaustiveness test-enforced)
   });
 
   it('returns known value for tech_swe', () => {
@@ -132,6 +134,10 @@ describe('computeAggregateDisplacement', () => {
 // computeAdjacentDisplacement
 // ============================================================
 
+// FS-5b: computeAdjacentDisplacement + ADJACENCY_WEIGHTS are REGISTERED-INACTIVE
+// (do-not-wire; no simulation caller — FS-5 liveness-proven). These tests guard the
+// inactive structure's arithmetic so the registered enrichment's reference object
+// stays well-defined; they do NOT assert live model behavior.
 describe('computeAdjacentDisplacement', () => {
   it('from trucking affects food/retail clusters', () => {
     const clusters = [

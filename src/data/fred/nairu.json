@@ -1,90 +1,90 @@
 {
   "source": "FRED NROU (CBO Natural Rate of Unemployment, Long-Term)",
   "seriesOrTable": "NROU",
-  "fetchedAt": "2026-02-23T15:20:22.858Z",
-  "latestDate": "2026-01-01",
-  "naturalUnemploymentRate": 0.04308657724,
-  "naturalUnemploymentRatePercent": 4.308657724,
+  "fetchedAt": "2026-06-11T17:55:24.279Z",
+  "latestDate": "2026-04-01",
+  "naturalUnemploymentRate": 0.0439593247642493,
+  "naturalUnemploymentRatePercent": 4.39593247642493,
   "recentValues": [
     {
+      "date": "2026-04-01",
+      "value": 0.0439593247642493
+    },
+    {
       "date": "2026-01-01",
-      "value": 0.04308657724
+      "value": 0.04399090564203689
     },
     {
       "date": "2025-10-01",
-      "value": 0.04312406028
+      "value": 0.0440184121264107
     },
     {
       "date": "2025-07-01",
-      "value": 0.043156079939999994
+      "value": 0.044041997082688404
     },
     {
       "date": "2025-04-01",
-      "value": 0.04318227512
+      "value": 0.0440690622022857
     },
     {
       "date": "2025-01-01",
-      "value": 0.04320248166
+      "value": 0.0440904868088454
     },
     {
       "date": "2024-10-01",
-      "value": 0.04321673018
+      "value": 0.04413737266101202
     },
     {
       "date": "2024-07-01",
-      "value": 0.04322554381000001
+      "value": 0.04418184956226237
     },
     {
       "date": "2024-04-01",
-      "value": 0.043211204839999996
+      "value": 0.0442215707526542
     },
     {
       "date": "2024-01-01",
-      "value": 0.04327479745
+      "value": 0.044256796571856896
     },
     {
       "date": "2023-10-01",
-      "value": 0.04333393686
+      "value": 0.0442882424008579
     },
     {
       "date": "2023-07-01",
-      "value": 0.04338890148
+      "value": 0.044313678808796296
     },
     {
       "date": "2023-04-01",
-      "value": 0.04344002716999999
+      "value": 0.0443350999614073
     },
     {
       "date": "2023-01-01",
-      "value": 0.04348774995
+      "value": 0.0443529644125222
     },
     {
       "date": "2022-10-01",
-      "value": 0.04353270628
+      "value": 0.0443723236707892
     },
     {
       "date": "2022-07-01",
-      "value": 0.04357603227
+      "value": 0.04438931749043609
     },
     {
       "date": "2022-04-01",
-      "value": 0.04361905793
+      "value": 0.0444046672936978
     },
     {
       "date": "2022-01-01",
-      "value": 0.043663200289999995
+      "value": 0.0444191677922374
     },
     {
       "date": "2021-10-01",
-      "value": 0.043709672250000005
+      "value": 0.0444441769129896
     },
     {
       "date": "2021-07-01",
-      "value": 0.04375862369
-    },
-    {
-      "date": "2021-04-01",
-      "value": 0.04380997848
+      "value": 0.04447010417057349
     }
   ],
   "notes": "Quarterly from CBO. Long-term natural rate estimate. observation_end filter excludes projections. Used as Phillips curve baseline."

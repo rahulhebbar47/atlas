@@ -1,16 +1,12 @@
 /**
- * ATLAS Consumer Welfare Index Chart (Overview) — System vs Median
+ * DEPRECATED (close-out K.3) — retired from the default view; QuintileCWIChart replaces it.
  *
- * Two lines in real 2025 dollars per capita:
- *   - System CWI (gold, solid): macro average purchasing power per capita
- *   - Median CWI (teal, solid): bottom 80% purchasing power per capita
- *
- * The gap between the two lines IS the inequality premium.
- * System starts ~$67k, Median starts ~$42k — gap visible from year 1.
- * Policy levers (especially SWF) close the gap.
- *
- * When policy is active, two additional lighter/dashed lines show
- * the no-policy counterfactual for both System and Median CWI.
+ * Why it retired: both lines deflate by the AGGREGATE price level, which belongs to no
+ * household — in deep-deflation scenarios they read far below the honest own-basket
+ * measures. And the "Median CWI (Bottom 80%)" line was never a median: it is the MEAN of
+ * the bottom-80 income share. If this component is ever re-mounted, the labels below have
+ * been corrected to the true definitions; the honest display is the quintile chart.
+ * Decision record: docs/FABLE_AUDIT_SUMMARY.md.
  */
 
 import {
@@ -139,8 +135,8 @@ export function CWIChart() {
       </ResponsiveContainer>
 
       <div className="flex items-center gap-6 mt-3 pl-16 flex-wrap">
-        <LegendItem color={GOLD} label="System CWI (Avg)" />
-        <LegendItem color={TEAL} label="Median CWI (Bottom 80%)" />
+        <LegendItem color={GOLD} label="Aggregate-deflated mean (all households)" />
+        <LegendItem color={TEAL} label="Aggregate-deflated mean, bottom-80 income share (not a median)" />
         {policyActive && <LegendItem color={GOLD} label="System (No Policy)" dashed />}
         {policyActive && <LegendItem color={TEAL} label="Median (No Policy)" dashed />}
         {baselineMacro && <LegendItem color="#6B7280" label="Autopilot baseline" dashed />}

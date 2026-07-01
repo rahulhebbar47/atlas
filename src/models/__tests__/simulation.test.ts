@@ -337,13 +337,16 @@ describe('scarcity inflation — AI-adjusted demand', () => {
     });
     const ubiTimeline = runSimulation(ubiConfig, OCCUPATION_CLUSTERS);
 
-    // At 2040, UBI scarcity should be >= no-policy scarcity (withdrawal creates tightness)
+    // At 2040 in this short, low-displacement scenario both values are effectively zero (~1e-18).
+    // Stage 1's price feedback perturbs them at machine-epsilon scale, so assert UBI does not
+    // MEANINGFULLY reduce scarcity (tolerance well above the ~1e-18 noise floor) rather than making a
+    // sign comparison on floating-point noise.
     const baseYear2040 = baseTimeline.years.find(y => y.year === 2040);
     const ubiYear2040 = ubiTimeline.years.find(y => y.year === 2040);
     expect(baseYear2040).toBeDefined();
     expect(ubiYear2040).toBeDefined();
     expect(ubiYear2040!.macro.scarcityInflation).toBeGreaterThanOrEqual(
-      baseYear2040!.macro.scarcityInflation,
+      baseYear2040!.macro.scarcityInflation - 1e-12,
     );
   });
 
@@ -400,12 +403,18 @@ describe('runSimulation — integration with all clusters', () => {
 // ============================================================
 
 describe('runSimulation — Phase 5i housing integration', () => {
-  it('shelterCPIWeight=0: compositeInflation = goodsInflation', () => {
+  it('shelterCPIWeight=0: composite = weighted non-shelter sectors (Stage 1)', () => {
     const config = shortConfig({ shelterCPIWeight: 0 });
     const timeline = runSimulation(config, SMALL_CLUSTER_SUBSET);
+    // Stage 1: with shelter weight 0, composite = normalized weighted sum of the 3 non-shelter sectors.
+    const aiW = 0.22, lsW = 0.22, feW = 0.20, sum = aiW + lsW + feW;
     for (const y of timeline.years) {
-      // When shelter weight is 0, composite = 0*shelter + 1*goods = goods
-      expect(y.macro.compositeInflation).toBeCloseTo(y.macro.goodsInflation, 10);
+      // Stage 4: composite also adds the signed monetary-inflation term (uniform across the basket).
+      const expected = (aiW * y.macro.aiExposedInflation
+        + lsW * y.macro.laborServicesInflation
+        + feW * y.macro.foodEnergyInflation) / sum
+        + y.macro.monetaryInflation;
+      expect(y.macro.compositeInflation).toBeCloseTo(expected, 10);
     }
   });
 
@@ -443,11 +452,18 @@ describe('runSimulation — Phase 5i housing integration', () => {
     }
   });
 
-  it('compositeInflation = weight * shelter + (1-weight) * goods every year', () => {
+  it('compositeInflation = weighted sum of 4 consumption sectors every year (Stage 1)', () => {
     const config = shortConfig({ shelterCPIWeight: 0.36 });
     const timeline = runSimulation(config, SMALL_CLUSTER_SUBSET);
+    // Stage 1: 4-sector composite (shelter / AI-exposed / labor-services / food-energy), normalized.
+    const shW = 0.36, aiW = 0.22, lsW = 0.22, feW = 0.20, sum = shW + aiW + lsW + feW;
     for (const y of timeline.years) {
-      const expected = 0.36 * y.macro.shelterInflation + 0.64 * y.macro.goodsInflation;
+      // Stage 4: composite also adds the signed monetary-inflation term (uniform across the basket).
+      const expected = (shW * y.macro.shelterInflation
+        + aiW * y.macro.aiExposedInflation
+        + lsW * y.macro.laborServicesInflation
+        + feW * y.macro.foodEnergyInflation) / sum
+        + y.macro.monetaryInflation;
       expect(y.macro.compositeInflation).toBeCloseTo(expected, 10);
     }
   });
@@ -556,9 +572,9 @@ describe('runSimulation — Phase 5i housing integration', () => {
       expect(timeline.monetaryCollapseYear).toBeNull();
     });
 
-    it('default fiscalPolicyPreset is balanced_reduction', () => {
+    it('default fiscalPolicyPreset is observed_political_economy (E-8b)', () => {
       const config = getDefaultSimulationConfig();
-      expect(config.fiscalPolicyPreset).toBe('balanced_reduction');
+      expect(config.fiscalPolicyPreset).toBe('observed_political_economy');
     });
   });
 });

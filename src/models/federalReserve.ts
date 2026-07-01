@@ -36,6 +36,41 @@ import {
  * @param aggregateAutomationCoverage - Fraction of economy automated [0, 1] (displacement-based)
  * @returns Full employment GDP ($)
  */
+/**
+ * E-8c F-A (ratified): the plucking potential — Friedman (1964; 1993, "The 'Plucking Model' of
+ * Business Fluctuations Revisited"). Potential output is a CEILING: realized output is plucked
+ * DOWN from it by demand shortfalls; the ceiling ratchets UP only with demonstrated production.
+ *
+ *   potential(t) = max( potential(t−1) × (1 + gPotential) × boostAdjust, realizedRealGDP(t) )
+ *
+ * - gPotential = perWorkerProductivityGrowth + populationGrowth (the E-3 derivation family applied
+ *   to PRODUCTION — no D-1 passthrough: the passthrough governs who is PAID, not what is PRODUCED).
+ * - boostAdjust (ratified composition order): the AI productivity-boost term multiplies the
+ *   GEOMETRIC/COUNTERFACTUAL line FIRST; the ratchet compares realized against the COMPOSED line —
+ *   realized AI-era production is never absorbed into the counterfactual.
+ * - The ratchet is ONE-SIDED (R24-standard documented asymmetry): it absorbs the year-0 level
+ *   offset and the 2026-29 capacity-equilibration bootstrap upward (capacityGate ≡ 1.000 there —
+ *   demonstrated production, not overheating) and NEVER tracks realized GDP downward: under
+ *   displacement the ceiling keeps growing at the closed form = the no-displacement counterfactual.
+ * - Consequence (documented in DATA_MODEL): the output-gap arm of the Taylor rule becomes
+ *   EASE-ONLY (the gap is never positive); the inflation and employment arms remain two-sided
+ *   and carry all tightening.
+ */
+export const AI_PRODUCTIVITY_BOOST_AT_FULL_COVERAGE = 0.5;  // E-8c: hoisted from computeFullEmploymentGDP (same value; flagged for calibration there)
+
+export function computePluckingPotential(
+  prevPotential: number | null,
+  realizedRealGDP: number,
+  gPotential: number,
+  boostAdjust: number = 1.0,
+): number {
+  if (prevPotential === null || prevPotential <= 0) return realizedRealGDP;  // year-0 anchor (kills the +6.0% offset)
+  return Math.max(prevPotential * (1 + gPotential) * boostAdjust, realizedRealGDP);
+}
+
+// DEPRECATED (E-8c F-A): superseded by computePluckingPotential — the BASELINE×(1+g)^t anchor sat
+// 8-12% below realized zero-AI GDP (the F-A finding: +6.0% year-0 offset + the capacity-gated
+// bootstrap), feeding +2.1pp into the Taylor gap terms. Kept per the no-delete rule.
 export function computeFullEmploymentGDP(
   baselineGDPReal: number,
   baselineGDPGrowthRate: number,
@@ -158,7 +193,7 @@ export interface FiscalDominanceResult {
  * @param taylorPrescribed          - Rate the Taylor Rule says we should be at
  * @param prevPolicyRate            - Previous year's actual policy rate
  * @param interestExpense           - Federal government interest expense ($)
- * @param totalGovernmentRevenue    - Total federal revenue ($)
+ * @param bookedRevenueT1    - Total federal revenue ($)
  * @param fiscalDominanceThreshold  - Debt service/revenue ratio that triggers dominance (config, 0.25)
  * @param fiscalDominanceDampening  - How paralyzed Fed becomes (0=none, 1=fully stuck) (config, 0.5)
  * @param policyRateOverride        - User override from PolicySchedule (null = use Taylor)
@@ -168,7 +203,7 @@ export function computeFiscalDominance(
   taylorPrescribed: number,
   prevPolicyRate: number,
   interestExpense: number,
-  totalGovernmentRevenue: number,
+  bookedRevenueT1: number,
   fiscalDominanceThreshold: number,
   fiscalDominanceDampening: number,
   policyRateOverride: number | null,
@@ -184,7 +219,7 @@ export function computeFiscalDominance(
   }
 
   // Guard: avoid division by zero if revenue is zero or negative
-  if (totalGovernmentRevenue <= 0) {
+  if (bookedRevenueT1 <= 0) {
     // With no revenue, debt service ratio is effectively infinite — full dominance
     return {
       policyRate: prevPolicyRate,
@@ -194,7 +229,7 @@ export function computeFiscalDominance(
     };
   }
 
-  const debtServiceRatio = interestExpense / totalGovernmentRevenue;
+  const debtServiceRatio = interestExpense / bookedRevenueT1;
 
   if (debtServiceRatio > fiscalDominanceThreshold) {
     // Fiscal dominance is active — Fed cannot fully follow Taylor Rule

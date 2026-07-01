@@ -46,6 +46,14 @@ export function computeAugmentationAdoption(inputs: {
 
   const viable = (betterScore * cheaperScore) > AUGMENTATION_VIABILITY_THRESHOLD;
 
+  // FS-1b F9 (documented one-sidedness, the R24 standard; why-note amended at the close-out
+  // per OD-12): the trigger latch is ONE-WAY — a MODELING CHOICE with switching frictions,
+  // not a physical law. The model's cost basis is per-token inference (an opex), so a
+  // sustained cost reversal CAN make continued automation uneconomic at the margin; reversal
+  // is unmodeled here pending the successor program's hysteresis design
+  // (the successor program charter, maintained with the audit records — the reverse gear: hysteresis band +
+  // asymmetric speeds). The U1 integrator's structural bound is coverage saturation
+  // (adoption ≤ ceiling ≤ 1).
   let triggerYear = augTriggerYear;
   if (triggerYear === null && viable) {
     triggerYear = year;
@@ -56,7 +64,11 @@ export function computeAugmentationAdoption(inputs: {
   }
 
   const yearsSince = Math.max(0, year - triggerYear);
-  const augAdoptionRate = 1 / (1 + Math.exp(-steepness * yearsSince));
+  // FS-1b F1 (ruled): the SIBLING FORM (adoption.ts consistency) — starts at 0 at the trigger
+  // year and saturates, replacing the logistic that JUMPED to 0.5 at yearsSince = 0 (the FS-1
+  // discontinuity finding). The Bass-class slow-start enrichment is REGISTERED with a citation
+  // as its trigger — not taken without one.
+  const augAdoptionRate = 1 - Math.exp(-steepness * yearsSince);
 
   return {
     augAdoptionRate,

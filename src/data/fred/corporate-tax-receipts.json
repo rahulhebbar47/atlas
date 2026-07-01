@@ -1,0 +1,91 @@
+{
+  "source": "FRED FCTAX (Federal Government Tax Receipts on Corporate Income)",
+  "seriesOrTable": "FCTAX",
+  "fetchedAt": "2026-06-11T17:55:59.236Z",
+  "latestDate": "2025-01-01",
+  "receiptsMillions": 497.288,
+  "receiptsDollars": 497288000,
+  "recentValues": [
+    {
+      "date": "2025-01-01",
+      "value": 497.288
+    },
+    {
+      "date": "2024-01-01",
+      "value": 491.66
+    },
+    {
+      "date": "2023-01-01",
+      "value": 426.455
+    },
+    {
+      "date": "2022-01-01",
+      "value": 411.708
+    },
+    {
+      "date": "2021-01-01",
+      "value": 335.475
+    },
+    {
+      "date": "2020-01-01",
+      "value": 225.234
+    },
+    {
+      "date": "2019-01-01",
+      "value": 210.451
+    },
+    {
+      "date": "2018-01-01",
+      "value": 224.956
+    },
+    {
+      "date": "2017-01-01",
+      "value": 230.345
+    },
+    {
+      "date": "2016-01-01",
+      "value": 311.863
+    },
+    {
+      "date": "2015-01-01",
+      "value": 329.088
+    },
+    {
+      "date": "2014-01-01",
+      "value": 339.649
+    },
+    {
+      "date": "2013-01-01",
+      "value": 298.431
+    },
+    {
+      "date": "2012-01-01",
+      "value": 274.7
+    },
+    {
+      "date": "2011-01-01",
+      "value": 223.953
+    },
+    {
+      "date": "2010-01-01",
+      "value": 219.387
+    },
+    {
+      "date": "2009-01-01",
+      "value": 152.962
+    },
+    {
+      "date": "2008-01-01",
+      "value": 201.961
+    },
+    {
+      "date": "2007-01-01",
+      "value": 328.24
+    },
+    {
+      "date": "2006-01-01",
+      "value": 365.958
+    }
+  ],
+  "notes": "Annual. Federal corporate tax receipts in millions. Used to validate effective corporate tax rate in Phase 7."
+}

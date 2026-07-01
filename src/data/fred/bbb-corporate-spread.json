@@ -1,0 +1,91 @@
+{
+  "source": "FRED BAMLC0A4CBBB (ICE BofA BBB US Corporate Index Option-Adjusted Spread)",
+  "seriesOrTable": "BAMLC0A4CBBB",
+  "fetchedAt": "2026-06-11T17:55:54.014Z",
+  "latestDate": "2026-06-10",
+  "spreadPercent": 0.94,
+  "spreadDecimal": 0.009399999999999999,
+  "recentValues": [
+    {
+      "date": "2026-06-10",
+      "value": 0.94
+    },
+    {
+      "date": "2026-06-09",
+      "value": 0.93
+    },
+    {
+      "date": "2026-06-08",
+      "value": 0.93
+    },
+    {
+      "date": "2026-06-05",
+      "value": 0.93
+    },
+    {
+      "date": "2026-06-04",
+      "value": 0.93
+    },
+    {
+      "date": "2026-06-03",
+      "value": 0.93
+    },
+    {
+      "date": "2026-06-02",
+      "value": 0.92
+    },
+    {
+      "date": "2026-06-01",
+      "value": 0.92
+    },
+    {
+      "date": "2026-05-31",
+      "value": 0.93
+    },
+    {
+      "date": "2026-05-29",
+      "value": 0.92
+    },
+    {
+      "date": "2026-05-28",
+      "value": 0.93
+    },
+    {
+      "date": "2026-05-27",
+      "value": 0.93
+    },
+    {
+      "date": "2026-05-26",
+      "value": 0.93
+    },
+    {
+      "date": "2026-05-25",
+      "value": 0.93
+    },
+    {
+      "date": "2026-05-22",
+      "value": 0.93
+    },
+    {
+      "date": "2026-05-21",
+      "value": 0.94
+    },
+    {
+      "date": "2026-05-20",
+      "value": 0.95
+    },
+    {
+      "date": "2026-05-19",
+      "value": 0.95
+    },
+    {
+      "date": "2026-05-18",
+      "value": 0.94
+    },
+    {
+      "date": "2026-05-15",
+      "value": 0.94
+    }
+  ],
+  "notes": "Daily. BBB corporate bond option-adjusted spread in percent. Used as base corporate credit spread for Phase 7 bond market."
+}

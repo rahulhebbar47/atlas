@@ -13,8 +13,21 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { FeedbackLoopsSection } from './feedbackLoops/FeedbackLoopsSection';
 import {
   // Capability & Adoption
-  PHILLIPS_CURVE_SENSITIVITY,
+  // PHILLIPS_CURVE_SENSITIVITY, — FS-6f: card 4.3 rewritten to the live wage equation; the
+  // retired exponential-Phillips constant is no longer displayed
   NATURAL_UNEMPLOYMENT_RATE,
+  // FS-6f: the live wage-equation constants (card 4.3)
+  DEFAULT_PHILLIPS_SLOPE,
+  DEFAULT_DOWNWARD_WAGE_RIGIDITY,
+  DEFAULT_INFLATION_INDEXATION,
+  DEFAULT_PRODUCTIVITY_PASSTHROUGH,
+  // FS-6f: the live structural-rent constants (card 4.4)
+  DEFAULT_RENT_OCCUPANCY_ELASTICITY,
+  DEFAULT_OPEX_PASSTHROUGH,
+  DEFAULT_RENT_INCOME_ELASTICITY,
+  DEFAULT_RENT_DOWNWARD_RIGIDITY,
+  // FS-6f: the residual-profits identity (card 5.7)
+  DEFAULT_OTHER_COSTS_SHARE,
   REVENUE_PRESSURE_SENSITIVITY_DEFAULT,
   REVENUE_PRESSURE_CAP,
   REVENUE_PRESSURE_DECAY,
@@ -32,7 +45,7 @@ import {
   DEFAULT_TOKEN_COST_CURVE,
   DEFAULT_TOKEN_USAGE_SCHEDULE,
   DEFAULT_AUGMENTATION_ADOPTION_STEEPNESS,
-  DEFAULT_SCARCITY_INTENSITY,
+  // DEFAULT_SCARCITY_INTENSITY, — FS-6f: displayed by the retired card 4.3 only
   ALPHA_BASELINE_CORPORATE_MARGIN,
   DEFAULT_REPLACEMENT_MULTIPLIER,
   // MPC & Consumption
@@ -51,8 +64,9 @@ import {
   DEFLATION_STEEPNESS,
   BASE_INFLATION_RATE,
   BASELINE_SHELTER_CPI_WEIGHT,
-  DEFAULT_SHELTER_INFLATION_STICKINESS,
-  BASELINE_SHELTER_INFLATION,
+  // DEFAULT_SHELTER_INFLATION_STICKINESS, — FS-6f: card 4.4 rewritten to the live structural
+  // rent; the retired additive-stack constants are no longer displayed
+  // BASELINE_SHELTER_INFLATION,
   // GDP
   TRADITIONAL_INVESTMENT_GDP_FRACTION,
   GOVERNMENT_SPENDING_GDP_FRACTION,
@@ -75,7 +89,10 @@ import {
   DEFAULT_CREDIT_ADOPTION_SENSITIVITY,
   // Fiscal
   EFFECTIVE_TAX_RATE,
-  TRANSFER_GROWTH_PER_UE_POINT,
+  // DEPRECATED (Stage 5 / H3): TRANSFER_GROWTH_PER_UE_POINT retired — per-person split shown instead
+  // TRANSFER_GROWTH_PER_UE_POINT,
+  DEFAULT_CASH_TRANSFER_PER_UNEMPLOYED,
+  DEFAULT_IN_KIND_TRANSFER_PER_UNEMPLOYED,
   BASELINE_VELOCITY_OF_MONEY,
   // Multipliers
   DEMAND_FEEDBACK_SENSITIVITY,
@@ -710,18 +727,19 @@ velocityMultiplier = 1.0 - deferralRate`}</Eq>
         ================================================================ */}
         <SectionHeader id="prices" number={4} title="Prices & Inflation" color="#22C55E" />
 
-        <EquationCard number="4.1" title="7-Component Net Inflation">
-          <Eq>{`netInflation = baselineInflation
-  - aiDeflation
-  + transferInflation          (reserved, = 0)
-  + demandEffects              (reserved, = 0)
-  + minWageCostPush
-  + creditDeflation
-  + scarcityInflation`}</Eq>
+        <EquationCard number="4.1" title="Sectoral Composite Inflation">
+          <Eq>{`sector_s = base_s + broadPressures − aiDeflation_s × passthrough_s   (4 sectors)
+composite = Σ weight_s × sector_s + monetaryInflation
+netInflation = aiExposedInflation      (back-compatibility alias: the goods bucket)`}</Eq>
           <Prose>
-            Seven independently computed inflation/deflation components sum to the goods
-            inflation rate. Transfer inflation and demand effects are slot-reserved at zero
-            pending future implementation. This is the non-shelter (goods) inflation rate.
+            Consumer inflation is a weighted blend of four consumption sectors (shelter,
+            AI-exposed goods and services, labor services, food and energy). AI cost deflation
+            reaches each sector only through that sector's pass-through — the retained
+            fraction accrues to producer margins. Shelter inflation comes from the structural
+            housing system (Eq 4.4), and a uniform monetary term applies across all sectors.
+            A parallel non-AI composite (the same blend with AI supply deflation added back)
+            feeds the revenue-pressure loop, so cheaper goods never register as demand
+            contraction.
           </Prose>
           <div className="flex flex-wrap gap-x-1 mt-2">
             <Param name="baselineInflation" value={(BASE_INFLATION_RATE * 100).toFixed(1) + '%'} />
@@ -758,60 +776,75 @@ totalDeflation = Σ(cpiWeight × sectorDeflation)`}</Eq>
           <CodeRef>bfcs.ts → computeTokenCostFactor(), computeInferenceCostFactor(); macro.ts → computeSectorWeightedDeflation()</CodeRef>
         </EquationCard>
 
-        <EquationCard number="4.3" title="Phillips Curve (Two Mechanisms)">
-          <Eq>{`aiShare = min(1, aiDisplacementUnemployment / totalUnemployed)
+        <EquationCard number="4.3" title="Nominal Wage Growth (One-Sided Phillips Curve with Downward Rigidity)">
+          <Eq>{`perWorkerProductivity = baselineGDPGrowth − populationGrowth        (≈ 1.6%/yr)
+excessUnemployment = max(0, UE − naturalUE)
 
-// Mechanism 1 — classic macro-slack decay, dampened when UE is AI-driven:
-classicPhillips = exp(-sensitivity × max(0, UE - naturalUE) × (1 - aiShare))
+nominalWageGrowth = inflationIndexation × compositeInflation(t−1)
+                  + productivityPassthrough × perWorkerProductivity
+                  − phillipsSlope × excessUnemployment
+                  + Δ scarcityPremium
 
-// Mechanism 2 — scarcity premium for hard-to-replace human workers:
-scarcityPremium = aiShare × scarcityIntensity × aggregateReplacementDifficultyWagePremium
+if nominalWageGrowth < 0:
+  nominalWageGrowth ×= (1 − downwardWageRigidity)
 
-effectiveWagePressure = max(policyWageFloor, classicPhillips + scarcityPremium)`}</Eq>
+wageIndex(t) = wageIndex(t−1) × (1 + nominalWageGrowth)
+effectiveWageIndex = max(wageIndex, policyWageFloor × trendWageIndex)`}</Eq>
           <Prose>
-            Phase 10.A rewrite: classic Phillips decay is scaled by (1 − aiShare), so pure
-            macro slack dominates when unemployment is NOT driven by AI, and is dampened when
-            most unemployment IS from AI displacement. The AI-driven scarcity premium kicks
-            in proportional to the share of unemployment that is AI-caused, weighted by the
-            aggregate replacement-difficulty premium of the remaining workforce — workers who
-            are hard to replace command higher wages as the pool shrinks. Policy minimum wage
-            still provides a floor.
+            Wages grow with last year&apos;s inflation, with productivity per worker, and fall
+            when unemployment exceeds its natural rate. The slack term is one-sided: a tight
+            labor market does not add a boom premium. Workers resist nominal pay cuts, so
+            negative wage growth is dampened — in a depression wages fall, but far more slowly
+            than the slack alone implies. Workers who are hard to replace earn a scarcity
+            premium while automation coverage is partial; the premium fades as coverage
+            saturates, and it feeds back into the next year&apos;s automation cost comparison.
+            A legislated minimum wage acts as a floor on the wage level itself. Wages read the
+            previous year&apos;s inflation, so wages and prices cannot chase each other within
+            a single year.
           </Prose>
           <div className="flex flex-wrap gap-x-1 mt-2">
-            <Param name="sensitivity" value={PHILLIPS_CURVE_SENSITIVITY} />
+            <Param name="phillipsSlope" value={DEFAULT_PHILLIPS_SLOPE} />
             <Param name="naturalUE" value={(NATURAL_UNEMPLOYMENT_RATE * 100).toFixed(1) + '%'} />
-            <Param name="scarcityIntensity" value={DEFAULT_SCARCITY_INTENSITY} />
+            <Param name="downwardRigidity" value={DEFAULT_DOWNWARD_WAGE_RIGIDITY} />
+            <Param name="inflationIndexation" value={DEFAULT_INFLATION_INDEXATION} />
+            <Param name="productivityPassthrough" value={DEFAULT_PRODUCTIVITY_PASSTHROUGH} />
           </div>
-          <Source>Blanchard (2016); IMF WEO Ch3 (2017); Phase 10.A Part 12 (AI-aware Phillips rewrite)</Source>
-          <CodeRef>macro.ts → computeWagePressure()</CodeRef>
+          <Source>Phillips (1958), one-sided slack form; downward nominal rigidity: Bewley (1999) class of evidence — constants carry their citations in constants.ts; decision record: docs/FABLE_AUDIT_SUMMARY.md</Source>
+          <CodeRef>macro.ts → computeNominalWageGrowth()</CodeRef>
         </EquationCard>
 
-        <EquationCard number="4.4" title="Shelter vs. Goods Decomposition">
-          <Eq>{`goodsInflation = netInflation                        (7 components)
+        <EquationCard number="4.4" title="Shelter CPI (Structural Rent from the Housing Block)">
+          <Eq>{`occupancyGap = occupancyRate − naturalOccupancy
+incomePerHouseholdGrowth = afterTaxIncomeGrowth(t−1) − householdGrowth
 
-shelterDeflationFromAI = -embodiedCap × stickiness × 0.10
-foreclosureSupply = -foreclosureRate × 0.5 × (1 - instBuyerRate)
-rentalDemandPressure = max(0, baseOwnership - avgOwnership) × rentalSens
-mortgageRateEffect = -creditTightening_ratio × 0.02
-shelterInflation = max(floor,
-  baseline(${(BASELINE_SHELTER_INFLATION * 100).toFixed(1)}%) + shelterDeflationFromAI
-  + foreclosureSupply + mortgageRateEffect + rentalDemandPressure)
+rentGrowthRaw = rentOccupancyElasticity × occupancyGap
+              + opexPassthrough × constructionCostGrowth
+              + rentIncomeElasticity × incomePerHouseholdGrowth
 
-compositeInflation = shelterWeight × shelter + (1 - shelterWeight) × goods`}</Eq>
+rentGrowth = rentGrowthRaw                                   if rentGrowthRaw ≥ 0
+           = (1 − rentDownwardRigidity) × rentGrowthRaw      if rentGrowthRaw < 0
+
+shelterInflation = rentGrowth
+compositeInflation = Σ sectorWeight × sectorInflation        (shelter is one of four sectors)`}</Eq>
           <Prose>
-            AI deflates goods (software, manufacturing) but shelter (~{(BASELINE_SHELTER_CPI_WEIGHT * 100).toFixed(0)}%
-            of CPI) barely deflates until embodied AI automates construction. Three stabilization
-            forces: institutional buyers absorb foreclosure supply, displaced homeowners create rental
-            demand pressure, and a land scarcity floor (-5%) prevents unrealistic shelter deflation.
-            Consumers experience composite inflation that weighs shelter and goods by CPI shares.
+            Shelter prices come from a structural rental market, not a fixed trend. Rents rise
+            when housing is scarce (occupancy above its natural level), when landlords&apos;
+            operating costs rise, and when tenant incomes rise. Rents fall when those forces
+            reverse, but slowly: landlords resist cutting nominal rents, so only a fraction of
+            a negative pressure is realized each year. The rent index is the model&apos;s
+            shelter CPI. Home prices are a separate, linked index driven by rents,
+            capitalization rates, and distress sales; construction activity responds to prices
+            through a builder pipeline that feeds back into occupancy.
           </Prose>
           <div className="flex flex-wrap gap-x-1 mt-2">
             <Param name="shelterWeight" value={BASELINE_SHELTER_CPI_WEIGHT} />
-            <Param name="stickiness" value={DEFAULT_SHELTER_INFLATION_STICKINESS} />
-            <Param name="baselineShelter" value={(BASELINE_SHELTER_INFLATION * 100).toFixed(1) + '%'} />
+            <Param name="occupancyElasticity" value={DEFAULT_RENT_OCCUPANCY_ELASTICITY} />
+            <Param name="opexPassthrough" value={DEFAULT_OPEX_PASSTHROUGH} />
+            <Param name="rentIncomeElasticity" value={DEFAULT_RENT_INCOME_ELASTICITY} />
+            <Param name="downwardRigidity" value={DEFAULT_RENT_DOWNWARD_RIGIDITY} />
           </div>
-          <Source>BLS CPI-U relative importance (shelter weight); BLS CPI Shelter historical trend</Source>
-          <CodeRef>macro.ts → computeMacro() (~line 1087)</CodeRef>
+          <Source>NAA/IREM operating-expense share; Genesove (2003) nominal rent rigidity; the rent-income elasticity from a 40-year CPI-rent/income decomposition — citations at the constants; decision record: docs/FABLE_AUDIT_SUMMARY.md</Source>
+          <CodeRef>macro.ts → computeHousingBlock()</CodeRef>
         </EquationCard>
 
         <EquationCard number="4.5" title="Price Level">
@@ -910,6 +943,26 @@ totalOutput split:
           <CodeRef>macro.ts → computeMacro() (~line 1347)</CodeRef>
         </EquationCard>
 
+        <EquationCard number="5.7" title="Corporate Profits (Residual Identity)">
+          <Eq>{`otherCosts = otherCostsShare × GDP
+corporateProfits = GDP − totalWageBill − nonCorporateAssetIncome − otherCosts`}</Eq>
+          <Prose>
+            Corporate profits are whatever remains of national income after paying workers,
+            non-corporate owners, and other costs. Profit margins are an output of the
+            simulation, not an assumption. The identity closes the income side of the
+            accounts: when displacement cuts the wage bill, the savings appear in profits;
+            when demand collapses faster than costs, profits absorb the loss. Profits cannot
+            be assumed to grow through a collapse in which someone must be absorbing losses.
+            Dividends paid from these profits flow to household asset income with a one-year
+            lag and are floored at zero in loss years.
+          </Prose>
+          <div className="flex flex-wrap gap-x-1 mt-2">
+            <Param name="otherCostsShare" value={DEFAULT_OTHER_COSTS_SHARE} />
+          </div>
+          <Source>BEA NIPA accounting identity (corporate profits as residual national income); decision record: docs/FABLE_AUDIT_SUMMARY.md</Source>
+          <CodeRef>macro.ts → computeMacro(), residual-profits block</CodeRef>
+        </EquationCard>
+
         {/* ================================================================
             SECTION 6: FINANCIAL SYSTEM
         ================================================================ */}
@@ -984,26 +1037,23 @@ homeownership[q] = max(0, min(1, current - foreclosureImpact + recovery))`}</Eq>
         </EquationCard>
 
         <EquationCard number="6.4" title="Home Prices & Housing Wealth">
-          <Eq>{`homePriceChange = -mortgageRateChange × affordabilitySens    Ch1: Affordability
-  + realIncomeGrowth × incomeElasticity                       Ch2: Income
-  + foreclosureSupplyPressure                                 Ch3: Supply
-  + populationGrowth × demographicElasticity                  Ch4: Demographics
-  + affordabilityReversion (asymmetric: down 50% stickier)    Ch5: Mean reversion
-
-housingWealthDrag = BASELINE_WEALTH × homePriceChange
-  × housingWealthMPC × avgHomeownership`}</Eq>
+          <Eq>{`ΔP/P = ΔR/R − Δcap/cap + fireSale        (the structural price: rents ÷ cap rate)
+cap = 0.052 + 0.4 × (mortgageRate − 6%)
+wealthBase(t) = BASELINE_WEALTH × homePriceIndex(t)
+housingWealthDrag = wealthBase × ΔP/P × housingWealthMPC × avgHomeownership`}</Eq>
           <Prose>
-            Five-channel home price model. Even employed homeowners cut spending when home
-            prices fall — this was the primary 2008 recession transmission. Affordability
-            reversion is asymmetric: prices correct downward at half the speed they correct
-            upward (downward stickiness). Baseline US residential wealth is ${(BASELINE_HOUSING_WEALTH / 1e12).toFixed(0)}T.
+            Home prices come from the structural housing system: rents divided by a
+            rate-sensitive capitalization rate, plus fire-sale pressure from unabsorbed
+            foreclosures. Even employed homeowners cut spending when home prices fall — the
+            primary 2008 recession transmission. The wealth base scales with the price index
+            rather than staying frozen at the baseline ${(BASELINE_HOUSING_WEALTH / 1e12).toFixed(0)}T.
           </Prose>
           <div className="flex flex-wrap gap-x-1 mt-2">
             <Param name="housingWealthMPC" value={DEFAULT_HOUSING_WEALTH_MPC} />
             <Param name="baselineWealth" value={`$${(BASELINE_HOUSING_WEALTH / 1e12).toFixed(0)}T`} />
           </div>
           <Source>Glaeser et al (2012); Mian & Sufi (2009); Case & Shiller (1989); Fed Z.1 Financial Accounts</Source>
-          <CodeRef>macro.ts → computeHomePriceChange(), housing wealth section</CodeRef>
+          <CodeRef>macro.ts → computeHousingBlock(); computeMacro() housing-wealth section</CodeRef>
         </EquationCard>
 
         <EquationCard number="6.5" title="Fiscal Pressure (Reporting Only)">
@@ -1018,9 +1068,10 @@ deficitGDPRatio = deficit / GDP_nominal`}</Eq>
           </Prose>
           <div className="flex flex-wrap gap-x-1 mt-2">
             <Param name="effectiveTaxRate" value={EFFECTIVE_TAX_RATE} />
-            <Param name="transferGrowth" value={`$${(TRANSFER_GROWTH_PER_UE_POINT / 1e9).toFixed(0)}B/pp`} />
+            <Param name="cashPerUnemployed" value={`$${(DEFAULT_CASH_TRANSFER_PER_UNEMPLOYED / 1000).toFixed(0)}k/yr`} />
+            <Param name="inKindPerUnemployed" value={`$${(DEFAULT_IN_KIND_TRANSFER_PER_UNEMPLOYED / 1000).toFixed(0)}k/yr`} />
           </div>
-          <Source>FRED FGRECPT; CBO stabilizer estimates (2024)</Source>
+          <Source>FRED FGRECPT; DOL ETA UI Data Summary; USDA FNS; KFF Medicaid per-enrollee</Source>
           <CodeRef>macro.ts → computeFiscalPressure()</CodeRef>
         </EquationCard>
 

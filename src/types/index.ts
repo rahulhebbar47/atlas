@@ -385,7 +385,9 @@ export interface SecondOrderEffectParams {
   // creditConsumptionSensitivity: number;
   baselineGovtTransfers: number;
   baselineDebtInterest: number;
-  transferGrowthPerUEPoint: number;
+  // DEPRECATED (Stage 5 / H3): transferGrowthPerUEPoint retired — incremental transfer spending is
+  // now derived from the per-person CASH + IN-KIND constants × incremental unemployed headcount.
+  // transferGrowthPerUEPoint: number;
   discretionaryShareOfG: number;
   // DEPRECATED (Phase 5h): deflationVelocitySensitivity removed — never read in computation.
   // Replaced by S-curve params below.
@@ -494,6 +496,20 @@ export interface MacroInputs {
   dynamicHomeownership?: number[];
   /** Shelter CPI weight (forwarded from SimulationConfig). */
   shelterCPIWeight?: number;
+  /** Stage 1: sectoral price architecture params (forwarded from SimulationConfig). */
+  aiExposedCPIWeight?: number;
+  laborServicesCPIWeight?: number;
+  foodEnergyCPIWeight?: number;
+  /** Fraction of AI cost savings passed to consumer prices in AI-exposed sectors. */
+  aiDeflationPassthrough?: number;
+  /** Labor cost share for the labor-intensive-services Baumol channel. */
+  laborCostShare?: number;
+  /** Stage 1.5: per-consumption-sector AI deflation RATES, routed from clusters (R10 mapping). */
+  sectorDeflationByConsumption?: { aiExposed: number; laborServices: number; foodEnergy: number; shelter: number };
+  /** Stage 1.5: embodied-AI passthrough per sector (fraction reaching prices, net of regulation). */
+  laborServicesPassthrough?: number;
+  foodEnergyPassthrough?: number;
+  shelterPassthrough?: number;
   /** Shelter inflation stickiness (forwarded from SimulationConfig). */
   shelterInflationStickiness?: number;
   /** Housing wealth MPC (forwarded from SimulationConfig). */
@@ -666,6 +682,67 @@ export interface MacroInputs {
   aggregateReplacementDifficultyWagePremium?: number;
   /** Scarcity premium intensity (config.scarcityIntensity). Default 0. */
   scarcityIntensity?: number;
+  /** Stage 3: endogenous wage equation params (forwarded from SimulationConfig). */
+  inflationIndexation?: number;
+  productivityPassthrough?: number;
+  phillipsSlope?: number;
+  downwardWageRigidity?: number;
+  /** Stage 5 (H3/OD-4): CASH support per incremental unemployed ($/person/yr → transfer income). */
+  cashTransferPerUnemployed?: number;
+  /** Stage 5 (H3/OD-4): IN-KIND support per incremental unemployed ($/person/yr → PCE directly). */
+  inKindTransferPerUnemployed?: number;
+  // Stage 6.5: stock-flow housing parameters (cited defaults in constants.ts)
+  formationSensitivity?: number;
+  headshipRecoveryRate?: number;
+  housingSupplyElasticity?: number;
+  embodiedCapacityGain?: number;
+  housingDepreciationRate?: number;
+  landShare?: number;
+  constructionLaborShare?: number;
+  landIncomeBeta?: number;
+  landScarcityElasticity?: number;
+  rentOccupancyElasticity?: number;
+  rentCostAnchorWeight?: number;
+  baselineCapRate?: number;
+  capRateMortgageBeta?: number;
+  capRateInvestorCompression?: number;
+  fireSaleElasticity?: number;
+  investorDemandIntensity?: number;
+  /** E-6: land rate-sensitivity (%/yr per pp mortgage deviation). Default 0.75 (USDA ERS 1981-86; capitalization). 0 = rate-blind. */
+  landRateSensitivity?: number;
+  /** Stage 6.5: year-0 asset-income share (investor land bid baseline, OD-9b). */
+  baselineAssetIncomeShare?: number;
+  // Stage 7: residual corporate profits (Phase 10.B)
+  otherCostsShare?: number;
+  aiSectorLaborShare?: number;
+  rentSharingElasticity?: number;
+  secularProfitDriftRate?: number;
+  // E-10: builder dynamics
+  builderAdjustmentLambda?: number;
+  housingPipelineDuration?: number;
+  // E-11: the land residual closure
+  landClosureKappa?: number;
+  /** E-12: capRate reference override. Default = the derived same-date chain (~0.065); 0.06 = the legacy phantom (isolation toggle). */
+  mortgageRateReference?: number;
+  /** L9: landlord opex passthrough (NAA/IREM accounting share). Default 0.40; 0 = off (toggle). */
+  opexPassthrough?: number;
+  /** L9: one-sided nominal rent rigidity (Genesove; 2008-12-derived). Default 0.85; 0 = flexible (toggle). */
+  rentDownwardRigidity?: number;
+  /** L9b: the rent income/WTP elasticity θ. Default 0.47 (citation-first, 40-yr decomposition). 0 = off (toggle). Range 0.3-0.7. */
+  rentIncomeElasticity?: number;
+  /** LLAG diagnostic only. */
+  diagSpotBuilderPrice?: boolean;
+  /** L9c-3/4. */
+  builderPriceMode?: 'spot' | 'trend-aware' | 'adaptive';
+  /** L9c-1. */
+  constructionCreditSensitivity?: number;
+  // E-9: F-D anchor override + [α] formula effect
+  nonShelterBaseInflation?: number;
+  pceFormulaEffect?: number;
+  // F4/OD-8 examination (E-1/E-2): expectation-family parameters
+  creditExpectationTurnover?: number;
+  creditBarRealTrend?: number;
+  assetShareDriftRate?: number;
   /** Baseline labor force for converting rate × force → unemployed headcount. Default from laborForce. */
   laborForceBaseline?: number;
 }
@@ -712,7 +789,8 @@ export interface MacroOutput {
   gdpNominal: number;
   gdpReal: number;
   gdpGrowthRate: number;
-  realGDPGrowthRate: number;    // Phase 8a: real GDP growth (deflated, for revenue pressure)
+  realGDPGrowthRate: number;    // Phase 8a: real GDP growth (deflated by full composite; reporting)
+  nonAIRealGDPGrowthRate: number; // Stage 2: nominal deflated by NON-AI prices — Loop 1 firewall input
   consumption: number;
   investment: number;
   governmentSpending: number;
@@ -832,6 +910,16 @@ export interface MacroOutput {
   // ═══ Phase 6: Separated Credit Outputs ═══
   consumerCreditMultiplier: number;       // [0.01, 1.0] → multiplies consumption
   consumerCreditTightening: number;       // raw tightening level for diagnostics
+  unclippedConsumerTightening: number;    // Stage 6 (R18): channel sum BEFORE the ceiling clip (binding diagnostics)
+  pceProxyInflation: number;              // E-9: the Fed's mandate variable (PCE-reweighted, − formula effect)
+  housingPipeline: number;                // E-10: units under construction (init = observed UNDCONTSA)
+  housingCompletions: number;             // E-10: the pipeline maturing at the length-biased duration
+  builderPriceIndex: number;              // E-10: the builder's λ-smoothed planning-horizon price
+  landResidualTarget: number;             // E-11: L* = (P − structureValue)/landShare (value-consistent)
+  afterTaxIncomeGrowth: number;           // L9b: the after-tax aggregate income growth (the rent WTP basis)
+  builderTrendGrowth: number;             // L9c-4: the builder's H=10 EMA trend estimator (state)
+  creditBarLevel: number;                 // E-1: the adaptive credit income-adequacy bar (recursive state)
+  creditBarInflationExpectation: number;  // E-1: the bar's debt-turnover-blended inflation expectation
   incomeAdequacyRatio: number;            // underwritable income / baseline (diagnostic)
   underwritableIncome: number;            // real $ that banks count toward debt servicing
   businessCreditMultiplier: number;       // [0.01, ~1.15] → multiplies investment (can loosen above 1.0)
@@ -839,9 +927,31 @@ export interface MacroOutput {
   profitCoverageRatio: number;            // corporate profits / baseline (diagnostic)
 
   // Phase 5i: Housing & Shelter
-  goodsInflation: number;                // Non-shelter inflation rate
+  goodsInflation: number;                // Non-shelter inflation rate (= AI-exposed sector, back-compat)
   shelterInflation: number;              // Shelter-specific inflation rate
-  compositeInflation: number;            // shelterWeight × shelter + (1-w) × goods
+  compositeInflation: number;            // weighted across the 4 consumption sectors
+  // Stage 1: sectoral price architecture — per-sector inflation rates + non-AI deflator
+  aiExposedInflation: number;            // base + broad pressures − AI deflation × passthrough
+  laborServicesInflation: number;        // base + broad pressures + Baumol wage term
+  foodEnergyInflation: number;           // base + broad pressures (exogenous, no AI deflation)
+  nonAICompositeInflation: number;       // composite EXCLUDING AI supply deflation (Stage 2 firewall input)
+  nonAIPriceLevel: number;               // cumulative price index excluding AI supply deflation
+  laborServicesPriceLevel: number;       // Stage 5b (F2): cumulative labor-services sector price index (in-kind deflator)
+  // Stage 6.5: stock-flow housing state (OD-9a separate, linked rent/price indices)
+  housingStock: number;                  // units (init Census ~146.6M)
+  households: number;                    // init Census ~131.5M
+  headshipRate: number;                  // HH/population (formation state)
+  rentIndex: number;                     // 1.0 = 2025; shelter CPI = its growth rate
+  constructionCostIndex: number;         // 1.0 = 2025; absorbs FULL embodied construction deflation
+  landCostIndex: number;                 // 1.0 = 2025; the non-producible residual (terminal constraint)
+  occupancyRate: number;                 // HH/H (natural ≈ 0.897)
+  housingStarts: number;                 // units/yr (equilibrium baseline ≈ 0.95M)
+  monetaryInflation: number;             // Stage 4: signed monetary-inflation component of composite (Fisher ΔM·V/PY)
+  // Stage 5 (H3): unified incremental-UE transfer flows — single source of truth, read by household
+  // income (cash), consumption (in-kind → PCE directly), and the load-bearing budget (sum, at t+1).
+  incrementalCashTransfers: number;      // $ cash support (UI+SNAP) to incremental unemployed → transfer income
+  inKindConsumption: number;             // $ in-kind support (Medicaid etc.) → enters C directly, NOT income
+  incrementalTransferSpending: number;   // = cash + in-kind; booked as budget outlay (fiscal block, t+1)
   shelterDeflationFromAI: number;        // Embodied AI impact on construction costs
   foreclosureSupplyEffect: number;       // Foreclosure supply impact on shelter (net of institutional absorption)
   rentalDemandPressure: number;          // Upward shelter pressure from displaced-to-renter conversion
@@ -861,7 +971,12 @@ export interface MacroOutput {
   affordabilityDeviation: number;        // Price-to-income vs baseline (positive=cheap, negative=expensive)
   realIncomeGrowthRate: number;          // YoY real household income growth rate
   mortgageRateChange: number;            // YoY change in mortgage rate (bp)
-  nominalWageGrowth: number;             // Natural nominal wage growth rate (inflation + productivity + Phillips)
+  nominalWageGrowth: number;             // Stage 3: endogenous nominal wage growth (indexation + productivity − Phillips + Δscarcity)
+  // Stage 3: endogenous wage path
+  wageIndex: number;                     // compounded per-worker nominal wage (1.0 = 2025)
+  trendWageIndex: number;                // wage index with NO Phillips/scarcity (policy-floor reference)
+  scarcityPremiumLevel: number;          // hump LEVEL = scarcityIntensity × cov × (1−cov)
+  obligationGCOLAIndex: number;          // COLA-floored wage index for obligation-G (R2)
   housingWealthDrag: number;             // $ consumption drag from falling home values
   effectiveMpcWage: number;              // After precautionary saving adjustment
   precautionaryMpcReduction: number;     // MPC reduction amount
@@ -878,6 +993,12 @@ export interface MacroOutput {
   capitalGainsTax: number;
   corporateTaxRevenue: number;
   stateLocalRevenue: number;
+  /** FS-6f: exposed so the fiscal-block bridge passes it directly (the residual derivation
+   * retired) and the 8-channel completeness assertion can reconstruct the total. */
+  transferTax: number;
+  /** CURRENT-YEAR 8-channel revenue total. The budget books this value at t−1 as
+   * FiscalState.bookedRevenueT1 (the fiscal block's uniform one-year booking convention) —
+   * same dollar object, one-year offset. */
   totalGovernmentRevenue: number;
 
   // After-Tax Income
@@ -971,12 +1092,19 @@ export interface FiscalState {
   interestExpense: number;
   debtServiceRevenueRatio: number;
   weightedAverageDebtRate: number;
-  totalGovernmentRevenue: number;
+  /** FS-6f (ruled rename; was totalGovernmentRevenue): the revenue the budget BOOKS this
+   * fiscal year = the previous year's MacroOutput.totalGovernmentRevenue, exactly (the t−1
+   * booking convention, like every fiscal input). The name carries the offset so a reader
+   * comparing this against the macro field of the same year sees the convention, not a bug. */
+  bookedRevenueT1: number;
   revenueGDPRatio: number;
   laborTaxRevenue: number;
   corporateTaxRevenue: number;
   primaryDeficit: number;
   totalDeficit: number;
+  /** Stage 5 (H3): incremental-UE stabilizer transfers booked in the budget this year
+   *  (= previous year's incrementalCashTransfers + inKindConsumption — fiscal block's t−1 convention). */
+  stabilizerTransfers: number;
   // Phase 8a: Fiscal consolidation fields
   consolidationIntensity: number;       // 0-1 scale
   discretionaryMultiplier: number;      // Applied to discretionary G
@@ -1000,6 +1128,10 @@ export interface FederalReserveState {
 }                                // Distinct from existing potentialGDP (which means "AI production potential")
 
 export interface BondMarketState {
+  /** E-7: the market's long-run inflation anchor (SPF/5y5y analog) — converges to realized composite at 1/credibilityHorizonYears. */
+  marketInflationAnchor: number;
+  /** E-8: markets' priced expectation of fiscal consolidation [0,1] — ramps/decays at 1/fiscalAdjustmentHorizonYears once debtService/revenue crosses the trigger. */
+  adjustmentExpectation: number;
   tenYearYield: number;
   expectedAveragePolicyRate: number;
   termPremium: number;
@@ -1046,6 +1178,8 @@ export interface MonetizationState {
   transmissionEfficiency: number;
   /** Phase 8 fix 3: Whether monetization taper floor raised the rate above computed level. */
   taperApplied: boolean;
+  /** Stage 4: FLOORED dynamic velocity actually used in the Fisher money-creation term (surfacing fix). */
+  velocity?: number;
 }
 
 export interface FiscalMonetaryOutput {
@@ -1361,6 +1495,25 @@ export interface SimulationConfig {
   maxBusinessCreditLoosening?: number;
   /** Shelter CPI weight. Default 0.36. Range: 0.20-0.50. */
   shelterCPIWeight?: number;
+  // Stage 1: sectoral price architecture (consumption-side CPI partition).
+  /** AI-exposed-goods CPI weight. Default 0.22. Normalized with the other sector weights. */
+  aiExposedCPIWeight?: number;
+  /** Labor-intensive-services CPI weight (Baumol). Default 0.22. */
+  laborServicesCPIWeight?: number;
+  /** Food & energy CPI weight (exogenous). Default 0.20. */
+  foodEnergyCPIWeight?: number;
+  /** Fraction of AI cost savings passed to consumer prices (rest → margins). Default 0.70. Range: 0-1.0. */
+  aiDeflationPassthrough?: number;
+  /** Labor cost share for the labor-services Baumol channel. Default 0.60. Range: 0-1.0. */
+  laborCostShare?: number;
+  // Stage 1.5: embodied-AI passthrough per sector (fraction of AI cost savings reaching consumer
+  // prices, net of regulatory friction + government policy). Embodied sectors are LOW.
+  /** Labor-intensive-services embodied passthrough. Default 0.15. Range: 0-1.0. */
+  laborServicesPassthrough?: number;
+  /** Food & energy embodied passthrough. Default 0.10. Range: 0-1.0. */
+  foodEnergyPassthrough?: number;
+  /** Shelter embodied passthrough (housing/land-use regulation → near-zero). Default 0.05. Range: 0-1.0. */
+  shelterPassthrough?: number;
   /** Shelter inflation stickiness. Default 0.80. Range: 0-1.0. */
   shelterInflationStickiness?: number;
   /** Mortgage stress amplifier. Default 0.40. Range: 0-2.0. */
@@ -1574,8 +1727,135 @@ export interface SimulationConfig {
   alphaDriverParams?: AlphaDriverParams;
   /** Steepness of the augmentation adoption S-curve. Default 0.8. */
   augmentationAdoptionSteepness?: number;
-  /** Intensity of AI-displacement scarcity premium in Phillips Mechanism 2. Default 0.4. */
+  /** Intensity of AI-displacement scarcity premium (now the wage-equation scarcity hump). Default 0.4. */
   scarcityIntensity?: number;
+  // Stage 3: endogenous wage equation
+  /** Fraction of lagged composite inflation passed into nominal wage growth (COLA). Default 1.0. Range 0–1.5. */
+  inflationIndexation?: number;
+  /** Fraction of per-worker productivity passed into nominal wage growth. Default 1.0. Range 0–1.5. */
+  productivityPassthrough?: number;
+  /** Wage-Phillips semi-elasticity (pp wage growth per pp excess UE). Default 0.30. Range 0–1.0. */
+  phillipsSlope?: number;
+  /** Asymmetric downward nominal wage rigidity [0,1]. Default 0.60. 1=never cut, 0=fully flexible. */
+  downwardWageRigidity?: number;
+  // Stage 5 (H3/OD-4): unified incremental-UE transfer support (single source for income + C + budget)
+  /** CASH support per incremental unemployed ($/yr): UI + SNAP, stock-average. Default 8,000 (DOL ETA, USDA FNS). */
+  cashTransferPerUnemployed?: number;
+  /** IN-KIND support per incremental unemployed ($/yr): Medicaid + other, stock-average. Default 5,000 (KFF/CMS). */
+  inKindTransferPerUnemployed?: number;
+  // Stage 6.5: stock-flow housing (OD-9a–e; see STAGE6_5_CHECKPOINT.md for the cited defaults)
+  /** Δln(headship)/yr per unit negative income deviation. Default 0.06 (GR formation collapse); 0 disables (OD-9c). */
+  formationSensitivity?: number;
+  /** /yr headship reversion to baseline. Default 0.12 (JCHS post-GR recovery). */
+  headshipRecoveryRate?: number;
+  /** % starts per % profitability gap — the REGULATORY-FRICTION dial. Default 1.5 (Saiz 2010); higher = abundance reform. */
+  housingSupplyElasticity?: number;
+  /** Construction-capacity gain at full embodied capability. Default 1.0 (= 2× capacity). */
+  embodiedCapacityGain?: number;
+  /** /yr housing stock losses. Default 0.0025 (HUD CINCH). */
+  housingDepreciationRate?: number;
+  /** Land share of replacement cost (2025 snapshot). Default 0.40 (Davis-Heathcote/Lincoln — research-sourced; no gov API). */
+  landShare?: number;
+  /** Labor share of construction-cost growth. Default 0.35 (Census/RSMeans). */
+  constructionLaborShare?: number;
+  /** Land growth per unit nominal income growth. Default 1.0 (Knoll-Schularick-Steger) — the reform/abundance lever. */
+  landIncomeBeta?: number;
+  /** Land growth per unit occupancy gap. Default 2.0 (ATLAS judgment param, flagged). */
+  landScarcityElasticity?: number;
+  /** Rent growth per unit occupancy gap. Default 2.0 (Rosen-Smith natural-vacancy literature). */
+  rentOccupancyElasticity?: number;
+  /** Weight on replacement-cost growth in rent growth. Default 1.0 (cost anchor, ratified); 0 = literal occupancy-only form. */
+  rentCostAnchorWeight?: number;
+  /** Rent-price ratio anchor. Default 0.052 (Davis-Lehnert-Martin; 2024-25 multifamily caps). */
+  baselineCapRate?: number;
+  /** Δcap per Δmortgage rate. Default 0.4 (NCREIF/CBRE beta 0.3-0.5). */
+  capRateMortgageBeta?: number;
+  /** Optional investor cap-rate compression. Default 0 (off, per 6.5 ruling 2). */
+  capRateInvestorCompression?: number;
+  /** Price impact per unit unabsorbed foreclosure flow. Default 1.75 (Mian-Sufi-Trebbi 2015). */
+  fireSaleElasticity?: number;
+  /** OD-9b land/store-of-value thesis dial: land bid per unit asset-share deviation. Default 0.10; 0 = off. R24: one-sided. */
+  investorDemandIntensity?: number;
+  // Stage 7: residual corporate profits (Phase 10.B; OD-5 checkpoint ratified)
+  /** Model-frame other-costs share of GDP (Q-1 ii): init-derived ≈0.115 so year-0 residual = BEA profits/GDP exactly. */
+  otherCostsShare?: number;
+  /** AI-sector labor share (10.B). Default 0.15 (big-tech labor intensity). */
+  aiSectorLaborShare?: number;
+  /** Rent-sharing elasticity: wage growth per unit profit-share deviation. Default 0.10 (Card-Cardoso-Heining-Kline 2018). Two-sided. */
+  rentSharingElasticity?: number;
+  /** Secular profit-share drift for the rent-sharing baseline (Q-2 B). Default 0.001/yr (= the D-1 drift). 0 = the post-2015-stabilization worldview. */
+  secularProfitDriftRate?: number;
+  // F4/OD-8 EXAMINATION (charter): the expectation-constant family
+  /** E-1: credit-bar inflation-expectation turnover (1/household-debt duration). Default 1/7 (Fed Z.1/G.19 blend). 0 = legacy fixed. */
+  creditExpectationTurnover?: number;
+  /** E-1/E-3 sibling: credit-bar REAL trend override (default = emergent closed form, perWorker×passthrough+pop ≈ 1.84%). Isolation: 0.02 = legacy. */
+  creditBarRealTrend?: number;
+  /** E-2: investor-bid baseline drift (default derived: payout×(1−tax)×secularProfitDrift ≈ 0.00047/yr). 0 = frozen 2025 baseline. */
+  assetShareDriftRate?: number;
+  /** E-3: demand-trend growth override (default = emergent closed form ≈ 1.84%). Isolation: 0.02 = legacy fixed. */
+  demandTrendGrowth?: number;
+  /** E-6: land rate-sensitivity (%/yr per pp mortgage-rate deviation). Default 0.75; 0 = the pre-E-6 rate-blind land. */
+  landRateSensitivity?: number;
+  /** E-7: credibility horizon τ (years). Default 10; 5-8 = 1970s de-anchoring; 0 = never-de-anchor sentinel (legacy). */
+  credibilityHorizonYears?: number;
+  /** E-8: debt-service/revenue level at which markets price consolidation. Default 0.18 (1991-95). ∞-like values = never-credible. */
+  fiscalCredibilityTrigger?: number;
+  /** E-8: market adjustment-expectation ramp/decay horizon (yrs, symmetric). Default 8 (1992-98 six-year episode in range). */
+  fiscalAdjustmentHorizonYears?: number;
+  /** E-8b item 1: the CPI−PCE target-basis wedge (the usePceProxy:false FALLBACK). Default 0.005. */
+  pceCpiWedge?: number;
+  /** E-9 item 2: the Fed reads the endogenous PCE proxy (default true); false = the E-8b fixed-wedge fallback. */
+  usePceProxy?: boolean;
+  /** E-9 [α]: the formula/scope component of CPI−PCE (default 0.002, BEA-BLS reconciliation; grows under divergence — documented limitation). */
+  pceFormulaEffect?: number;
+  /** E-9 item 1 (F-D): non-shelter sector anchor override. Default = the derived complement ≈0.0222; 0.0261 = the legacy all-items (isolation). */
+  nonShelterBaseInflation?: number;
+  /** E-9 item 3: true = the legacy split-NAIRU behavior (Taylor on realized-2025). Default false = unified FRED NAIRU. */
+  legacyNairu?: boolean;
+  /** E-9 item 4: true = single-bucket 30% rollover at the 10Y rate (legacy). Default false = split 17% @10Y + 13% @policy. */
+  legacySingleRollover?: boolean;
+  /** E-9b: policy-rate inertia ρ (annualized). Default 0.5 (CGG 2000 / Coibion-Gorodnichenko, 0.79-0.92 quarterly compounded). 0 = legacy instantaneous. */
+  taylorSmoothing?: number;
+  /** E-9c row 1: the anchor's year-0 init (observed 2025 expectations state). Default 0.027 (dual derivation); 0.025 ≈ the pre-E-9c idealized init (isolation). */
+  marketAnchorInit?: number;
+  /** E-10: builder adjustment speed λ (price smoothing + start adjustment, one cadence). Default 0.6 (HOUST 2022-23). 0 (with duration ≤ 0) = instantaneous legacy. */
+  builderAdjustmentLambda?: number;
+  /** E-10: pipeline turnover duration (yrs). Default 1.2 (length-biased Census blend; UNDCONTSA-confirmed). ≤ 0 = the legacy 1-yr lag. */
+  housingPipelineDuration?: number;
+  /** E-11: the land-residual-closure speed κ. Default 0.45 (2022-23 episode); 0 = the pre-E-11 legacy land block (toggle #8). */
+  landClosureKappa?: number;
+  /** E-12: capRate reference override (config). Default = derived ~0.065; 0.06 = legacy. */
+  mortgageRateReference?: number;
+  /** L9: landlord opex passthrough. Default 0.40. */
+  opexPassthrough?: number;
+  /** L9: one-sided rent rigidity. Default 0.85. */
+  rentDownwardRigidity?: number;
+  /** L9b: θ. Default 0.47. */
+  rentIncomeElasticity?: number;
+  /** LLAG diagnostic only: builder reads spot P (price channel only; starts smoothing untouched). */
+  diagSpotBuilderPrice?: boolean;
+  /** L9c-3/4: the builder price-perception mode. Default 'trend-aware'; 'spot' and 'adaptive' (the pre-L9c smoother) = the dial's poles. */
+  builderPriceMode?: 'spot' | 'trend-aware' | 'adaptive';
+  /** L9c-1: the construction-credit gate sensitivity (R1 episode-solved 2.0; the ADC capacity citation). 0 = no gate (toggle). */
+  constructionCreditSensitivity?: number;
+  /** FS-3 which-change: true = the retired seniority proxy + no wage-level connection (the full legacy Cheaper). */
+  legacyCheaperProxy?: boolean;
+  /** FS-3 which-change: true = the OEWS basis WITHOUT the wage-level connection (the basis-only row). */
+  seamBasisOnly?: boolean;
+  /** E-8b item 2: fiscal premium per unit debt/GDP above the 2025 anchor. Default 0.035 (Laubach 2009 / Engen-Hubbard 2004). */
+  laubachLevelBeta?: number;
+  /** E-8b item 2: fiscal premium per unit deficit/GDP above the 2025 anchor. Default 0.25 (Laubach 2009). */
+  laubachDeficitBeta?: number;
+  /** E-8b isolation toggle: true = the pre-E-8b logistic extrapolative premium (the doom-pricing source). */
+  legacyFiscalPremium?: boolean;
+  /** D-fix toggle: true = the β_deficit slot reads the realized TOTAL deficit (the self-referencing legacy basis). */
+  legacyTotalDeficitPremium?: boolean;
+  /** D-fix toggle: true = the retired supply-pressure premium (the second deficit reader) re-enabled. */
+  legacySupplyPressure?: boolean;
+  /** E-8c F-B: the fiscal-dominance service/revenue gate for yield-response monetization. Default 0.50 (UK-1920s/France-1926/Weimar poles). */
+  monetizationDominanceThreshold?: number;
+  /** E-8c F-B: the Laubach-premium co-condition (markets pricing FISCAL stress). Default 0.01; the Volcker guard. */
+  monetizationPremiumCoCondition?: number;
   /** Adoption rate above which competitive pressure kicks in; overrides DEFAULT_COMPETITIVE_PRESSURE_THRESHOLD. */
   competitivePressureThreshold?: number;
   /** Productivity multiplier at full capability and full Better score (AI-replacement mode). Default 2.0. */
@@ -1651,6 +1931,17 @@ export interface PolicyEffects {
   wageChannelAddition: number;
   assetChannelAddition: number;
   transferChannelAddition: number;
+  /** FS-6b: the wage-proportional enhanced-UI increment inside transferChannelAddition —
+   * exposed so the quintile measurement layer routes it by displaced wage mass. */
+  enhancedUIAddition: number;
+  /** FS-6b: the flat per-head support inside transferChannelAddition (retraining bonus +
+   * stipends) — routed by displaced headcount in the measurement layer. */
+  displacedFlatAddition: number;
+  /** Close-out §9 item 3: the wage the enhanced-UI benefit was priced at this year — the
+   * unemployed pool's composition-weighted prior wage (displaced at the pool average,
+   * frictional at the economy average). Equals the economy average when no displacement
+   * exists. Exposed for the attribution assertion. */
+  uiPricingWage: number;
   totalPolicyIncome: number;
   fiscalCost: number;            // total cost of all active policies (includes SWF contribution)
   fiscalCostAsPercentGDP: number;

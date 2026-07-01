@@ -297,6 +297,37 @@ export const BOTTOM80_TRANSFER_SHARE = 0.78;
 export const BOTTOM80_ASSET_SHARE = 0.12;
 export const BOTTOM80_POP_SHARE = 0.80;
 
+// ═══ STAGE 8 (ratified): the quintile measurement layer ═══
+/** Quintile income-source shares — CBO "The Distribution of Household Income" (2021 data, 2024
+ *  release) + CRS R44705, CONSISTENT with the cited BOTTOM80_* constants above (single source of
+ *  truth: each row's bottom-4 sum equals the standing bottom-80 share). S8-R2(a): provenance at
+ *  the slot; vintage stated. */
+export const QUINTILE_WAGE_SHARES = [0.04, 0.09, 0.13, 0.19, 0.55];      // Σ=1; bottom-4 = 0.45 = BOTTOM80_WAGE_SHARE
+export const QUINTILE_TRANSFER_SHARES = [0.32, 0.21, 0.15, 0.10, 0.22];  // Σ=1; bottom-4 = 0.78 = BOTTOM80_TRANSFER_SHARE
+export const QUINTILE_ASSET_SHARES = [0.01, 0.02, 0.03, 0.06, 0.88];     // Σ=1; bottom-4 = 0.12 = BOTTOM80_ASSET_SHARE
+/** S8-R1 (ratified): CEX quintile expenditure shares on the CONSUMPTION base — BLS CEX Table 1101
+ *  (2023), EXCLUDING personal insurance & pensions (~9-15% of totals, Q5-heavy: SS contributions +
+ *  retirement saving = saving, not consumption) and cash contributions, per CPI-weight practice;
+ *  renormalized. The financial/insurance→aiExposed mapping includes only CONSUMED financial
+ *  services and insurance, never pensions. Pre-registration honored: Q5 aiExposed ≈ 0.37 on the
+ *  consumption base (vs 0.45 indicative on the totals base). Rows sum to 1. Sector mapping per
+ *  the R10 style (shelter incl. lodging; foodEnergy = food + utilities + gasoline; laborServices =
+ *  health/education/personal services; aiExposed = goods, vehicles, transport ex-fuel,
+ *  entertainment, consumed financial services). */
+export const CEX_QUINTILE_SECTOR_SHARES: ReadonlyArray<{ shelter: number; foodEnergy: number; laborServices: number; aiExposed: number }> = [
+  { shelter: 0.28, foodEnergy: 0.26, laborServices: 0.21, aiExposed: 0.25 },  // Q1
+  { shelter: 0.24, foodEnergy: 0.24, laborServices: 0.22, aiExposed: 0.30 },  // Q2
+  { shelter: 0.22, foodEnergy: 0.22, laborServices: 0.22, aiExposed: 0.34 },  // Q3
+  { shelter: 0.21, foodEnergy: 0.20, laborServices: 0.22, aiExposed: 0.37 },  // Q4
+  { shelter: 0.20, foodEnergy: 0.17, laborServices: 0.26, aiExposed: 0.37 },  // Q5
+];
+/** S8-R3 (ratified): the stock-vintage rent kernel's MEAN LAG (yrs) — the kernel DERIVES from
+ *  this dial (linear-interpolated taps with mean lag exactly = the dial). Default 1.0 = the cited
+ *  NTRR 4-quarter lead of market over CPI-stock rents (BLS New-Tenant Rent Research). S8-R4:
+ *  Q5's shelter exposure uses the rent index as the OER proxy per BLS methodology (OER is
+ *  measured from rent samples). Display-only; zero model feedback. Range 0-2; 0 = marginal. */
+export const DEFAULT_RENT_VINTAGE_LAG_YEARS = 1.0;
+
 /**
  * Base inflation rate (actual CPI-U annual change).
  * Source: BLS CPI-U All Items (series CUUR0000SA0), via src/data/bls/cpi-sector-indices.json
@@ -305,6 +336,22 @@ export const BOTTOM80_POP_SHARE = 0.80;
  * Previously was 0.02 (Fed target); updated to data-driven in Phase 8.
  */
 export const BASE_INFLATION_RATE = govData.baseInflationRate;
+/** E-9 item 1 (F-D, ratified): the NON-SHELTER sector anchor — the coherent complement of the
+ *  all-items series. BASE_INFLATION_RATE is CPI-U ALL ITEMS (CUUR0000SA0), which already CONTAINS
+ *  shelter running ≈3.3%/yr (BLS CPI shelter, 2000-2024 average); applying the all-items number to
+ *  the non-shelter sectors while shelter is computed structurally on top double-counted shelter's
+ *  premium (the F-D finding). Derivation, from the constant's own citations:
+ *    (allItems − w_shelter × shelterTrend)/(1 − w_shelter) = (0.0261 − 0.36×0.033)/0.64 ≈ 0.0222.
+ *  PROVENANCE (ledger entry 2): the all-items value was CORRECT in the pre-Stage-1 single-bucket
+ *  architecture and became incoherent when Stage 1 repartitioned the basket without re-deriving it —
+ *  a remediation-era omission; the basis-sweep (MONETARY_AUDIT §1) is the standing control. */
+export const HISTORICAL_SHELTER_CPI_TREND = 0.033;
+// reason: mirrors BASELINE_SHELTER_CPI_WEIGHT (defined below, TDZ) — same BLS relative-importance source.
+const BASELINE_SHELTER_CPI_WEIGHT_FOR_ANCHOR = 0.36;
+export const NON_SHELTER_BASE_INFLATION = (() => {
+  return (govData.baseInflationRate - BASELINE_SHELTER_CPI_WEIGHT_FOR_ANCHOR * HISTORICAL_SHELTER_CPI_TREND)
+    / (1 - BASELINE_SHELTER_CPI_WEIGHT_FOR_ANCHOR);
+})();
 
 // DEPRECATED (Phase 5h): Superseded by MPC_WAGE / MPC_ASSET / MPC_TRANSFER in Phase 3 demand model.
 // Was: Marginal propensity to consume for US economy (consumption-to-GDP ratio C/Y).
@@ -447,11 +494,69 @@ export const DEPRESSION_UNEMPLOYMENT_THRESHOLD = 0.15;
  */
 export const BASELINE_AVERAGE_ANNUAL_WAGE = Math.round(govData.avgHourlyEarnings * govData.avgWeeklyHours * 52);
 
+// ============================================================
+// Stage 5 (H3 / OD-4): Unified incremental-UE transfer support
+// ============================================================
+// Support per incremental unemployed person, split into CASH (→ household transfer income → MPC →
+// consumption) and IN-KIND (→ PCE consumption directly + fiscal cost). Single source of truth: the
+// income statement, the consumption identity, and the federal budget all read these two constants.
+// Both user-adjustable (config.cashTransferPerUnemployed / config.inKindTransferPerUnemployed).
+//
+// FORWARD DERIVATION — stock-average, current-law automatic stabilizers. The model multiplies these
+// by the incremental unemployed STOCK every year, so each component must be a point-in-time stock
+// average with recipiency and exhaustion baked in — NOT a first-year flow at full take-up:
+//   UI ≈ $6,260/yr — DOL ETA UI Data Summary (CY2024): avg weekly benefit ≈ $430; stock recipiency
+//        (insured unemployed ÷ total unemployed) ≈ 28% → 0.28 × $430 × 52 ≈ $6,261. Exhaustion and
+//        eligibility live inside the 28%; current-law EB extensions partially offset at high IUR.
+//   SNAP ≈ $1,700/yr — USDA FNS SNAP data tables (FY2024): avg household benefit ≈ $345/mo; SNAP
+//        receipt among unemployed-worker households ≈ 40% → 0.40 × $345 × 12 ≈ $1,656.
+//   CASH = $6,260 + $1,700 ≈ $7,960 → 8,000
+//   Medicaid ≈ $4,500/yr — KFF Medicaid spending per enrollee (FY2021: full-benefit adult ≈ $7,100,
+//        child ≈ $3,200) × Great-Recession enrollment elasticity ≈ 0.75 enrollee-equivalents per
+//        additional unemployed (enrollment +6M vs unemployment +8M, 2007–2012) × ~$6,000 blended.
+//   Other in-kind ≈ $500/yr — ACA marketplace premium tax credits for the UI-income tier (KFF APTC).
+//   IN-KIND = $4,500 + $500 = 5,000
+export const DEFAULT_CASH_TRANSFER_PER_UNEMPLOYED = 8_000;
+export const DEFAULT_IN_KIND_TRANSFER_PER_UNEMPLOYED = 5_000;
 /**
- * Baseline average transfer payment per unemployed person (annual).
- * Source: DOL UI data; includes federal + state averages; ~$1,600/month ≈ $19,200/year
+ * DEPRECATED (Stage 5 / H3): legacy all-in constant, retired from the model loop. The $19,200
+ * ("~$1,600/month, DOL UI data") implied 100% UI recipiency with no exhaustion — ~1.5× the
+ * recipiency-adjusted stock average derived above ($13,000). New code must read the CASH/IN-KIND
+ * split constants; this is kept only as a historical reference (no-delete rule).
  */
 export const BASELINE_TRANSFER_PER_UNEMPLOYED = 19_200;
+
+/**
+ * Stage 5: current-law UI statutory generosity — the ZERO-INCREMENT anchor for the enhanced-UI
+ * policy lever. The default config runs enhancedUI at exactly these settings (its representation of
+ * current law), so the lever must cost $0 there and charge only generosity ABOVE statute. This is a
+ * different basis from the stock-average cash support above: the $8,000 is current law's REALIZED
+ * per-stock-person cost (~28% recipiency); the policy increment is statutory generosity at the
+ * policy's own (full) take-up. Netting the lever against the realized average would charge the
+ * recipiency gap as if it were new policy.
+ * Source: DOL — average UI replacement ~45% of prior wage; standard state duration 26 weeks.
+ */
+export const CURRENT_LAW_UI_REPLACEMENT_RATE = 0.45;
+export const CURRENT_LAW_UI_DURATION_WEEKS = 26;
+
+// ═══ FS-6f hygiene: unit conversions + indexed-UBI defaults (the named-constant rule) ═══
+/** Hours in a standard full-time work year: 40 hours × 52 weeks (the BLS full-time convention). */
+export const HOURS_PER_WORK_YEAR = 2080;
+/** Unit conversion. */
+export const MONTHS_PER_YEAR = 12;
+/** Unit conversion. */
+export const WEEKS_PER_YEAR = 52;
+/** Unit conversion for config fields denominated in billions of dollars. */
+export const DOLLARS_PER_BILLION = 1_000_000_000;
+/** Indexed-UBI defaults used when the config omits the fields. Uncited design defaults
+ * (honest status) — user-adjustable via UBIPolicy.indexedBaseAmount / indexedStartYear /
+ * productivityIndexRate. */
+export const DEFAULT_INDEXED_UBI_BASE_MONTHLY = 1000;
+export const DEFAULT_INDEXED_UBI_START_YEAR = 2032;
+export const DEFAULT_UBI_PRODUCTIVITY_INDEX_RATE = 1.0;
+/** Floor on both AI-GDP legs of the indexed-UBI growth ratio. reason: a numerical guard
+ * against division by near-zero in pre-takeoff years, not an economic parameter. */
+export const INDEXED_UBI_AI_GDP_FLOOR = 1_000_000_000;
 
 // DEPRECATED (Phase 5h): Imported in macro.ts but never referenced in any function body.
 // Asset income is computed from shares × total income, not from a per-capita constant.
@@ -694,6 +799,161 @@ export const MONETARY_COLLAPSE_THRESHOLD_FRACTION = 0.99;
  * Source: Blanchard (2016), IMF WEO Chapter 3 (2017); Blanchard & Katz (1997)
  */
 export const PHILLIPS_CURVE_SENSITIVITY = 2.5;
+
+// ============================================================
+// Stage 3: Endogenous wage equation (replaces the computeWagePressure level-multiplier)
+// ============================================================
+/** Fraction of (lagged) composite inflation passed into nominal wage growth (full COLA). Gate-A-consistent. */
+export const DEFAULT_INFLATION_INDEXATION = 1.0;
+/** Stage 7 (D-1 ruling): fraction of per-worker productivity growth passed into nominal wage growth.
+ *  0.90 calibrated to the OBSERVED aggregate labor-share drift: zero-AI wage growth 2.9% + 0.9×1.6%
+ *  = 4.34%; wage bill 4.74% vs nominal GDP ≈4.9% → labor share drifts ≈ −0.10pp/yr — matching the
+ *  genuinely labor-vs-capital component of the productivity-pay gap (aggregate labor share fell only
+ *  ~5-6pp over 1980-2020; Stansbury & Summers 2017, Lawrence, EPI decomposition). The ~0.3-class
+ *  defaults are EXPLICITLY REJECTED: the famous "decoupling" is predominantly median/composition/
+ *  deflator (mean-vs-median inequality, wages-vs-compensation, consumption-vs-output deflators) —
+ *  not a labor-vs-capital split, which is what this parameter controls once profits are residual. */
+export const DEFAULT_PRODUCTIVITY_PASSTHROUGH = 0.90;
+
+// ============================================================
+// Stage 7: Residual corporate profits (Phase 10.B core; OD-5 checkpoint ratified)
+// ============================================================
+/** Model-frame "other costs" share of GDP (Q-1 ruling, option ii): proxies NIPA consumption of fixed
+ *  capital (≈17% of GDP) + taxes on production & imports less subsidies (≈6.6%, NIPA Table 1.10),
+ *  NET of the PI-frame wedge — the model's BASELINE_WAGE_SHARE (0.604) is wages/personal-income
+ *  applied to GDP, vs NIPA compensation/GDP ≈0.53, so the raw 0.235 cannot be imported (it would
+ *  zero baseline profits). Init-derived so the year-0 residual identity reproduces the BEA profit
+ *  ratio EXACTLY: otherCosts = 1 − wageShare − nonCorpShare − BEA profits/GDP. This by-construction
+ *  closure dissolves the 0.13-vs-0.11 bootstrap and closes the 2026 capacityGate transient.
+ *  (Registered deferred: NIPA production-frame re-basing of the income architecture — right in
+ *  principle, wrong in sequencing.) */
+export const DEFAULT_OTHER_COSTS_SHARE =
+  1 - BASELINE_WAGE_SHARE - NON_CORPORATE_ASSET_SHARE - govData.baselineProfitGDPRatio;
+/** AI-sector labor share (Phase 10.B): big-tech labor intensity — the AI sector is capital-intensive
+ *  in aggregate even though individual workers capture via equity (a Stage-8 distribution matter).
+ *  AI profits = aiGDP × (1 − this) × (1 − otherCostsShare) — proportionate otherCosts per Q-3
+ *  (conservative on AI profits: AI-sector CFC plausibly EXCEEDS the average — GPU/accelerator 3-5yr
+ *  cycles; a per-sector multiplier is a registered future refinement). */
+export const DEFAULT_AI_SECTOR_LABOR_SHARE = 0.15;
+/** Rent-sharing elasticity (Stage 7, Part 3): wage-growth response per unit profit-share deviation
+ *  from the secular baseline. TWO-SIDED (recessions compress rent-sharing — stabilizing; contrast
+ *  R24's one-sided land bid). Source: Card, Cardoso, Heining & Kline (2018 JOLE); surveyed
+ *  elasticities ≈0.05-0.15. */
+export const DEFAULT_RENT_SHARING_ELASTICITY = 0.10;
+/** Secular profit-share drift (Q-2 ruling, option B): the rent-sharing baseline drifts at the SAME
+ *  observed labor-share-drift rate D-1 calibrates to (+0.10pp/yr ⇒ 0.001/yr) — no new free constant.
+ *  THE WORLDVIEW FORK AS A SINGLE DIAL: at 0, the baseline is constant and rent-sharing makes the
+ *  D-1 drift self-limiting (asymptote ≈ −1.6pp — the post-2015 labor-share-stabilization reading);
+ *  at 0.001, the 1980-2020 trend continues. Both readings documented in USER_PARAMETERS.md. */
+export const DEFAULT_SECULAR_PROFIT_DRIFT_RATE = 0.001;
+
+// ============================================================
+// F4/OD-8 EXAMINATION (charter, post-Stage-7): the expectation-constant family
+// ============================================================
+/** E-1 — debt-turnover blend: the consumer credit bar's inflation expectation converges from its
+ *  origination value toward LAGGED REALIZED inflation at this rate (= 1 / effective household-debt
+ *  duration). Derivation: mortgages ≈ 70% of household debt (Fed Z.1) at ~9y effective duration
+ *  (amortization/refi/turnover), consumer credit ≈ 30% (Fed G.19) at ~2.5y → blended ≈ 7y → 0.143/yr.
+ *  Fisher debt-deflation is PRESERVED for the existing stock (the bar stays high for years into a
+ *  deflation — borrowers genuinely crushed) and only its IMMORTALITY is removed (stocks turn over;
+ *  new originations re-price). 0 = the legacy fixed expectation (classification: FIXED, rejected —
+ *  no contract is immortal). */
+export const DEFAULT_CREDIT_EXPECTATION_TURNOVER = 1 / 7;
+/** E-2 — drifting secular baseline for the investor land bid (Q-2(B) symmetry, ruled). Derived from
+ *  ratified constants ONLY (one source, no new free constant): the dividend channel of the secular
+ *  profit drift — payout × (1 − corp tax) × secularProfitDriftRate ≈ 0.60 × 0.79 × 0.001 ≈
+ *  +0.047pp/yr. (Capital-gains and nonCorp channels omitted — conservative; measured zero-AI
+ *  asset-share drift ≈ +0.064pp/yr; the residual deviation by 2050 keeps the bid near-invisible.)
+ *  0 = frozen 2025 baseline (the pre-examination behavior that activated the bid in zero-AI). */
+export const DEFAULT_ASSET_SHARE_DRIFT_RATE = (() => {
+  return (1 - govData.corporateRetentionRate) * (1 - govData.effectiveCorporateTaxRate)
+    * DEFAULT_SECULAR_PROFIT_DRIFT_RATE;
+})();
+/** E-6 (ratified): land rate-sensitivity — %/yr land-price flow per pp of mortgage-rate deviation
+ *  from baseline (LEVEL-deviation, symmetric with the structures' capRate channel; a Δ-form cannot
+ *  anchor the land LEVEL against persistently elevated rates). Land is the residual-claimant,
+ *  longest-duration asset → sensitivity exceeds the structures' capRateMortgageBeta (0.4).
+ *  Calibration: 1981-86 farmland episode — real values −27% over 5 yrs against ~+8pp sustained
+ *  tightening ≈ 0.75 %/yr per pp (USDA ERS farmland series); capitalization logic V=R/r at 4-5%
+ *  land cap rates; Davis-Heathcote land-share cyclicality (land, not structures, carries the cycle).
+ *  0 = the pre-E-6 rate-blind land (isolation toggle). Range 0-2. */
+export const DEFAULT_LAND_RATE_SENSITIVITY = 0.75;
+/** E-7 (ratified): central-bank credibility horizon τ_cred — the market inflation ANCHOR converges
+ *  from the Fed target toward LAGGED REALIZED composite at 1/τ. A genuine worldview dial: default 10
+ *  (post-Volcker anchoring; 2021-23: ~5pp of realized misses moved 5y5y breakevens <0.3pp → τ ≳ 8-12);
+ *  τ ≈ 5-8 = the 1965-1980 de-anchoring regime (long rates ratcheted through a decade of misses —
+ *  how tight policy historically reached land). Mathematical legacy limit is τ → ∞ (1/τ → 0);
+ *  0 is a SPECIAL-CASED SENTINEL meaning never-de-anchor (anchor frozen at init). Range 3-30 (+0). */
+export const DEFAULT_CREDIBILITY_HORIZON_YEARS = 10;
+/** E-8 (ratified): debt-service/revenue level at which markets begin pricing fiscal consolidation.
+ *  Source: net interest ≈ 18%+ of federal revenue 1991-95 — the level at which the 1992-1998
+ *  consolidation episode mobilized (deficit 4.5% of GDP → surplus over six years). Trigger → ∞
+ *  = the never-credible world (reproduces the E-7 finding as a scenario). Range 0.10-0.40. */
+export const DEFAULT_FISCAL_CREDIBILITY_TRIGGER = 0.18;
+/** E-8: years over which markets expect the primary-balance glide once triggered. Default 8
+ *  (within the episode range: 1992-1998 = six years; 2011-14 BCA ≈ four for ~2pp; the post-WWII
+ *  workdown as the long pole). The adjustmentExpectation ramps AND decays at 1/horizon —
+ *  SYMMETRIC DECAY chosen (item 2): markets re-price both directions at comparable speed
+ *  (the 2001-02 surplus-expectation unwind); one rate, no hysteresis constant. Range 3-20. */
+export const DEFAULT_FISCAL_ADJUSTMENT_HORIZON_YEARS = 8;
+/** E-8b item 1 (ratified, units correction): the Fed targets 2% PCE; the model composite is
+ *  CPI-basis (BLS CPI relative-importance weights — shelter 0.36 vs PCE ~0.15). Long-run CPI−PCE
+ *  differential ≈ 0.45pp (BLS/Cleveland Fed, 2000-2024: weighting + formula + scope). Every
+ *  comparison of the composite against the target uses target + this wedge. User-adjustable;
+ *  0 = the pre-E-8b structurally-hawkish comparison (isolation toggle). */
+export const PCE_CPI_WEDGE = 0.005;
+/** E-8b item 2 (ratified): fiscal-risk premium per unit of debt/GDP ABOVE the 2025 anchor —
+ *  3.5bp per pp (Laubach 2009: 3-4bp/pp of projected debt/GDP; Engen-Hubbard 2004: ≈3bp/pp).
+ *  Replaces the logistic extrapolation (local slope ~70× this evidence — the doom-pricing source). */
+export const DEFAULT_LAUBACH_LEVEL_BETA = 0.035;
+/** E-8b item 2: premium per unit of deficit/GDP above the 2025 anchor — 25bp per pp
+ *  (Laubach 2009: 20-29bp per pp of projected deficit/GDP). */
+export const DEFAULT_LAUBACH_DEFICIT_BETA = 0.25;
+/** E-8c F-B (ratified): monetization-as-yield-response is a FISCAL-DOMINANCE event (Sargent &
+ *  Wallace 1981), not a yield-level event. Fires only when debtService/revenue exceeds this gate.
+ *  Episode poles: UK 1920s — service ≈ 40%+ of revenue, chose orthodox deflation, NO monetization
+ *  (0.40 alone does not force printing); France 1926 — ≈ 0.45-0.50, monetized/devalued (the onset
+ *  zone); Weimar — ≫ 0.50 with lost market access. Range 0.25-0.80 (the regime worldview dial). */
+export const DEFAULT_MONETIZATION_DOMINANCE_THRESHOLD = 0.50;
+/** E-8c F-B: the co-condition — markets must be pricing FISCAL stress (the Laubach premium ≥ ~1pp
+ *  ≈ debt ~30pp above the 2025 anchor). High yields from inflation repricing alone (premium ≈ 0,
+ *  the Volcker 1981 case: 15% yields, zero monetization) never qualify. Range 0.002-0.05. */
+export const DEFAULT_MONETIZATION_PREMIUM_COCONDITION = 0.01;
+/** E-9 item 2 (ratified): the PCE-proxy weight vector — the model's four sector inflations
+ *  reweighted to PCE shares (BEA NIPA Table 2.3.5; FRED-served components DPCERC/DHUTRC/DHLCRC/
+ *  DFXARC/DNRGRC). Mapping judgment calls (R10 style, see DATA_MODEL): food services split into
+ *  foodEnergy; financial-services-furnished-without-payment (PCE-only scope) → aiExposed;
+ *  healthcare third-party payments (the PCE-vs-CPI scope driver) → laborServices (the single
+ *  largest reweight: healthcare ≈16.6% of PCE vs ≈8% of CPI). Weights sum to 1. */
+export const PCE_WEIGHT_SHELTER = 0.155;
+export const PCE_WEIGHT_FOOD_ENERGY = 0.15;
+export const PCE_WEIGHT_LABOR_SERVICES = 0.35;
+export const PCE_WEIGHT_AI_EXPOSED = 0.345;
+/** E-9 flag [α] (ratified): the formula/scope component of the CPI−PCE differential — chained
+ *  Fisher vs Laspeyres + scope (BEA-BLS CPI-PCE reconciliation decompositions: the historical
+ *  ≈0.45pp differential ≈ weight component ~0.25 + formula/scope ~0.20). A reweighting proxy
+ *  reproduces only the weight component; this constant supplies the remainder so the Fed's
+ *  variable honestly targets PCE. KNOWN LIMITATION (documented per the ratification): the formula
+ *  effect is NOT constant in reality — it GROWS when relative prices diverge (substitution rises),
+ *  so in Scenario C true PCE would read LOWER than proxy − α. Direction documented; an endogenous/
+ *  chained treatment is registered under the OD-6 chained-index entry. User-adjustable. */
+export const PCE_FORMULA_EFFECT = 0.002;
+/**
+ * Wage-Phillips semi-elasticity: pp reduction in annual nominal wage growth per pp of excess unemployment
+ * (equivalently, fraction-per-fraction). Default 0.30 (mid-range). Linear; at extreme UE the resulting
+ * cut is damped by downwardWageRigidity (a saturating form is the registered fallback if Gate D shows a
+ * collapse faster than the 1930-33 ~20-25% cumulative nominal-wage decline).
+ * Source: Blanchard (2016); Galí (2011) — wage Phillips slope 0.2–0.5.
+ */
+export const DEFAULT_PHILLIPS_SLOPE = 0.30;
+/**
+ * Asymmetric downward NOMINAL wage rigidity [0,1]: when nominal wage growth would be negative, only
+ * (1 − rigidity) of the cut passes through. 1.0 = wages never cut nominally; 0 = fully flexible.
+ * Default 0.60: nominal wages are sticky (Daly & Hobijn 2014, "Downward Nominal Wage Rigidities Bend the
+ * Phillips Curve" — pronounced spike at 0% wage change) yet fell ~20-25% in 1930-33, so a single value
+ * cannot be 1.0; 0.60 lets wages fall materially in a 40%-UE collapse while staying sticky in mild downturns.
+ */
+export const DEFAULT_DOWNWARD_WAGE_RIGIDITY = 0.60;
 
 /**
  * Natural unemployment rate (baseline unemployment / labor force).
@@ -1127,6 +1387,67 @@ export const STATUTORY_CORPORATE_RATE = 0.21;
  *         CBO "Federal Debt and the Statutory Limit" (2024), weighted-average maturity analysis.
  */
 export const DEBT_ROLLOVER_RATE = 0.30;
+/** E-9 item 4 (ratified): the coupon-stock share of annual rollover — ~6y WAM → 1/6 ≈ 17%/yr
+ *  repricing at the 10Y-based rate; the remainder of the 30% (the bills layer, ~13%/yr) rolls at
+ *  the POLICY rate (bills price off the short end, not the 10Y — the audit §1 row-5 finding).
+ *  Same citation as DEBT_ROLLOVER_RATE (Treasury refunding / CBO WAM analysis). */
+export const DEBT_ROLLOVER_COUPON_RATE = 0.17;
+/** E-9b (ratified): policy-rate inertia — i(t) = ρ·i(t−1) + (1−ρ)·Taylor(t). The quarterly
+ *  partial-adjustment literature: ρ_q ≈ 0.79-0.92 (Clarida-Galí-Gertler 2000 Table II;
+ *  Coibion-Gorodnichenko 2012 — genuine INERTIA, not serially-correlated shocks, which is what
+ *  justifies the expected path projecting the inertial rule). Annualized: 0.79⁴ ≈ 0.39,
+ *  0.85⁴ ≈ 0.52 → default 0.5 (the literature center). Range 0-0.9; 0 = the legacy
+ *  instantaneous toggle. Initialized at the OBSERVED INITIAL_POLICY_RATE (the 2025 restriction
+ *  is data; the model inherits it — the same logic as the E-9b shelter-transient ruling). */
+export const DEFAULT_TAYLOR_SMOOTHING = 0.5;
+/** E-9c row 1 (ratified): the market inflation anchor's YEAR-0 INHERITANCE — the observed 2025
+ *  expectations state, NOT an idealization (the inheritance principle, third application).
+ *  Dual derivation: backward — observed 10Y (4.3, the window guard's own anchor) − ACM term (0.7)
+ *  − the expected real path (≈0.9-1.1 from r* + the inertial policy path) ⇒ ≈ 2.6-2.8 CPI-basis;
+ *  forward — 2025 5y5y breakevens (2.3-2.4, TIPS basis) + the CPI-TIPS swap basis (≈0.25-0.35)
+ *  ⇒ ≈ 2.6-2.75. Unifies the DUAL INIT found by the sweep (the state field said 0.02, the
+ *  simulation fallback said 0.025 — a §2-class divergence pair, logged). User-visible beside τ_cred. */
+export const ANCHOR_INIT_2025 = 0.027;
+/** E-9c row 2 (ratified): the observed 2025 debt-service/revenue ratio — the year-0 init for the
+ *  E-8 adjustment-expectation's lagged service reading (was `?? 0`, a non-inheriting init: inert at
+ *  the R-C default, but consolidation-profile users' year-0 ramp started a year late from a false
+ *  sub-trigger reading). Derived from the same observed components the E-8 trigger citation uses:
+ *  interest $1.05T / federal revenue ≈ $5.8T ≈ 0.18. */
+export const BASELINE_DEBT_SERVICE_REVENUE_RATIO = 0.18;
+/** E-10 (ratified): the builder adjustment speed — starts move PARTIALLY toward the gap-implied
+ *  level AND builders mark to a λ-smoothed price (one agent, one cadence; [RATIFY-parsimony]
+ *  approved; the decoupled form is registered with the (b)-test trigger). Calibrated to the
+ *  HOUST 2022-23 episode: starts −21% over ~18 months against a static gap-implied ~−45%
+ *  (the 4pp shock); λ=0.6 closes 52% of the implied fall at 18mo ≈ the observed 47% — derived,
+ *  not fit. Range 0-0.9; 0 (with duration ≤ 0) = the instantaneous legacy (toggle #7). */
+export const DEFAULT_BUILDER_ADJUSTMENT_LAMBDA = 0.6;
+/** E-10 (ratified, owner-supplied derivation): the construction-pipeline turnover duration is
+ *  LENGTH-BIASED — units occupy the pipeline in proportion to their duration, so the stock
+ *  over-weights multifamily relative to the 68/32 starts mix: the stock-weighted (duration²-
+ *  weighted) figure is (0.68×0.69² + 0.32×1.63²)/0.99 ≈ 1.19y ≈ 1.2. Census SOC durations
+ *  (SF ≈ 8.3mo, MF 5+ ≈ 19.5mo); the observed UNDCONTSA stock/flow ratio (~1.45M / ~1.45M/yr)
+ *  is the empirical confirmation — and the length bias is WHY the stock check exceeds the
+ *  flow-weighted blend (0.99y). ≤ 0 = the legacy 1-yr start-to-completion lag. */
+export const HOUSING_PIPELINE_DURATION_YEARS = 1.2;
+/** E-10 (the inheritance principle): the OBSERVED 2025 under-construction stock (Census
+ *  UNDCONTSA ≈ 1.45M units) — the pipeline's year-0 init, not a derived equilibrium. */
+export const INITIAL_HOUSING_PIPELINE = 1_450_000;
+/** E-11 (ratified): the land residual closure — the error-correction speed κ pulling L toward its
+ *  residual-consistent value L* = (P_value − structureValue)/landShare (the Davis-Heathcote
+ *  construction itself — the same source as λ_land, now used for the dynamics as well as the level).
+ *  Episode calibration (2022-23): observed residential site values fell ≈15-25% over ~18 months vs
+ *  the residual-implied ≈30-40% ⇒ 50-60% closure at 18mo; 1 − 0.55^1.5 ≈ 0.59 brackets it →
+ *  κ = 0.45 is the derived center. Range 0.1-1.0; 0 = the pre-E-11 legacy land block (toggle #8).
+ *  THE WEDGE FORMALIZATION (owner-supplied, the retirements' precise justification): a surviving
+ *  direct flow term f creates a PERMANENT LEVEL WEDGE of f/κ above the residual (1%/yr at κ=0.45 →
+ *  land parked 2.2% above its residual value indefinitely) — a standing offset with no economic
+ *  justification. Hence β_direct → 0 and landRateSensitivity → 0 (each deprecated-in-place):
+ *  income reaches land through what buyers pay for finished housing; rates reach residential land
+ *  through the asset's capitalization (farmland re-read: directly capitalized land income, no
+ *  structure; residential land receives capitalization RESIDUALLY).
+ *  L8b (docs): the internal P→L*→repl→rent→P feedback gains ≈0.24/pass ⇒ total multiplier ≈1.32 —
+ *  damped, stated at checkpoint (the standing rule's first validation). */
+export const DEFAULT_LAND_CLOSURE_KAPPA = 0.45;
 
 // DEPRECATED: Phase 7 monetization overhaul — was a GDP-fraction rate cap (0.15) for maximum
 // monetization per year. Replaced by an absolute money supply safety cap below.
@@ -1213,7 +1534,12 @@ export const NEUTRAL_REAL_RATE = 0.01;
  * DEPRECATED Phase 8 Fix 4: Now configurable via SimulationConfig.termPremium (default 0.003).
  * Kept for backward compat in functions that don't yet accept the config value.
  */
-export const TERM_PREMIUM = 0.005;
+// E-8c F-C (ratified): the 10Y term premium from PUBLISHED estimates — NY Fed ACM (ACMTP10),
+// 2024-2025 average ≈ +0.6-0.8pp (Adrian-Crump-Moench; Kim-Wright concordant at +0.4-0.7).
+// Replaces the 0.005 implicitly backed out under the pre-E-8b hawkish expected path (the
+// two-errors-canceling pattern: the hawkish comparison × the low premium reproduced the
+// observed 4.3% 10Y at the 2025 anchor for the wrong reasons).
+export const TERM_PREMIUM = 0.007;
 
 /**
  * Equity risk premium (implied, forward-looking).
@@ -1269,6 +1595,8 @@ export const SIGMOID_STEEPNESS = Math.log(9) / 0.20;
  * Innovation rate — new jobs created per dollar of GDP from R&D and new industries.
  * Source: Calibrated from historical data — Autor (2015) AER, BLS employment projections
  */
+// FS-2b CITATION-FLAGGED (no value change): the 1.5e-8 basis is unstated -- awaiting a named
+// source (BLS BDM firm-births class). Same flag: DEFAULT_RD_MULTIPLIER, DEFAULT_JOB_PERSISTENCE_FACTOR.
 export const DEFAULT_INNOVATION_RATE = 0.000000015; // jobs per dollar of GDP
 
 /**
@@ -1460,6 +1788,13 @@ export const BASELINE_INFERENCE_SPEED = 0.7;
  * Source: NVIDIA GPU throughput improvements, ~30% per year
  */
 export const INFERENCE_SPEED_IMPROVEMENT_RATE = 0.3;
+// FS-1b F3 (hygiene; NO value change): the formerly-inline ×0.1 in the Faster score, named at its
+// observed value. CITATION-FLAGGED (FS-1 F10 set): the 0.7/0.3/0.1 trio is citation-thin — the
+// Faster dimension's slope constants await a named latency/throughput benchmark source.
+export const INFERENCE_SPEED_YEARS_SCALE = 0.1;
+// FS-1b F5 (hygiene; NO value change): the formerly-inline ×5 adoption tail-drag asymmetry scale.
+// CITATION-FLAGGED: awaiting a named diffusion-asymmetry source (Phase 10.A set it by design intent).
+export const ADOPTION_TAIL_ASYMMETRY_SCALE = 5;
 
 /**
  * Task parallelism factor by deployment type — software tasks are highly parallelizable.
@@ -1490,7 +1825,16 @@ export const SAFETY_IMPROVEMENT_RATE = 0.1;
  * Normalizes raw safety scores against domain expectations.
  * Source: Calibrated from OCCUPATION_CLUSTERS.md threshold values
  */
-export const DOMAIN_RISK_FACTORS: Record<string, number> = {
+// FS-1b F6 (ruled): tsc-enforced exhaustive over the data's REAL category set; the silent 0.8
+// fallback is DELETED. THE LIVE DEFECT the exhaustiveness exposed: the data's category is
+// 'Construction / Trades' but the map's key was 'Construction' — the cited 0.70 was DEAD and the
+// uncited fallback 0.8 was live. Key fixed (a key fix, not a value change). 'Other' is now NAMED
+// (0.80, the neutral default for the explicitly-uncategorized bucket, stated rather than silent).
+export type ClusterCategory =
+  | 'Agriculture' | 'Construction / Trades' | 'Creative' | 'Education' | 'Finance'
+  | 'Food Service' | 'Government' | 'Healthcare' | 'Legal' | 'Manufacturing' | 'Other'
+  | 'Professional Services' | 'Retail' | 'Scientific R&D' | 'Technology' | 'Transportation';
+export const DOMAIN_RISK_FACTORS: Record<ClusterCategory, number> = {
   Technology: 0.85,
   Finance: 0.80,
   Healthcare: 0.60,    // Very demanding — high S* thresholds
@@ -1498,7 +1842,7 @@ export const DOMAIN_RISK_FACTORS: Record<string, number> = {
   Legal: 0.80,
   Transportation: 0.55, // Extremely demanding for safety-critical transport
   Manufacturing: 0.75,
-  Construction: 0.70,
+  'Construction / Trades': 0.70,  // FS-1b: the key now matches the data (the cited value goes LIVE)
   Retail: 0.90,         // Low stakes
   'Food Service': 0.85,
   Creative: 0.95,       // Very low safety stakes
@@ -1506,6 +1850,7 @@ export const DOMAIN_RISK_FACTORS: Record<string, number> = {
   Government: 0.80,
   Agriculture: 0.80,
   'Scientific R&D': 0.75,
+  Other: 0.80,             // FS-1b: the former silent fallback, now NAMED for the uncategorized bucket
 };
 
 // ============================================================
@@ -1721,6 +2066,86 @@ export const DEFAULT_SHELTER_INFLATION_STICKINESS = 0.80;
  */
 export const BASELINE_SHELTER_INFLATION = 0.035;
 
+// ============================================================
+// Stage 1: Sectoral price architecture (consumption-side CPI partition)
+// ============================================================
+
+/**
+ * Consumption-side CPI weights for the 4-sector price model. Shelter uses
+ * BASELINE_SHELTER_CPI_WEIGHT (0.36). The remaining ~0.64 is partitioned so AI cost deflation
+ * reaches ONLY the AI-exposed sector (× passthrough); labor-intensive services track wages (Baumol)
+ * and resist AI deflation; food & energy are exogenous. Weights are normalized to sum to 1.0 with
+ * shelter at runtime, so changing one re-scales the rest.
+ * Source: BLS CPI-U relative importance, December 2023 —
+ *   food 13.4% + energy 6.9% ≈ 20% (food & energy);
+ *   medical care, education, transportation & recreation services, personal care ≈ 22% (labor-intensive);
+ *   durables, apparel, vehicles, information & communication, financial & professional services ≈ 22% (AI-exposed).
+ */
+export const AI_EXPOSED_CPI_WEIGHT = 0.22;
+export const LABOR_SERVICES_CPI_WEIGHT = 0.22;
+export const FOOD_ENERGY_CPI_WEIGHT = 0.20;
+
+/**
+ * Fraction of AI cost savings passed through to CONSUMER PRICES in AI-exposed sectors.
+ * The retained fraction (1 − passthrough) accrues to producer margins/profits — made explicit in
+ * Stage 7's residual profit formation. Replaces the prior aiProfitGrowthRate-derived passthrough.
+ * User-adjustable, direct semantics: 1.0 = perfectly competitive (all savings to consumers),
+ * 0 = full market-power retention (all to margins). Default 0.70 — AI-exposed sectors are largely
+ * competitive, so most cost savings reach prices. Range: 0–1.0.
+ */
+export const DEFAULT_AI_DEFLATION_PASSTHROUGH = 0.70;
+
+/**
+ * Labor cost share of labor-intensive service production (Baumol channel). Service prices move with
+ * the nominal wage rate scaled by this share. Default 0.60.
+ * Source: BEA/BLS — labor compensation share of service-sector gross output ≈ 0.55–0.65. Range: 0–1.0.
+ */
+export const DEFAULT_LABOR_COST_SHARE = 0.60;
+
+// ============================================================
+// Stage 1.5: Embodied-AI sector deflation — per-sector passthrough + cluster routing (R10)
+// ============================================================
+
+/**
+ * Per-consumption-sector AI-cost-savings passthrough — "fraction of AI cost savings reaching
+ * consumer prices in this sector, net of regulatory friction and government policy." This single
+ * knob per sector deliberately absorbs regulation, permitting, and supply-management policy.
+ * AI-exposed uses DEFAULT_AI_DEFLATION_PASSTHROUGH (0.70). The embodied sectors are LOW because the
+ * embodied capability curve is late (midpoint 2035) and slow (steepness 0.3) AND heavily gated by
+ * sector regulation. Source: directional calibration (see USER_PARAMETERS.md); user-adjustable.
+ */
+export const DEFAULT_LABOR_SERVICES_PASSTHROUGH = 0.15; // service robotics moderate-low; licensing friction
+export const DEFAULT_FOOD_ENERGY_PASSTHROUGH = 0.10;    // ag automation real but supply-managed
+export const DEFAULT_SHELTER_PASSTHROUGH = 0.05;        // housing/land-use regulation → near-zero
+
+/** The four consumption-side price sectors (Stage 1 / 1.5). */
+export type ConsumptionSector = 'aiExposed' | 'laborServices' | 'foodEnergy' | 'shelter';
+
+/**
+ * R10 — cluster → consumption-sector mapping (Stage 1.5). LOAD-BEARING economic structure, NOT
+ * plumbing: it routes each occupation cluster's AI cost deflation to the consumer-price sector its
+ * output feeds. Documented constant (NOT user-adjustable). Judgment calls are annotated; the full
+ * table is mirrored in DATA_MODEL.md.
+ *   Shelter        ← construction trades (housing/shelter costs).
+ *   Food & energy  ← agriculture + food production/service (CPI food category; "food away from home"
+ *                    folds restaurant/fast-food labor here rather than labor-services).
+ *   Labor services ← health (incl. admin), education, legal, professional/business, government,
+ *                    AND transport-of-PEOPLE (transport_taxi) — a personal service split from freight.
+ *   AI-exposed     ← (default) tech, finance (info-intensive: trading/banking/accounting/insurance),
+ *                    manufacturing, retail (retail price = goods price), creative, science/engineering,
+ *                    transport of GOODS (trucking/delivery/warehouse — input to goods prices), and
+ *                    uncategorized.
+ */
+export function clusterConsumptionSector(clusterId: string): ConsumptionSector {
+  if (clusterId.startsWith('construction')) return 'shelter';
+  if (clusterId.startsWith('ag') || clusterId.startsWith('food')) return 'foodEnergy';
+  if (clusterId === 'transport_taxi') return 'laborServices'; // transport-of-people (judgment call)
+  if (clusterId.startsWith('health') || clusterId.startsWith('edu')
+    || clusterId.startsWith('legal') || clusterId.startsWith('prof')
+    || clusterId.startsWith('gov')) return 'laborServices';
+  return 'aiExposed';
+}
+
 /**
  * Default mortgage stress amplifier.
  * Scales the composition effect: how much displaced worker mortgage
@@ -1812,17 +2237,183 @@ export const DEFAULT_SYSTEMIC_RISK_SENSITIVITY = 1.5;
  *  Default 0.5. Range: 0.0-2.0. */
 export const DEFAULT_INFLATION_RISK_SENSITIVITY = 0.5;
 
-/** Maximum consumer credit restriction level.
- *  Source: 2008 peak: mortgage originations fell ~50%, credit card limits cut ~40%.
- *  Default 0.5. Range: 0.2-1.0. */
-export const DEFAULT_MAX_CONSUMER_TIGHTENING = 0.5;
+/** Stage 6 (R18): Saturation scale for consumer credit tightening.
+ *  The channel-sum level at which the consumption haircut saturates. Re-anchored from 0.5 to 1.0:
+ *  0.5 ≈ the GREAT-RECESSION peak (2008-09: mortgage originations −50%, card limits cut ~25-28%
+ *  [$1.25T of $4.7T], Fed SLOOS net consumer tightening ~65%) — a severe but NOT total credit stop.
+ *  1.0 ≈ DEPRESSION-scale intermediation collapse (1930-33: consumer credit outstanding fell ~50%
+ *  [Olney 1999, "Avoiding Default"]; ~9,000 bank suspensions halted intermediation [Bernanke 1983
+ *  AER, "Nonmonetary Effects of the Financial Crisis"]). The old 0.5 cap pinned a 50%-UE scenario
+ *  AT the GR peak by construction — a hard severity ceiling (audit R18/H6).
+ *  Default 1.0. Range: 0.2-1.0. */
+export const DEFAULT_MAX_CONSUMER_TIGHTENING = 1.0;
 
-/** How much consumer credit tightening reduces consumption.
- *  Matches old CREDIT_CONSUMPTION_SENSITIVITY — durable goods ~10% of PCE,
- *  credit finances ~60% = 6% max impact.
- *  Source: BEA NIPA Table 2.3.5 (PCE composition).
- *  Default 0.06. Range: 0.02-0.15. */
-export const DEFAULT_CONSUMER_CREDIT_IMPACT = 0.06;
+// ============================================================
+// Stage 6.5: Stock-flow housing model (owner spec, OD-9a–e; checkpoint ratified)
+// ============================================================
+/** Housing stock, total units. Source: Census Housing Vacancy Survey (FRED ETOTALUSQ176N), 2025. */
+export const BASELINE_HOUSING_STOCK_2025 = 146_600_000;
+/** Households. Source: Census (FRED TTLHH), 2025. naturalOccupancy = HH/H ≈ 0.897 (derived at init). */
+export const BASELINE_HOUSEHOLDS_2025 = 131_500_000;
+/** Δln(headship)/yr per unit (negative) real-income-growth deviation. Calibrated: GR formation collapse
+ *  −60% (1.2-1.3M→0.5M/yr, Census HVS; JCHS) at ≈−4pp deviation → 0.06. 0 disables (OD-9c). */
+export const DEFAULT_FORMATION_SENSITIVITY = 0.06;
+/** /yr proportional headship reversion to baseline. JCHS: post-GR formation recovery ~5-7 yrs. */
+export const DEFAULT_HEADSHIP_RECOVERY_RATE = 0.12;
+/** % starts per % profitability gap — THE REGULATORY-FRICTION DIAL (default = current land-use reality;
+ *  lower = more restrictive, higher = abundance reform). Source: Saiz (2010 QJE) population-weighted
+ *  supply elasticity ≈1.5; Topel & Rosen (1988) starts elasticities 1-3. */
+export const DEFAULT_HOUSING_SUPPLY_ELASTICITY = 1.5;
+/** Fractional construction-capacity gain at full embodied capability (robots build FASTER, not just
+ *  cheaper). ATLAS judgment param (explicitly uncertain): 1.0 = 2× capacity at full capability. */
+export const DEFAULT_EMBODIED_CAPACITY_GAIN = 1.0;
+/** Starts capacity ÷ equilibrium baseline starts. 2005 peak 2.07M ≈ 2.2× the 2025-equilibrium scale. */
+export const BASELINE_STARTS_CAPACITY_RATIO = 2.2;
+/** /yr permanent stock losses. Source: HUD Components of Inventory Change ~0.2-0.3%/yr. */
+export const DEFAULT_HOUSING_DEPRECIATION_RATE = 0.0025;
+/** Land share of replacement cost (2025 snapshot). RESEARCH-SOURCED — no government API serves land
+ *  prices (HOUSING_STATE_INVENTORY §3). Source: Davis & Heathcote (2007) ~36% avg 1975-2006; Lincoln
+ *  Institute land-share estimates ~40%+. */
+export const DEFAULT_LAND_SHARE = 0.40;
+/** Labor share of construction-cost growth. Source: Census/RSMeans cost composition ~30-40%. */
+export const DEFAULT_CONSTRUCTION_LABOR_SHARE = 0.35;
+/** Land-price growth per unit nominal household income growth. Source: Knoll, Schularick & Steger
+ *  (2017 AER, "No Price Like Home"): land prices track income long-run. Ruled to stay 1.0 — lowering
+ *  a literature-cited structural param to move an emergent output is forbidden tuning (6.5 ruling 4). */
+export const DEFAULT_LAND_INCOME_BETA = 1.0;
+/** Land-price growth per unit occupancy gap. ATLAS JUDGMENT PARAM (flagged, accepted at checkpoint):
+ *  land is the residual claimant on scarcity; proportional to the rent elasticity. */
+export const DEFAULT_LAND_SCARCITY_ELASTICITY = 2.0;
+/** Rent growth per unit occupancy gap. Source: natural-vacancy-rate literature (Rosen & Smith 1983;
+ *  modern multifamily: ~1.5-2.5pp rent growth per 1pp vacancy gap). */
+export const DEFAULT_RENT_OCCUPANCY_ELASTICITY = 2.0;
+/** Weight on replacement-cost growth in rent growth (cost-anchored form, RATIFIED 6.5 ruling 1 —
+ *  Glaeser-Gyourko production-cost view; 0 recovers the literal occupancy-only spec form). */
+// L9 (ratified): THE ANCHOR RETIRES — the unit-gain circle's edge deleted (gain ≡ this weight = 0).
+// Land is sunk for the incumbent landlord: it prices ENTRY, not operation (Tobin's q for housing).
+// Full replacement cost (land included) reaches rents ONLY through the entry margin:
+// gap → starts → pipeline → completions → occupancy — the INTEGRAL tether (gap* = 0 ⇒ P* = repl*
+// ⇒ R* = cap*·repl*), structurally stronger than the proportional anchor it replaces.
+// 1.0 = the pre-L9 legacy (the which-change toggle).
+export const DEFAULT_RENT_COST_ANCHOR_WEIGHT = 0;
+/** L9 (ratified): the landlord P&L cost term — operating expenses ≈ 38-45% of gross rents
+ *  (NAA Survey of Operating Income & Expenses; IREM income-expense reports; NOI margins 55-62%).
+ *  An ACCOUNTING share, not a supply-elasticity regression (the horizon-mismatch trap satisfied by
+ *  construction). ΔCC_operating proxied by construction-cost growth (wages+materials, LAND-FREE);
+ *  the value-linked property-tax component deliberately EXCLUDED (would re-import P onto the
+ *  retired circle — documented simplification). Range 0-0.6. */
+export const DEFAULT_OPEX_PASSTHROUGH = 0.40;
+/** L9 (ratified): one-sided nominal rent rigidity — Genesove (2003) "The Nominal Rigidity of
+ *  Apartment Rents" (~29% zero nominal change/yr; cuts rare). Episode-derived from 2008-12:
+ *  vacancy peaked 10.6% (2009) ⇒ unsticky Δrent ≈ 2.0×(−3pp) + 0.4×(+2) ≈ −5.2%/yr vs observed
+ *  CPI rent ≈ flat ⇒ (1−r)×(−5.2) ≈ −0.8 ⇒ r ≈ 0.85 (the conservative pole; r = 1.0 supportable).
+ *  Gates the TOTAL downward change (R20-consistent). Range 0-1; one-sided BY CITATION (R24 standard). */
+export const DEFAULT_RENT_DOWNWARD_RIGIDITY = 0.85;
+// L9b-R3 (registered): 0.85 is the MILD-REGIME value (Genesove; 2008-12). The 1930s record shows
+// substantially larger nominal rent declines in deep depressions — this constant will OVERSTATE
+// rent stickiness in Scenario C relative to the deepest precedent, by construction of the citation.
+// Known regime approximation (the OD-2 treatment); the flexible pole (0) spans it; no
+// state-dependent rigidity without a citable functional form.
+/** L9b (ratified): the income/willingness-to-pay term in market rents — the trend carrier.
+ *  CITATION-FIRST derivation (the 40-year decomposition identity): CPI rent ≈ 3.4%/yr (BLS,
+ *  1985-2024) = θ × nominal disposable income per household (≈4.5%/yr, BEA) + 0.40 × construction
+ *  cost (≈3.2%/yr, ENR/RSMeans) + occupancy (trendless) ⇒ θ = (3.4 − 1.28)/4.5 ≈ 0.47.
+ *  Cross-check (CORROBORATING the same long-run series, per L9b-R4 — not independent): the
+ *  rent-burden literature (Albouy-Ehrlich-Liu: stable-to-rising renter burden ⇒ θ 0.47-0.7;
+ *  the time-series value is the conservative end). BASIS (the trap discharged): this is a
+ *  rent-PRICE-on-income relationship; the housing-demand QUANTITY elasticity (~0.8) was
+ *  explicitly rejected as a basis. TWO MARGINS: formation = extensive (households formed; reads
+ *  real income deviations); this term = intensive (what each pays; reads nominal growth) —
+ *  different equations, not a double-route. Range 0.3-0.7; 0 = off (the toggle). */
+export const DEFAULT_RENT_INCOME_ELASTICITY = 0.47;
+/** L9c-1 (ratified, R1 residually calibrated): the construction-credit gate sensitivity —
+ *  gate = 1 − S × businessCreditTightening. SOLVED through the model's OWN equations on the
+ *  observed 2006-12 inputs (the trend-aware perception on the observed CS price path; the E-11
+ *  land closure on replacement; ε = 1.5; tightening peaking at the 0.5 GR anchor): S = 2.0 lands
+ *  the starts trough at 0.425×baseline vs the observed 0.41 (HOUST 0.55M / ≈1.35M).
+ *  ⚠ PRE-REGISTRATION DEVIATION, the why shown (L9C_REPORT §2): the rider expected S < 1.5 on
+ *  spot-gap arithmetic (−15/−25%), but the RATIFIED machinery holds the gap POSITIVE (+0.3)
+ *  through the GR — the trend-holding perception + the land collapse restoring margins (the
+ *  documented real-2010s pattern) — so the gap channel carries none of the collapse and credit
+ *  carries it all. ADC −75% (FDIC) remains the capacity-ceiling citation. Range 0-3; 0 = no gate. */
+export const DEFAULT_CONSTRUCTION_CREDIT_SENSITIVITY = 2.0;
+/** L9c-4: the builder trend-estimator horizon — REUSES the model's standing 10-year expectations
+ *  horizon (PROJECTION_HORIZON, bondMarket.ts) rather than introducing a free constant. */
+export const BUILDER_TREND_HORIZON_YEARS = 10;
+/** L9c-R2 (the inheritance principle): the trend estimator's OWN value on observed data — the
+ *  10-year EMA of realized Case-Shiller national growth through 2025 (FRED CSUSHPINSA, annual:
+ *  6.6,4.5,5.1,5.8,5.8,3.4,6.0,17.1,14.8,2.5,5.1,2.2 → EMA(1/10) = 6.12%). EMBEDS the 2020-22
+ *  spike: actual 2025 builders' trend beliefs ARE elevated — the early entry tilt is real and
+ *  pre-registered as such; no spike-trimming without a citation. */
+export const BUILDER_TREND_GROWTH_INIT_2025 = 0.0612;
+/** FS-4b (the inheritance principle): the observed 2025 home-price growth — FRED CSUSHPINSA
+ *  annual (2025/2024 ≈ +2.2%, the same committed series as the R2 init). The year-0
+ *  homePriceChangeRate output (one EMA tap of the builder trendG at year 1) was a hardcoded 0.01. */
+export const OBSERVED_2025_HOME_PRICE_GROWTH = 0.022;
+/** L9c-5 (cited): the fiscal-dominance flag threshold reads interest/REVENUE (slot semantics
+ *  verified) — the IMF DSA-class interest/revenue stress band ≈ 20-25%; 0.25 = its top. US 2025
+ *  observed ≈ 18% (under: the flag correctly OFF at year 0). Downstream when firing without
+ *  monetization: (i) dampens the realized policy prescription toward the inherited rate; (ii)
+ *  feeds the expected path's dominance-fade. NOTE (owner): the baseline's 2040s interest/revenue
+ *  (28-34%) is a defensible cited divergence from CBO's no-premium convention — the model prices
+ *  β_level on the growing stock; CBO does not. Dial 0.15-0.40. */
+export const DEFAULT_FISCAL_DOMINANCE_THRESHOLD = 0.25;
+/** Rent-price ratio anchor. Source: Davis-Lehnert-Martin rent-price series ~5%; 2024-25 multifamily
+ *  cap rates ~5.3-5.7%. */
+export const DEFAULT_BASELINE_CAP_RATE = 0.052;
+/** Δcap-rate per Δmortgage rate. Source: empirical cap-rate beta to long rates ≈0.3-0.5 (NCREIF/CBRE). */
+export const DEFAULT_CAP_RATE_MORTGAGE_BETA = 0.4;
+/** Baseline mortgage rate anchor (10Y ~4.3% + spread ~1.7%). Promoted from the inline 0.06 (Stage 6.5). */
+// E-12 (ratified, the interface audit row 1): the capRate reference DERIVED same-date from the
+// model's own observed chain — INITIAL_10Y_YIELD (FRED DGS10, 4.53) + the same-date spread
+// (MORTGAGE30US − DGS10 ≈ 1.99) ≈ 6.52%. The old hand-set 0.06 disagreed with the model's own
+// 2025 mortgage by ~0.5pp (the phantom-6.0 forensic: a reference derived from a stale long-run
+// spread assumption — two internally-defensible constants, jointly wrong; the third two-wrongs
+// variant, controlled by the fourth sweep class). DEFAULT_BASELINE_CAP_RATE 0.052 is documented
+// as measured AT this snapshot → capRate(2025) = 0.052 by construction. Deriving (not hand-setting)
+// makes the chain move together — it cannot silently diverge again.
+// The 2022-25 spread elevation is plausibly transient (QT/MBS duration): the mean-reverting-spread
+// refinement (decay toward ~1.7, MBS-spread literature, dial mortgageSpreadConvergence) is
+// REGISTERED, default off — no machinery now (ruled).
+export const BASELINE_MORTGAGE_RATE_2025 = (() => {
+  return govData.treasuryYield10Y + govData.mortgageSpread;
+})();
+// DEPRECATED (E-12): the hand-set 0.06 reference — kept for the which-change toggle via
+// config.mortgageRateReference. reason: the legacy pair for isolation runs only.
+export const LEGACY_MORTGAGE_RATE_REFERENCE = 0.06;
+/** Home-price impact per unit UNABSORBED foreclosure flow (replaces the hand-set ×3.0). Source:
+ *  Mian, Sufi & Trebbi (2015): foreclosures ≈20-30% of the GR price decline; Campbell, Giglio &
+ *  Pathak (2011): ~27% forced-sale discounts. */
+export const DEFAULT_FIRE_SALE_ELASTICITY = 1.75;
+/** OD-9b: land-price bid per unit asset-income-share deviation from 2025 — the owner's land/store-of-
+ *  value thesis dial. Default modest; 0 = capital ignores land. R24: ONE-SIDED (max(0, dev)) — land
+ *  ratchets up and does not surrender gains when the asset share recedes (held, not dumped). */
+export const DEFAULT_INVESTOR_DEMAND_INTENSITY = 0.10;
+/** Optional direct cap-rate compression per unit investor pressure (default OFF per 6.5 ruling 2). */
+export const DEFAULT_CAP_RATE_INVESTOR_COMPRESSION = 0;
+
+/** Stage 6 (R18): the GREAT-RECESSION-peak channel-sum anchor (= the old ceiling). Used as the
+ *  normalizer for the credit-DEFLATION contribution so that re-scaling the consumption ceiling
+ *  does not silently halve sub-saturation deflation pressure: a GR-level tightening (0.5) produces
+ *  the same deflation contribution it always did (rate 1.0 = "one GR-unit"); Depression-scale
+ *  tightening can now reach rate 2.0. Source: Fed SLOOS 2008-09 peak ~65% net tightening;
+ *  mortgage originations −50%; card limits −25-28%. */
+export const CONSUMER_TIGHTENING_GR_PEAK = 0.5;
+
+/** Stage 6 (R18): consumption haircut at SATURATED credit tightening.
+ *  Derivation (literature-anchored, not scenario-tuned):
+ *  GR anchor — Mian, Rao & Sufi (2013 QJE): MPC out of housing net worth 0.054-0.072; the ~$6T
+ *  net-worth shock ≈ $350-450B PCE hit ≈ 3.5-4.5% of PCE; + non-housing consumer credit channel
+ *  (SLOOS card/auto tightening) ≈ 1-2% → GR credit-channel consumption hit ≈ 5-7% of PCE, at
+ *  GR-peak tightening (ratio ≈ 0.5 on the new scale). Linear pass-through ⇒ saturated haircut
+ *  = ~6% / 0.5 = 12%. Upper-bound check: 1929-33 real consumption fell ~19% with roughly half
+ *  attributable to credit/intermediation collapse (Bernanke 1983; Olney 1999) — ~9-10% directly
+ *  credit-attributable, consistent with a 12% saturation point and well below the ~25-30% of PCE
+ *  that is credit-financed (durables + financed services, BEA NIPA 2.3.5).
+ *  At GR-scale shocks this reproduces the old behavior exactly (0.12 × 0.5 = 6%); Depression-scale
+ *  shocks can now reach 12% instead of being clipped at the GR value.
+ *  Default 0.12. Range: 0.02-0.15. */
+export const DEFAULT_CONSUMER_CREDIT_IMPACT = 0.12;
 
 /** Banks heavily discount volatile asset income for underwriting.
  *  Source: Fannie Mae Selling Guide B3-3.1 — non-employment income documentation.
@@ -2002,11 +2593,16 @@ export const BASELINE_RETAINED_EARNINGS = (() => {
 export const BASELINE_CREDIT_FUNDED = BASELINE_INVESTMENT_2025 - BASELINE_RETAINED_EARNINGS;
 
 /**
- * Additional transfer spending per 1 percentage point of excess unemployment.
- * ~$30B additional UI + ~$15B additional SNAP + ~$20B additional Medicaid
- * Source: CBO automatic stabilizer estimates (2024 report)
+ * DEPRECATED (Stage 5 / H3): the independent $65B/pp constant is RETIRED from all consumers. It was a
+ * CBO automatic-stabilizer FIRST-YEAR-FLOW estimate ($30B UI + $15B SNAP + $20B Medicaid per pp), applied
+ * as a perpetual stock cost, and it fed ONLY the reporting-side deficit (computeFiscalPressure →
+ * MacroOutput.fiscalDeficitGDPRatio) — the load-bearing debt path never booked ANY incremental-UE
+ * transfer cost, while households received $19,200/person of unbooked income (the H3 split-brain).
+ * Incremental transfer SPENDING is now DERIVED from the same per-person constants (CASH + IN-KIND)
+ * × incremental-unemployed headcount in BOTH the reporting deficit and the load-bearing budget.
+ * Sanity: 1pp UE ≈ 1.68M people × $13,000 ≈ $21.8B/pp — the $65B was ~3× the consistent value.
  */
-export const TRANSFER_GROWTH_PER_UE_POINT = 65_000_000_000; // $65B per 1pp
+export const TRANSFER_GROWTH_PER_UE_POINT = 65_000_000_000; // DEPRECATED — see above (was $65B/pp)
 
 /**
  * Share of G (government purchases) that is discretionary.
@@ -2582,7 +3178,9 @@ export const DEFAULT_SCARCITY_INTENSITY = 0.4;
 
 /** Baseline US corporate profits / GDP used as the α margin-driver anchor.
  *  Source: FRED corporate profits after tax / GDP — typical 2015-2024 range 0.10-0.14. */
-export const ALPHA_BASELINE_CORPORATE_MARGIN = 0.12;
+// Stage 7: re-pointed to the year-0 RESIDUAL profit share (= the BEA actual via govData) so the
+// α margin-compression driver reads genuine compression, not the old 0.12-vs-endogenous gap.
+export const ALPHA_BASELINE_CORPORATE_MARGIN = govData.baselineProfitGDPRatio;
 
 /** Default AI-replacement productivity multiplier (Phase 10.A Part 8 productivity formula).
  *  effectiveProductivity = 1 + weightedCapability × betterScore × replacementMultiplier × (1 + cheaperScore).

@@ -520,6 +520,41 @@ async function fetchMortgageDelinquency(apiKey: string, debug: boolean = false):
 // Fetch 2H: 30-Year Fixed Mortgage Rate (for Phase 5i housing)
 // ============================================================
 
+
+// ============================================================
+// Fetch E9: PCE weight vector + CPI-PCE differential (E-9 item 2 / Stage-8 deferred bundle)
+// ============================================================
+
+async function fetchPCEWeights(apiKey: string, debug: boolean = false): Promise<void> {
+  console.log('📐 Fetching PCE component shares + CPI-PCE differential (E-9)...');
+  // E-9: nominal PCE components (annual, $B) for the proxy weight vector + the price indices
+  // for the data-derived wedge fallback. BEA NIPA via FRED.
+  const ids = ['DPCERC1A027NBEA', 'DHUTRC1A027NBEA', 'DHLCRC1A027NBEA', 'DFXARC1A027NBEA', 'DNRGRC1A027NBEA', 'PCEPI', 'CPIAUCSL'];
+  const out: Record<string, { latestDate: string; latestValue: number; observations?: Array<{date: string; value: number}> }> = {};
+  for (const id of ids) {
+    try {
+      const obs = await fetchFRED(id, apiKey);
+      const valid = (obs ?? []).filter(o => o.value !== '.');
+      if (valid.length === 0) { console.error(`  ⚠️  ${id} empty — skipping.`); continue; }
+      out[id] = {
+        latestDate: valid[0].date,
+        latestValue: parseNumericValue(valid[0].value),
+        // keep 30 years of the two price indices for the long-run differential
+        ...(id === 'PCEPI' || id === 'CPIAUCSL'
+          ? { observations: valid.slice(0, 400).map(o => ({ date: o.date, value: parseNumericValue(o.value) })) }
+          : {}),
+      };
+      if (debug) console.log(`  [DEBUG] ${id}: ${valid[0].date} = ${valid[0].value}`);
+    } catch (e) { console.error(`  ❌ ${id} fetch error:`, e); }
+  }
+  writeJSON(path.join(OUTPUT_DIR, 'pce-weights.json'), {
+    source: 'BEA NIPA via FRED (nominal PCE components) + PCEPI/CPIAUCSL price indices',
+    fetchedAt: new Date().toISOString(),
+    series: out,
+  });
+  console.log('  ✅ pce-weights.json written');
+}
+
 async function fetchMortgageRate30yr(apiKey: string, debug: boolean = false): Promise<void> {
   console.log('🏦 Fetching 30-Year Mortgage Rate (FRED MORTGAGE30US)...');
 
@@ -1293,25 +1328,28 @@ async function fetchCorporateTaxReceipts(apiKey: string, debug: boolean = false)
       console.log('');
     }
 
-    // FCTAX is in millions of dollars
-    const latestMillions = parseNumericValue(validObs[0].value);
+    // FS-6f UNIT CORRECTION: FRED FCTAX is denominated in BILLIONS of dollars (the prior
+    // label said millions and the derived dollars field was 1000× too small — found when
+    // the loader's silent fallbacks were retired). The raw value is kept verbatim under
+    // the corrected name; the loader reads billions.
+    const latestBillions = parseNumericValue(validObs[0].value);
 
     const output = {
       source: 'FRED FCTAX (Federal Government Tax Receipts on Corporate Income)',
       seriesOrTable: 'FCTAX',
       fetchedAt: new Date().toISOString(),
       latestDate: validObs[0].date,
-      receiptsMillions: latestMillions,
-      receiptsDollars: latestMillions * 1_000_000,
+      receiptsBillions: latestBillions,
+      receiptsDollars: latestBillions * 1_000_000_000,
       recentValues: validObs.slice(0, 20).map(o => ({
         date: o.date,
         value: parseNumericValue(o.value),
       })),
-      notes: 'Annual. Federal corporate tax receipts in millions. Used to validate effective corporate tax rate in Phase 7.',
+      notes: 'Annual. Federal corporate tax receipts in BILLIONS (FRED FCTAX native units). Used to validate effective corporate tax rate in Phase 7.',
     };
 
     writeJSON(path.join(OUTPUT_DIR, 'corporate-tax-receipts.json'), output);
-    console.log(`  Latest Corporate Tax: $${(latestMillions / 1_000).toFixed(1)}B (${validObs[0].date})\n`);
+    console.log(`  Latest Corporate Tax: $${latestBillions.toFixed(1)}B (${validObs[0].date})\n`);
   } catch (error) {
     console.error('  ❌ FCTAX fetch error:', error);
   }
@@ -1415,6 +1453,7 @@ async function main() {
 
   // ---- Phase 5i: Housing & Shelter Data ----
   await fetchMortgageRate30yr(apiKey, debug);
+  await fetchPCEWeights(apiKey, debug);
   await sleep(RATE_LIMIT_DELAY_MS);
 
   await fetchCaseShillerNational(apiKey, debug);

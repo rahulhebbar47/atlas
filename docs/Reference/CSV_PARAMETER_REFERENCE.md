@@ -70,33 +70,12 @@ All other parameters use their defaults. You only need to include the rows you w
 | `start_year` | integer | 2025 | First year of the simulation |
 | `end_year` | integer | 2050 | Last year of the simulation. Must be greater than `start_year`. |
 
-<!-- UPDATED 2026-03-02: Removed inference_cost_decline_rate, initial_inference_cost, marginal_propensity_to_consume — these do not exist in csvImport.ts. MPC was replaced by differentiated MPC_WAGE/MPC_ASSET/MPC_TRANSFER in Phase 3 demand model. Inference cost params were removed during Phase 8 consolidation.
-### 2. Macro Parameters (5 paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `base_inflation_rate` | float | 0.02 | Baseline annual inflation rate (2% = 0.02) |
-| `inference_cost_decline_rate` | float | 0.5 | Annual rate of AI inference cost decline (50% = 0.5) |
-| `initial_inference_cost` | float | 1.0 | Normalized initial AI inference cost (1.0 = baseline) |
-| `marginal_propensity_to_consume` | float | 0.68 | Fraction of additional income spent on consumption. Source: BEA NIPA tables. |
-| `baseline_gdp_growth` | float | 0.02 | Baseline annual real GDP growth rate absent AI effects |
--->
-
 ### 2. Macro Parameters (2 paths)
 
 | parameter_path | type | default | description |
 |---|---|---|---|
 | `base_inflation_rate` | float | 0.02 | Baseline annual inflation rate (2% = 0.02) |
 | `baseline_gdp_growth` | float | 0.02 | Baseline annual real GDP growth rate absent AI effects |
-
-<!-- UPDATED 2026-03-02: Added population_growth_rate (3 paths now, was 2).
-### 3. Population Parameters (2 paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `total_population` | integer | 340000000 | Total US population |
-| `labor_force` | integer | 168000000 | Total US civilian labor force |
--->
 
 ### 3. Population Parameters (3 paths)
 
@@ -125,55 +104,6 @@ All other parameters use their defaults. You only need to include the rows you w
 | `adoption.competitive_pressure_multiplier` | float | 2.0 | How much competitive pressure accelerates adoption once threshold is crossed |
 | `adoption.competitive_pressure_threshold` | float | 0.2 | Industry adoption fraction that triggers competitive pressure acceleration |
 | `adoption.geopolitical_risk_factor` | float | 0.1 | Additional adoption pressure from geopolitical AI competition |
-
-<!-- UPDATED 2026-03-02: Replaced 8-vector system (lang, code, agent, decide, robot, auto, gen, sci) with consolidated 3-vector system (generative, agentic, embodied) per Phase 8 consolidation. Was 32 paths, now 12.
-### 6. Capability Trajectories (32 paths)
-
-Each of the 8 AI capability vectors has 4 parameters controlling its S-curve trajectory over time. The capability score at any year is computed as: `floor + (ceiling - floor) * sigmoid(steepness * (year - midpoint))`.
-
-Pattern: `capability.{vectorId}.{param}`
-
-Vector IDs: `lang`, `code`, `agent`, `decide`, `robot`, `auto`, `gen`, `sci`
-
-Parameters per vector: `floor`, `ceiling`, `steepness`, `midpoint`
-
-**Note**: `midpoint` in the CSV maps to `midpointYear` in the TypeScript type. This is an intentional simplification for the CSV format.
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `capability.lang.floor` | float | 0.75 | Language/NLP: minimum capability score |
-| `capability.lang.ceiling` | float | 0.98 | Language/NLP: maximum achievable capability score |
-| `capability.lang.steepness` | float | 0.8 | Language/NLP: S-curve steepness (higher = faster transition) |
-| `capability.lang.midpoint` | integer | 2028 | Language/NLP: year of steepest capability growth |
-| `capability.code.floor` | float | 0.70 | Code generation: minimum capability score |
-| `capability.code.ceiling` | float | 0.97 | Code generation: maximum achievable capability score |
-| `capability.code.steepness` | float | 0.9 | Code generation: S-curve steepness |
-| `capability.code.midpoint` | integer | 2028 | Code generation: year of steepest capability growth |
-| `capability.agent.floor` | float | 0.40 | Autonomous agents: minimum capability score |
-| `capability.agent.ceiling` | float | 0.95 | Autonomous agents: maximum achievable capability score |
-| `capability.agent.steepness` | float | 0.7 | Autonomous agents: S-curve steepness |
-| `capability.agent.midpoint` | integer | 2029 | Autonomous agents: year of steepest capability growth |
-| `capability.decide.floor` | float | 0.50 | Decision-making/judgment: minimum capability score |
-| `capability.decide.ceiling` | float | 0.95 | Decision-making/judgment: maximum achievable capability score |
-| `capability.decide.steepness` | float | 0.6 | Decision-making/judgment: S-curve steepness |
-| `capability.decide.midpoint` | integer | 2030 | Decision-making/judgment: year of steepest capability growth |
-| `capability.robot.floor` | float | 0.20 | Robotics/physical manipulation: minimum capability score |
-| `capability.robot.ceiling` | float | 0.90 | Robotics/physical manipulation: maximum achievable capability score |
-| `capability.robot.steepness` | float | 0.4 | Robotics/physical manipulation: S-curve steepness |
-| `capability.robot.midpoint` | integer | 2033 | Robotics/physical manipulation: year of steepest capability growth |
-| `capability.auto.floor` | float | 0.35 | Autonomous vehicles: minimum capability score |
-| `capability.auto.ceiling` | float | 0.95 | Autonomous vehicles: maximum achievable capability score |
-| `capability.auto.steepness` | float | 0.5 | Autonomous vehicles: S-curve steepness |
-| `capability.auto.midpoint` | integer | 2031 | Autonomous vehicles: year of steepest capability growth |
-| `capability.gen.floor` | float | 0.65 | Generative AI (creative): minimum capability score |
-| `capability.gen.ceiling` | float | 0.98 | Generative AI (creative): maximum achievable capability score |
-| `capability.gen.steepness` | float | 0.85 | Generative AI (creative): S-curve steepness |
-| `capability.gen.midpoint` | integer | 2027 | Generative AI (creative): year of steepest capability growth |
-| `capability.sci.floor` | float | 0.45 | Scientific reasoning/discovery: minimum capability score |
-| `capability.sci.ceiling` | float | 0.95 | Scientific reasoning/discovery: maximum achievable capability score |
-| `capability.sci.steepness` | float | 0.5 | Scientific reasoning/discovery: S-curve steepness |
-| `capability.sci.midpoint` | integer | 2032 | Scientific reasoning/discovery: year of steepest capability growth |
--->
 
 ### 6. Capability Trajectories (12 paths)
 
@@ -204,17 +134,6 @@ Parameters per vector: `floor`, `ceiling`, `steepness`, `midpoint`
 
 ### 7. Policy Configuration
 
-<!-- UPDATED 2026-03-02: federal_minimum changed from float to PolicySchedule (Phase 5e keyframes).
-#### 7a. Minimum Wage (4 base paths + 51 state override paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `policy.minimum_wage.enabled` | boolean | true | Whether federal minimum wage is active. Default `true` reflects the existing US $7.25/hr federal minimum wage. |
-| `policy.minimum_wage.federal_minimum` | float | 7.25 | Federal minimum wage in USD/hour |
-| `policy.minimum_wage.indexed_to_inflation` | boolean | false | Whether the minimum wage automatically increases with inflation |
-| `policy.minimum_wage.indexed_to_productivity` | boolean | false | Whether the minimum wage automatically increases with productivity growth |
--->
-
 #### 7a. Minimum Wage (4 base paths + 51 state override paths)
 
 | parameter_path | type | default | description |
@@ -230,17 +149,6 @@ Each takes a float value (USD/hour). Only include states you want to override. S
 
 Example: `policy.minimum_wage.state_override.CA,15.50`
 
-<!-- UPDATED 2026-03-02: subsidy_percentage changed from float to PolicySchedule (Phase 5e keyframes).
-#### 7b. Wage Subsidy (4 paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `policy.wage_subsidy.enabled` | boolean | false | Whether government wage subsidies are active |
-| `policy.wage_subsidy.subsidy_percentage` | float | 0 | Percentage of wages subsidized by government (0-1) |
-| `policy.wage_subsidy.max_per_worker` | float | 0 | Maximum annual subsidy per worker in USD |
-| `policy.wage_subsidy.phase_out_threshold` | float | 0 | Income threshold at which the subsidy begins to phase out (USD) |
--->
-
 #### 7b. Wage Subsidy (4 paths)
 
 | parameter_path | type | default | description |
@@ -250,32 +158,9 @@ Example: `policy.minimum_wage.state_override.CA,15.50`
 | `policy.wage_subsidy.max_per_worker` | float | 0 | Maximum annual subsidy per worker in USD |
 | `policy.wage_subsidy.phase_out_threshold` | float | 0 | Income threshold at which the subsidy begins to phase out (USD) |
 
-<!-- UPDATED 2026-03-02: Work Week Reduction policy is deprecated — no computation logic, not imported or exported in csvImport.ts.
-#### 7c. Work Week Reduction (3 paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `policy.work_week.enabled` | boolean | false | Whether reduced standard work week is mandated |
-| `policy.work_week.standard_hours` | float | 40 | Standard weekly hours before overtime |
-| `policy.work_week.overtime_multiplier` | float | 1.5 | Pay multiplier for hours above standard (1.5 = time-and-a-half) |
--->
-
 #### 7c. Work Week Reduction (DEPRECATED — 0 paths)
 
 This policy is deprecated. The `policy.work_week.*` paths are no longer recognized by the CSV import system and have no computation logic in the simulation. They are not exported.
-
-<!-- UPDATED 2026-03-02: annual_contribution changed from float to PolicySchedule (Phase 5e keyframes).
-#### 7d. Sovereign Wealth Fund (6 paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `policy.swf.enabled` | boolean | false | Whether a sovereign wealth fund is established |
-| `policy.swf.initial_fund_size` | float | 0 | Initial fund capitalization in billions USD |
-| `policy.swf.annual_contribution` | float | 0 | Annual government contribution in billions USD |
-| `policy.swf.expected_return` | float | 0.07 | Expected annual return rate on fund assets (7% = 0.07) |
-| `policy.swf.distribution_rate` | float | 0.04 | Annual distribution rate from fund to population (4% = 0.04) |
-| `policy.swf.distribution` | enum | universal | Distribution method. Allowed values: `universal`, `means_tested` |
--->
 
 #### 7d. Sovereign Wealth Fund (6 paths)
 
@@ -287,18 +172,6 @@ This policy is deprecated. The `policy.work_week.*` paths are no longer recogniz
 | `policy.swf.expected_return` | float | 0.07 | Expected annual return rate on fund assets (7% = 0.07) |
 | `policy.swf.distribution_rate` | float | 0.04 | Annual distribution rate from fund to population (4% = 0.04) |
 | `policy.swf.distribution` | enum | universal | Distribution method. Allowed values: `universal`, `means_tested` |
-
-<!-- UPDATED 2026-03-02: ownership_fraction changed from float to PolicySchedule (Phase 5e keyframes). Added note about Phase 5g equity/SWF merge.
-#### 7e. Universal Equity (5 paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `policy.equity.enabled` | boolean | false | Whether universal equity ownership of AI companies is mandated |
-| `policy.equity.ownership_fraction` | float | 0 | Fraction of AI company equity owned by the public (0-1) |
-| `policy.equity.total_ai_profits` | float | 500 | Total AI company profits in billions USD/year |
-| `policy.equity.profit_growth_rate` | float | 0.15 | Annual growth rate of AI company profits (15% = 0.15) |
-| `policy.equity.distribution_method` | enum | equal | How equity dividends are distributed. Allowed values: `equal`, `progressive` |
--->
 
 #### 7e. Universal Equity (5 paths)
 
@@ -312,17 +185,6 @@ This policy is deprecated. The `policy.work_week.*` paths are no longer recogniz
 | `policy.equity.profit_growth_rate` | float | 0.15 | Annual growth rate of AI company profits (15% = 0.15) |
 | `policy.equity.distribution_method` | enum | equal | How equity dividends are distributed. Allowed values: `equal`, `progressive` |
 
-<!-- UPDATED 2026-03-02: mandatory_percentage changed from float to PolicySchedule (Phase 5e keyframes).
-#### 7f. Profit Sharing (4 paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `policy.profit_sharing.enabled` | boolean | false | Whether mandatory profit sharing is required |
-| `policy.profit_sharing.mandatory_percentage` | float | 0 | Percentage of profits that must be shared (0-1) |
-| `policy.profit_sharing.revenue_threshold` | float | 1000000000 | Minimum company revenue (USD) to trigger the requirement |
-| `policy.profit_sharing.distribution_scope` | enum | national | Scope of profit distribution. Allowed values: `employees_only`, `community`, `national` |
--->
-
 #### 7f. Profit Sharing (4 paths)
 
 | parameter_path | type | default | description |
@@ -331,21 +193,6 @@ This policy is deprecated. The `policy.work_week.*` paths are no longer recogniz
 | `policy.profit_sharing.mandatory_percentage` | PolicySchedule | `[{"year":2025,"value":0}]` | Percentage of profits that must be shared (0-1). Supports keyframes. |
 | `policy.profit_sharing.revenue_threshold` | float | 1000000000 | Minimum company revenue (USD) to trigger the requirement |
 | `policy.profit_sharing.distribution_scope` | enum | national | Scope of profit distribution. Allowed values: `employees_only`, `community`, `national` |
-
-<!-- UPDATED 2026-03-02: monthly_amount changed from float to PolicySchedule. Removed phase_out_enabled, phase_out_income_threshold, phase_out_rate (deprecated, no longer imported). Added mode, indexed_base_amount, indexed_start_year, productivity_index_rate fields (Phase 5g dynamic parameters). Now 10 paths (was 8).
-#### 7g. Universal Basic Income (8 paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `policy.ubi.enabled` | boolean | false | Whether UBI payments are active |
-| `policy.ubi.monthly_amount` | float | 0 | Monthly UBI payment per eligible person in USD |
-| `policy.ubi.age_threshold` | integer | 18 | Minimum age to receive UBI |
-| `policy.ubi.phase_out_enabled` | boolean | false | Whether UBI phases out at higher incomes |
-| `policy.ubi.phase_out_income_threshold` | float | 75000 | Annual income (USD) at which UBI begins to phase out |
-| `policy.ubi.phase_out_rate` | float | 0.2 | Rate at which UBI decreases per dollar above the threshold (0-1) |
-| `policy.ubi.indexed_to_inflation` | boolean | true | Whether UBI amount automatically increases with inflation |
-| `policy.ubi.indexed_to_productivity` | boolean | false | Whether UBI amount automatically increases with productivity growth |
--->
 
 #### 7g. Universal Basic Income (9 paths)
 
@@ -360,17 +207,6 @@ This policy is deprecated. The `policy.work_week.*` paths are no longer recogniz
 | `policy.ubi.productivity_index_rate` | float | (optional) | Rate at which UBI indexes to productivity growth. Only used when `mode` is `indexed`. |
 | `policy.ubi.indexed_to_inflation` | boolean | true | Whether UBI amount automatically increases with inflation |
 | `policy.ubi.indexed_to_productivity` | boolean | false | Whether UBI amount automatically increases with productivity growth |
-
-<!-- UPDATED 2026-03-02: replacement_rate changed from float to PolicySchedule (Phase 5e keyframes).
-#### 7h. Enhanced Unemployment Insurance (4 base paths + state overrides)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `policy.enhanced_ui.enabled` | boolean | true | Whether unemployment insurance is active. Default `true` reflects the existing US unemployment insurance system. |
-| `policy.enhanced_ui.replacement_rate` | float | 0.45 | Fraction of prior wages replaced by UI benefits (45% = 0.45) |
-| `policy.enhanced_ui.duration_weeks` | integer | 26 | Maximum duration of UI benefits in weeks |
-| `policy.enhanced_ui.retraining_bonus` | float | 0 | Additional monthly payment for workers enrolled in retraining (USD) |
--->
 
 #### 7h. Enhanced Unemployment Insurance (4 base paths + state overrides)
 
@@ -392,18 +228,6 @@ Fields per state:
 | `retraining_bonus` | float | State-specific retraining bonus in USD |
 
 Example: `policy.enhanced_ui.state_override.NY.replacement_rate,0.55`
-
-<!-- UPDATED 2026-03-02: stipend_monthly changed from float to PolicySchedule (Phase 5e keyframes). Added participation_rate field. Now 6 paths (was 5).
-#### 7i. Retraining (5 paths)
-
-| parameter_path | type | default | description |
-|---|---|---|---|
-| `policy.retraining.enabled` | boolean | false | Whether government-funded retraining programs are active |
-| `policy.retraining.stipend_monthly` | float | 0 | Monthly stipend for workers in retraining (USD) |
-| `policy.retraining.duration_months` | integer | 6 | Duration of retraining programs in months |
-| `policy.retraining.effectiveness_rate` | float | 0.3 | Fraction of retrained workers who successfully transition to new employment (0-1) |
-| `policy.retraining.target_clusters` | string (CSV) | (empty) | Comma-separated list of cluster IDs to target for retraining. See the [Cluster/Role Enumeration](#clusterrole-enumeration) section for valid IDs. Example: `tech_swe,finance_banking,retail_cashiers` |
--->
 
 #### 7i. Retraining (6 paths)
 
@@ -829,35 +653,6 @@ Regulatory environment affects adoption timing:
 
 ---
 
-<!-- UPDATED 2026-03-02: Recalculated all counts after 3-vector consolidation, new sections 8-22, policy changes. Old total was ~987.
-## Total Parameter Paths Summary
-
-| Category | Count |
-|---|---|
-| Global / Timeline | 2 |
-| Macro Parameters | 5 |
-| Population | 2 |
-| New Job Creation | 3 |
-| Adoption Parameters | 7 |
-| Capability Trajectories | 32 |
-| Policy: Minimum Wage (base) | 4 |
-| Policy: Minimum Wage (state overrides) | 51 |
-| Policy: Wage Subsidy | 4 |
-| Policy: Work Week | 3 |
-| Policy: SWF | 6 |
-| Policy: Universal Equity | 5 |
-| Policy: Profit Sharing | 4 |
-| Policy: UBI | 8 |
-| Policy: Enhanced UI (base) | 4 |
-| Policy: Enhanced UI (state overrides) | 51 x 3 = 153 |
-| Policy: Retraining | 5 |
-| BFCS Overrides | 484 |
-| State Policy Overrides | 255 |
-| **TOTAL POSSIBLE** | **~987** |
-
-A typical CSV will have 50-100 rows (just the non-default parameters). The full reference provides ~987 possible paths.
--->
-
 ## Total Parameter Paths Summary
 
 | Category | Count |
@@ -904,33 +699,6 @@ A typical CSV will have 50-150 rows (just the non-default parameters). The full 
 
 ## Examples
 
-<!-- UPDATED 2026-03-02: Replaced 8-vector paths with 3-vector (generative, agentic, embodied).
-### Example 1: Accelerate All AI Capabilities
-
-Push all AI capability midpoints earlier and increase steepness for faster S-curve transitions:
-
-```csv
-parameter_path,value
-# Accelerate all capabilities by 2-3 years with steeper curves
-capability.lang.midpoint,2026
-capability.lang.steepness,1.2
-capability.code.midpoint,2026
-capability.code.steepness,1.3
-capability.agent.midpoint,2027
-capability.agent.steepness,1.0
-capability.decide.midpoint,2028
-capability.decide.steepness,0.9
-capability.robot.midpoint,2030
-capability.robot.steepness,0.6
-capability.auto.midpoint,2029
-capability.auto.steepness,0.7
-capability.gen.midpoint,2025
-capability.gen.steepness,1.2
-capability.sci.midpoint,2029
-capability.sci.steepness,0.7
-```
--->
-
 ### Example 1: Accelerate All AI Capabilities
 
 Push all AI capability midpoints earlier and increase steepness for faster S-curve transitions:
@@ -945,23 +713,6 @@ capability.agentic.steepness,0.8
 capability.embodied.midpoint,2038
 capability.embodied.steepness,0.7
 ```
-
-<!-- UPDATED 2026-03-02: Removed deprecated phase_out_* fields. Updated monthly_amount to show flat shorthand or keyframe formats.
-### Example 2: Enable UBI at $1000/month
-
-Enable a universal basic income with phase-out at higher incomes:
-
-```csv
-parameter_path,value
-policy.ubi.enabled,true
-policy.ubi.monthly_amount,1000
-policy.ubi.age_threshold,18
-policy.ubi.phase_out_enabled,true
-policy.ubi.phase_out_income_threshold,75000
-policy.ubi.phase_out_rate,0.2
-policy.ubi.indexed_to_inflation,true
-```
--->
 
 ### Example 2: Enable UBI at $1000/month
 
@@ -1019,40 +770,6 @@ state_override.CA.robotics_regulatory,permissive
 state_override.CA.minimum_wage,16.00
 state_override.CA.additional_ubi,200
 ```
-
-<!-- UPDATED 2026-03-02: Updated to note flat number shorthand for PolicySchedule fields. All flat numbers (e.g. 500, 15.00) are valid shorthand for constant schedules.
-### Example 5: Comprehensive Policy Scenario
-
-Combine multiple policies for a "social safety net" scenario:
-
-```csv
-parameter_path,value
-# UBI at $500/month
-policy.ubi.enabled,true
-policy.ubi.monthly_amount,500
-policy.ubi.indexed_to_inflation,true
-# Raise minimum wage to $15 indexed to inflation
-policy.minimum_wage.federal_minimum,15.00
-policy.minimum_wage.indexed_to_inflation,true
-# Establish sovereign wealth fund
-policy.swf.enabled,true
-policy.swf.initial_fund_size,100
-policy.swf.annual_contribution,50
-policy.swf.expected_return,0.07
-policy.swf.distribution_rate,0.04
-policy.swf.distribution,universal
-# Enhanced UI with longer duration
-policy.enhanced_ui.replacement_rate,0.55
-policy.enhanced_ui.duration_weeks,39
-policy.enhanced_ui.retraining_bonus,500
-# Retraining programs targeting vulnerable clusters
-policy.retraining.enabled,true
-policy.retraining.stipend_monthly,2000
-policy.retraining.duration_months,12
-policy.retraining.effectiveness_rate,0.5
-policy.retraining.target_clusters,retail_cashiers,food_fast_food,transport_trucking
-```
--->
 
 ### Example 5: Comprehensive Policy Scenario
 

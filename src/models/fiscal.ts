@@ -67,19 +67,23 @@ export function computeEndogenousRevenue(
   laborTaxRevenue: number;
   corporateTaxRevenue: number;
   otherRevenue: number;
-  totalGovernmentRevenue: number;
+  bookedRevenueT1: number;
   revenueGDPRatio: number;
 } {
+  // FS-6f (ruled rename; was totalGovernmentRevenue): every input arrives from the PREVIOUS
+  // year's MacroOutput (the fiscal block's uniform t−1 booking convention), so the total this
+  // function books equals MacroOutput.totalGovernmentRevenue(t−1) exactly. The name carries
+  // the offset; the completeness assertion at the simulation.ts bridge enforces the identity.
   const laborTaxRevenue = wageIncomeTax + employeePayrollTax + employerPayrollTax;
   const otherRevenue = capitalGainsTax + stateLocalRevenue + transferTax + nonCorpAssetTax;
-  const totalGovernmentRevenue = laborTaxRevenue + corporateTaxRevenue + otherRevenue;
-  const revenueGDPRatio = nominalGDP > 0 ? totalGovernmentRevenue / nominalGDP : 0;
+  const bookedRevenueT1 = laborTaxRevenue + corporateTaxRevenue + otherRevenue;
+  const revenueGDPRatio = nominalGDP > 0 ? bookedRevenueT1 / nominalGDP : 0;
 
   return {
     laborTaxRevenue,
     corporateTaxRevenue,
     otherRevenue,
-    totalGovernmentRevenue,
+    bookedRevenueT1,
     revenueGDPRatio,
   };
 }
@@ -110,6 +114,11 @@ export function computeEndogenousRevenue(
  * @param weightedAverageDebtRate - Blended interest rate on outstanding debt
  * @param discretionaryMultiplier - Phase 8a: fiscal consolidation multiplier for discretionary G (default 1.0)
  * @param obligationMultiplier - Phase 8a: fiscal consolidation multiplier for mandatory G (default 1.0)
+ * @param stabilizerTransfers - Stage 5 (H3): incremental-UE transfer outlays (cash + in-kind), the SAME
+ *        dollar flow paid to households on the income/consumption side (computeMacro's
+ *        incrementalTransferSpending, previous year per the fiscal block's t−1 convention).
+ *        Previously this spending was NEVER booked in the load-bearing budget — households received
+ *        unbooked income while only the reporting deficit carried an (inconsistent $65B/pp) estimate.
  * @returns Spending decomposition
  */
 export function computeGovernmentSpending(
@@ -123,9 +132,11 @@ export function computeGovernmentSpending(
   weightedAverageDebtRate: number,
   discretionaryMultiplier: number = 1.0,
   obligationMultiplier: number = 1.0,
+  stabilizerTransfers: number = 0,
 ): {
   existingObligations: number;
   policyCosts: number;
+  stabilizerTransfers: number;
   interestExpense: number;
   totalGovernmentSpending: number;
 } {
@@ -150,11 +161,16 @@ export function computeGovernmentSpending(
     prevDebtStock * weightedAverageDebtRate,
   );
 
-  const totalGovernmentSpending = existingObligations + policyCosts + interestExpense;
+  // Stage 5 (H3): automatic-stabilizer transfers to the incremental unemployed are a real budget
+  // outlay above the revenue-following baseline (baseObligations does NOT grow with UE — spending
+  // tracks revenue + the structural ratio — so adding the increment here is not double-counting;
+  // it is exactly $0 at baseline unemployment).
+  const totalGovernmentSpending = existingObligations + policyCosts + stabilizerTransfers + interestExpense;
 
   return {
     existingObligations,
     policyCosts,
+    stabilizerTransfers,
     interestExpense,
     totalGovernmentSpending,
   };
@@ -364,7 +380,7 @@ export function computeEndogenousRolloverRate(
  *         CBO Historical Budget Data (revenue/GDP).
  */
 export function getBaselineFiscalState(): FiscalState {
-  const totalGovernmentRevenue = BASELINE_GDP_NOMINAL_2025 * FEDERAL_REVENUE_GDP_RATIO;
+  const bookedRevenueT1 = BASELINE_GDP_NOMINAL_2025 * FEDERAL_REVENUE_GDP_RATIO;
 
   return {
     federalDebtStock: INITIAL_FEDERAL_DEBT,
@@ -372,12 +388,13 @@ export function getBaselineFiscalState(): FiscalState {
     interestExpense: INITIAL_FEDERAL_DEBT * INITIAL_WEIGHTED_AVG_DEBT_RATE,
     debtServiceRevenueRatio: 0, // Computed properly in the first simulation year
     weightedAverageDebtRate: INITIAL_WEIGHTED_AVG_DEBT_RATE,
-    totalGovernmentRevenue,
+    bookedRevenueT1,
     revenueGDPRatio: FEDERAL_REVENUE_GDP_RATIO,
     laborTaxRevenue: 0, // Decomposed in the first simulation year
     corporateTaxRevenue: 0, // Decomposed in the first simulation year
     primaryDeficit: 0, // Computed in the first simulation year
     totalDeficit: 0, // Computed in the first simulation year
+    stabilizerTransfers: 0, // Stage 5: no incremental unemployment at baseline
     // Phase 8a: Fiscal consolidation baseline (no consolidation at t=0)
     consolidationIntensity: 0,
     discretionaryMultiplier: 1.0,

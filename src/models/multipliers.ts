@@ -13,13 +13,20 @@ import { EMPLOYMENT_MULTIPLIERS } from './constants';
 
 /**
  * Get the employment multiplier for a cluster.
- * Falls back to 1.5 if no specific multiplier is defined.
+ *
+ * DISPLAY/TEST-ONLY (FS-5 ruled, FS-5b marked — the F-C genus; liveness re-verified at
+ * FS-5b: callers = tests only). NOT on the simulation path — simulation.ts builds effective
+ * clusters from EMPLOYMENT_MULTIPLIERS with the documented config-override precedence
+ * (FS-5: end-to-end checked, 0 divergent).
  *
  * @param clusterId - The cluster identifier
  * @returns Employment multiplier (e.g., 3.4 for trucking)
  */
 export function getEmploymentMultiplier(clusterId: OccupationClusterId): number {
-  return EMPLOYMENT_MULTIPLIERS[clusterId] ?? 1.5;
+  // FS-2b (the F6 genus): the ?? 1.5 fallback was DEAD CODE (51/51 coverage verified at FS-2;
+  // the exhaustiveness test guards). Old line per the no-delete rule:
+  // return EMPLOYMENT_MULTIPLIERS[clusterId] ?? 1.5;
+  return EMPLOYMENT_MULTIPLIERS[clusterId]!; // reason: test-enforced exhaustiveness; a missing key fails the suite, never a silent 1.5
 }
 
 /**
@@ -79,7 +86,17 @@ export function computeAggregateDisplacement(
 /**
  * Adjacency weight matrix for cascading displacement effects.
  *
- * Formula (DATA_MODEL.md §9.2):
+ * DEPRECATED — REGISTERED-INACTIVE; DO NOT WIRE (FS-5 ruled doc-correct, FS-5b marked).
+ * This matrix has NEVER been on the simulation path (liveness-proven at FS-5: no simulation
+ * caller), and its weights were never cited. Kept, not deleted, because: (1) the standing
+ * no-delete rule; (2) MultiplierFlowDiagram.tsx renders it as a display-only illustration
+ * (found at FS-5b — its flows are NOT simulation output); (3) it is the reference object for
+ * the REGISTERED adjacency-cascade enrichment (DATA_MODEL §9.2): activation requires a BEA
+ * input-output–cited matrix + a design round + the full-graph loop re-derivation. Wiring this
+ * into displacement without that round would double-count §9.1's scalar per-cluster
+ * multiplier, which already carries the I-O-cited second-order effect.
+ *
+ * Formula (DATA_MODEL.md §9.2, registered-inactive):
  *   adjacent_displacement(o_adj, t) = Σ(displacement(o, t) × adjacency_weight(o, o_adj))
  *
  * This captures relationships like:
@@ -133,7 +150,10 @@ export const ADJACENCY_WEIGHTS: Record<string, Record<string, number>> = {
 
 /**
  * Compute cascading displacement from adjacency effects.
- * This is an additional layer on top of the per-cluster multiplier.
+ *
+ * DEPRECATED — REGISTERED-INACTIVE; DO NOT WIRE (FS-5 ruled, FS-5b marked — see the
+ * ADJACENCY_WEIGHTS banner above; same row). No simulation caller (liveness-proven at FS-5);
+ * guarded by tests as inactive structure only.
  *
  * @param clusterResults - All cluster displacement results
  * @returns Additional displacement per cluster from adjacency effects

@@ -90,9 +90,13 @@ export function computeMonetizationRate(
   debtServiceRatio: number = 0,
   maxFinancialRepressionRate: number = 1.0,
   prevTenYearYield: number = 0,
-  yieldResponseThreshold: number = 0.08,
+  yieldResponseThreshold: number = 0.08,  // DEPRECATED (E-8c F-B): the level trigger retired; kept in place per the no-delete rule
   maxYieldResponseRate: number = 0.70,
   prevMonetizationRate: number = 0,
+  // E-8c F-B (ratified): the fiscal-dominance co-conditions (Sargent-Wallace 1981)
+  prevFiscalRiskPremium: number = 0,
+  dominanceThreshold: number = 0.50,
+  premiumCoCondition: number = 0.01,
 ): MonetizationRateResult {
   // Phase 8 fix: Compute ALL applicable cases and return the MAXIMUM.
   // Previously used sequential if/return which made cases mutually exclusive.
@@ -128,12 +132,20 @@ export function computeMonetizationRate(
   // Uses PREVIOUS year's yield (lagged) to avoid circular dependency and
   // model the real-world delay between market stress and central bank response.
   // Source: BOJ YCC (2016+), Fed Treasury purchases (2020-2022), RBA (2020-2021)
+  // E-8c F-B (ratified): re-conditioned as a FISCAL-DOMINANCE event (Sargent-Wallace 1981).
+  // The old form fired on the 10Y LEVEL regardless of cause — it could not distinguish a bond
+  // market repricing inflation expectations (Volcker 1981: 15% yields, ZERO monetization) from
+  // fiscal-distress dysfunction. Now: BOTH the service ratio must exceed the dominance gate
+  // (UK-1920s/France-1926/Weimar poles, see constants) AND markets must be pricing fiscal stress
+  // (the Laubach premium co-condition). Intensity = the service-ratio excess, normalized (the
+  // same form the old yieldStress used, re-based to the dominance gate).
   let yieldResponseActive = false;
   let yieldResponseMonetization = 0;
-  if (prevTenYearYield > yieldResponseThreshold) {
+  void prevTenYearYield; void yieldResponseThreshold;  // DEPRECATED inputs (E-8c F-B), retained per the no-delete rule
+  if (debtServiceRatio > dominanceThreshold && prevFiscalRiskPremium > premiumCoCondition) {
     yieldResponseActive = true;
-    const yieldStress = Math.min(1, (prevTenYearYield - yieldResponseThreshold) / yieldResponseThreshold);
-    yieldResponseMonetization = qeMonetizationRate + yieldStress * (maxYieldResponseRate - qeMonetizationRate);
+    const dominanceStress = Math.min(1, (debtServiceRatio - dominanceThreshold) / dominanceThreshold);
+    yieldResponseMonetization = qeMonetizationRate + dominanceStress * (maxYieldResponseRate - qeMonetizationRate);
     rate = Math.max(rate, yieldResponseMonetization);
   }
 
@@ -293,9 +305,15 @@ export function computeMoneyCreation(
   const effectiveMoneyCreated = moneyCreated * transmissionEfficiency;
 
   // MV = PY → ΔP/P = ΔM × V / (P × Y) = ΔM × V / nominalGDP
+  // Stage 4 (R9): SIGNED monetary inflation — NO max(0,…) floor and NO netting against an economy-wide
+  // aiDeflationRate. AI deflation now lives exclusively inside the per-sector price terms (Stage 1.5),
+  // so subtracting it here would double-count it. The composite price level goes wherever
+  // Σ(sector inflation) + monetaryInflation points. (aiDeflationRate param retained for signature/back-
+  // compat but no longer used here.)
   const inflationFromMonetization = nominalGDP > 0
-    ? Math.max(0, (effectiveMoneyCreated * velocityOfMoney) / nominalGDP - aiDeflationRate)
+    ? (effectiveMoneyCreated * velocityOfMoney) / nominalGDP
     : 0;
+  void aiDeflationRate;  // Stage 4: intentionally unused (see above)
 
   return {
     moneyCreated,      // Total money created (full monetized amount — affects money supply)

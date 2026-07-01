@@ -75,7 +75,8 @@ import {
   CREDIT_CONSUMPTION_SENSITIVITY,
   BASELINE_GOVT_TRANSFERS,
   BASELINE_DEBT_INTEREST,
-  TRANSFER_GROWTH_PER_UE_POINT,
+  // DEPRECATED (Stage 5 / H3): TRANSFER_GROWTH_PER_UE_POINT retired from the loop
+  // TRANSFER_GROWTH_PER_UE_POINT,
   DISCRETIONARY_SHARE_OF_G,
   DEFERRABLE_CONSUMPTION_SHARE,
   DEFLATION_MIDPOINT,
@@ -98,6 +99,22 @@ import {
   EMPLOYMENT_MULTIPLIERS,
   SIMPLE_AVG_EMPLOYMENT_MULTIPLIER,
   DEFAULT_POPULATION_GROWTH_RATE,
+  DEFAULT_PRODUCTIVITY_PASSTHROUGH,
+  DEFAULT_CREDIBILITY_HORIZON_YEARS,
+  DEFAULT_FISCAL_CREDIBILITY_TRIGGER,
+  PCE_CPI_WEDGE,
+  TERM_PREMIUM,
+  DEBT_ROLLOVER_COUPON_RATE,
+  DEFAULT_TAYLOR_SMOOTHING,
+  DEFAULT_FISCAL_DOMINANCE_THRESHOLD,
+  INITIAL_POLICY_RATE,
+  ANCHOR_INIT_2025,
+  BASELINE_DEBT_SERVICE_REVENUE_RATIO,
+  DEFAULT_LAUBACH_LEVEL_BETA,
+  DEFAULT_LAUBACH_DEFICIT_BETA,
+  DEFAULT_MONETIZATION_DOMINANCE_THRESHOLD,
+  DEFAULT_MONETIZATION_PREMIUM_COCONDITION,
+  DEFAULT_FISCAL_ADJUSTMENT_HORIZON_YEARS,
   DEFAULT_VELOCITY_SENSITIVITY,
   VELOCITY_FLOOR_RATIO,
   DEFAULT_AI_PROFIT_MARGIN,
@@ -161,7 +178,7 @@ import {
   DEFAULT_AI_COST_PARAMS,
 } from './constants';
 import { getAllCapabilityScores, computeWeightedCapability } from './capabilities';
-import { checkAdoptionTrigger, findTriggerYear } from './bfcs';
+import { checkAdoptionTrigger, findTriggerYear, deriveSeamCheaperThreshold } from './bfcs';
 import { computeEffectiveAlpha, computePeerAlpha, buildClusterEmploymentMap } from './alphaDrivers';
 import { computeAugmentationAdoption } from './augmentationAdoption';
 import { getAdoptionRate } from './adoption';
@@ -179,7 +196,9 @@ import { computeEndogenousRevenue, computeGovernmentSpending, computeDebtAccumul
 // DEPRECATED Phase 8 Fix 4: resolveFiscalProfile and DEFAULT_FISCAL_RESPONSE_PROFILE replaced by split presets
 // import { resolveFiscalProfile, DEFAULT_FISCAL_RESPONSE_PROFILE } from './fiscalResponseProfiles';
 import { resolveCombinedProfile, DEFAULT_FISCAL_POLICY_PRESET, DEFAULT_FEDERAL_RESERVE_PRESET } from './fiscalResponseProfiles';
-import { computeFullEmploymentGDP, computeTaylorRule, computeFiscalDominance, getBaselineFederalReserveState } from './federalReserve';
+import { computeFullEmploymentGDP, computeTaylorRule, computeFiscalDominance, getBaselineFederalReserveState,
+  computePluckingPotential, AI_PRODUCTIVITY_BOOST_AT_FULL_COVERAGE,
+} from './federalReserve';
 import { computeMonetizationRate, computeMoneyCreation, getBaselineMonetizationState } from './monetization';
 import { computeFiscalRiskPremium, computeForeignDemand, computeExpectedPolicyRates, computeAbsorptionCapacity, computeTenYearYield, computeRateTransmission, getBaselineBondMarketState } from './bondMarket';
 import { computeGrowthMomentum, computeEquityValuation, getBaselineEquityMarketState } from './equityMarket';
@@ -196,6 +215,7 @@ import {
 } from './macro';
 // SecondOrderEffectParams now imported from @/types (Phase 5g Step 0)
 import { computeStateOutputs } from './stateSimulation';
+import { computeDisplacedPool } from './uiIncidence';
 import { interpolatePolicy } from '@/utils/policyInterpolation';
 // Phase 8b: Autopilot + parameter resolution
 import { computeAutopilotParameters, getBaselineAutopilot, getBaselineTaxRates } from './autopilot';
@@ -268,7 +288,7 @@ export function getDefaultSimulationConfig(): SimulationConfig {
     federalReservePreset: DEFAULT_FEDERAL_RESERVE_PRESET,
     // Phase 8 Fix 4: Yield calibration
     neutralRealRate: 0.007,
-    termPremium: 0.003,
+    termPremium: TERM_PREMIUM,  // E-8c F-C: 0.007 per NY Fed ACM (ACMTP10) — see constants.ts; was 0.003 (the hawkish-path backout era)
     inflationConvergenceYears: 5,
     // Phase 8 Fix 4: Fiscal risk premium weights
     fiscalRiskTrajectoryWeight: 0.50,
@@ -297,6 +317,12 @@ function estimateBaselineForCluster(
   employments: Record<string, number>;
   wages: Record<string, number>;
 } {
+  // CITATION STATUS (FS-6f, honest): the equal-share employment estimate (1/totalClusters)
+  // and the (0.5 + seniority) wage scaling carry NO empirical source — this is the
+  // DEPRECATED last-resort estimator for clusters with no OEWS series. Post-FS-6f it serves
+  // ONLY gov_federal and gov_state_local (cross-cutting SOC codes, no OEWS cluster series;
+  // scoped to government ADMINISTRATIVE functions). The magnitudes are unsourced, not
+  // contradicted by record; the FIX-6 renormalization bounds the aggregate.
   // Rough equal distribution across clusters, adjusted by multiplier importance
   const clusterShare = 1 / totalClusters;
   const clusterEmployment = BASELINE_TOTAL_EMPLOYMENT * clusterShare;
@@ -645,7 +671,8 @@ export function runSimulation(
     // creditConsumptionSensitivity: config.creditConsumptionSensitivity ?? CREDIT_CONSUMPTION_SENSITIVITY,
     baselineGovtTransfers: BASELINE_GOVT_TRANSFERS,
     baselineDebtInterest: BASELINE_DEBT_INTEREST,
-    transferGrowthPerUEPoint: TRANSFER_GROWTH_PER_UE_POINT,
+    // DEPRECATED (Stage 5 / H3): retired — derived from per-person CASH + IN-KIND constants now.
+    // transferGrowthPerUEPoint: TRANSFER_GROWTH_PER_UE_POINT,
     discretionaryShareOfG: DISCRETIONARY_SHARE_OF_G,
     // Phase 4 quality pass: S-curve deflation velocity
     deferrableConsumptionShare: config.deferrableConsumptionShare ?? DEFERRABLE_CONSUMPTION_SHARE,
@@ -745,6 +772,33 @@ export function runSimulation(
 
   // Track nominal GDP history for rolling average demand feedback (Phase 1 overhaul)
   const nominalGDPHistory: number[] = [];
+  // ═══ FS-3 (ratified): THE SEAM — the OEWS basis map + the margin-preserving threshold bridge ═══
+  // roleWageRelative = the role's loaded OEWS mean wage / the economy mean (the basis citation IS
+  // the committed data); the transform preserves each role's OBSERVED 2025 margin exactly (the
+  // load-time bridge — no data rewrite; FS3_CHECKPOINT §1/§3). seamMargins feeds the report table.
+  const seamWageRelative = new Map<string, number>();
+  const seamCheaperThreshold = new Map<string, number>();
+  const seamMargins: Array<{ key: string; c2025Old: number; c2025New: number; marginOld: number; thresholdNew: number; outOfRange: boolean }> = [];
+  if (!(config.legacyCheaperProxy ?? false)) {
+    for (const cluster of clusters) {
+      const bl = blsBaselines?.get(cluster.id);
+      for (const role of cluster.roles) {
+        const w = bl?.roles?.[role.id]?.meanWage;
+        if (w && w > 0) {
+          const rel = w / BASELINE_AVERAGE_ANNUAL_WAGE;
+          const key = `${cluster.id}:${role.id}`;
+          seamWageRelative.set(key, rel);
+          const d = deriveSeamCheaperThreshold(cluster, role, config.startYear, rel, config.aiCostParams);
+          seamCheaperThreshold.set(key, d.cheaperThresholdNew);
+          seamMargins.push({ key, c2025Old: d.c2025Old, c2025New: d.c2025New, marginOld: d.marginOld, thresholdNew: d.cheaperThresholdNew, outOfRange: d.outOfRange });
+        }
+        // roles without loaded wages keep the proxy basis (stated; the margins table marks them)
+      }
+    }
+  }
+  // E-8c F-A: the plucking-potential state (Friedman ceiling; see computePluckingPotential)
+  let pluckingPotentialGDP: number | null = null;
+  let prevPluckingBoost = 1.0;
 
   // Phase 5g Step 3: Track baseline consumption for dynamic velocity
   let baselineConsumption: number | null = null;
@@ -769,6 +823,8 @@ export function runSimulation(
 
   // Phase 6: Baseline captures for consumer & business credit
   let baselineHouseholdIncome: number | null = null;
+  // Stage 6.5: year-0 asset-income share (investor land bid baseline, OD-9b)
+  let baselineAssetIncomeShare: number | null = null;
   let baselineCorporateProfits: number | null = null;
   // Separate credit-adjusted CWI baseline (grows with real GDP to avoid artificial systemic tightening)
   let creditBaselineCWI: number | null = null;
@@ -826,6 +882,10 @@ export function runSimulation(
     return { id: c.id, averageWage: avgWage };
   });
   const clusterQuintileMap = mapClustersToQuintiles(clusterWageData);
+
+  // Close-out §9 item 3: the year-0 cluster results, captured on the first iteration —
+  // the baseline the displaced-pool price object reads (year 0 is displacement-free).
+  let year0ClusterResults: ClusterDisplacementResult[] | null = null;
 
   // === MAIN TIME LOOP (DATA_MODEL.md §10.1) ===
   for (let year = config.startYear; year <= config.endYear; year++) {
@@ -896,11 +956,16 @@ export function runSimulation(
       secondOrderParams.revenuePressureCap,
       businessCreditLoosening * creditAdoptionSens,
     );
-    // Total automation acceleration = revenue pressure + credit adoption (still capped)
-    const automationAcceleration = Math.min(
+    // FS-2b: the COMPOSED consumable (renamed from `automationAcceleration` — the naming hazard:
+    // same name as the macro-state PRODUCER at macro.ts computeRevenuePressure). CAP-SHADOWING
+    // SEMANTICS (documented per the ruling): one shared cap = a TOTAL acceleration bound; the
+    // credit channel fills headroom only and dies silently at saturation. Currently dormant in
+    // every standing scenario (C revPress <= 0.124 vs the 0.30 cap).
+    const effectiveAutomationAcceleration = Math.min(
       secondOrderParams.revenuePressureCap,
       baseAutomationAcceleration + creditAdoptionAcceleration,
     );
+    const automationAcceleration = effectiveAutomationAcceleration; // reason: downstream call sites read this name; the alias keeps the rename docs-true with zero blast radius
 
     // Phase 5g Step 9: Compute min wage BEFORE cluster loop (needed for adoption acceleration)
     const minWageHourlyEarly = interpolatePolicy(config.policyConfig.minimumWage.federalMinimum, year);
@@ -1020,9 +1085,15 @@ export function runSimulation(
       for (const role of cluster.roles) {
         // 2-3. Resolve effective thresholds (user override or cluster default)
         const baseThresholds = config.bfcsOverrides[cluster.id]?.[role.id] ?? role.bfcsThresholds;
+        // FS-3: the margin-preserving bridge replaces the stored Cheaper threshold when the seam
+        // basis is active AND no user override exists (a user override is the user's number).
+        const seamKey = `${cluster.id}:${role.id}`;
+        const bridgedCheaper = (config.bfcsOverrides[cluster.id]?.[role.id])
+          ? baseThresholds.cheaper
+          : (seamCheaperThreshold.get(seamKey) ?? baseThresholds.cheaper);
         const effectiveThresholds = {
           ...baseThresholds,
-          cheaper: Math.max(0, Math.min(1, baseThresholds.cheaper - payrollCostShift)),
+          cheaper: Math.max(0, Math.min(1, bridgedCheaper - payrollCostShift)),
         };
 
         // Compute BFCS scores and check adoption trigger
@@ -1046,11 +1117,18 @@ export function runSimulation(
           cluster, role, year, capabilityScores, effectiveThresholds, effectiveAiCostParams,
           scBFCSParams,
           clusterWageAdjustment,  // Phase 10.A — propagates into Cheaper via computeCheaperScore
+          seamWageRelative.get(seamKey),                       // FS-3: the OEWS basis
+          (config.seamBasisOnly ?? false) ? 1.0 : (previousMacro?.wageIndex ?? 1.0),  // FS-3 G1 (t−1); basis-only row holds 1.0
         );
 
         // Phase 10.A fix #2 — effective trigger year shifts forward by role.aiReplacementFrictionYears
         // (direct years, no global scaling). We record the EFFECTIVE trigger year rather than the raw
         // BFCS-met year. If the shifted year falls outside the simulation window, the role never triggers.
+        // THE LATCH (why-note added at the close-out per OD-12): the trigger year is set once
+        // and never cleared, and the default-path adoption curve is monotone from it — a
+        // MODELING CHOICE with switching frictions, one-way pending the successor program's
+        // hysteresis design (the successor program charter, maintained with the audit records). The scenario-gated
+        // supply-chain path below carries the existing freeze/decline machinery.
         if (triggered && triggerYears[cluster.id]![role.id] === null) {
           const frictionYears = role.aiReplacementFrictionYears ?? 0;
           const effectiveTriggerYear = Math.ceil(year + Math.max(0, frictionYears));
@@ -1191,6 +1269,10 @@ export function runSimulation(
         ? clusterAlphaWeightedSum / clusterAlphaWeightTotal
         : (cluster.automationShare ?? DEFAULT_COGNITIVE_ALPHA);
       nextAlphaByCluster.set(cluster.id, clusterEffectiveAlpha);
+      // FS-2b (the cut edge marked for the seam): this is the ONLY wage signal the adoption
+      // stack ever sees -- the WITHIN-CLUSTER scarcity premium. The economy-wide wage LEVEL
+      // (COLA/indexation, scenario-differentiating) enters Cheaper NOWHERE (FS2_MEMO, the
+      // pinning mechanism). The FS-3 seam package owns the connection decision.
       nextWageAdjByCluster.set(cluster.id, clusterDisplacement.wageAdjustmentFromScarcity ?? 0);
 
       // Accumulate for macro aggregate (weight by baseline employment)
@@ -1326,17 +1408,32 @@ export function runSimulation(
     const realPrevGovSpending = prevGovSpending / prevPriceLevel;
     const realPrevInvestment = prevInvestment / prevPriceLevel;
 
-    // Fix A (revised): Static demand baselines from year-0 model output.
-    // Original Fix A grew baselines at ~2%/yr real, but consumption structurally lags GDP by one year
-    // (wageBase uses prevNomGDP), so real consumption can't keep pace with growing baselines.
-    // In a zero-AI economy with 2.9% inflation and 0.45% nominal consumption growth, the growing
-    // baselines create a 4% gap by year 2 that triggers the displacement-demand feedback cycle.
-    // Static baselines + tolerance band (Fix B) is correct: demand spillover fires when real C/G/I
-    // fall BELOW the starting level (from AI-driven wage erosion), not when they fail to meet a growth target.
-    // Falls back to BEA constants for year 0 (before baselines are captured).
-    const effectiveBaseC = demandBaselineRealC ?? BASELINE_CONSUMPTION_2025;
-    const effectiveBaseG = demandBaselineRealG ?? BASELINE_GOVT_SPENDING_2025;
-    const effectiveBaseI = demandBaselineRealI ?? BASELINE_INVESTMENT_2025;
+    // Stage 2 (firewall): demand baselines grow at the real structural TREND (potential growth),
+    // matched to the t-1 prev-year real C/G/I. Spillover fires only when real demand falls BELOW trend
+    // (minus the tolerance band) — not when it merely fails to exceed a frozen year-0 level. This KEEPS
+    // real-quantity ratios (employment follows the QUANTITY of demand; AI's per-unit labor reduction is
+    // already captured in the displacement channel, so a nominal ratio would double-count). The original
+    // "static baseline" was chosen because Stage-0's broken ~1.6% growth let real C lag a 2% baseline and
+    // false-fire; Stage 0 fixed realized zero-AI growth to ~2.1%, so a 2% trend baseline now sits ≈1.0
+    // (ratios ≈1 within tolerance ⇒ zero demand layoffs in zero-AI). Falls back to BEA constants for year 0.
+    // E-3 (examination, EMERGENT-CONSISTENT closed form): the demand-trend growth is the post-D-1
+    // potential real income growth — perWorkerProductivity × productivityPassthrough + population
+    // growth (≈ 1.6 × 0.90 + 0.4 = 1.84%/yr) — derived from ratified parameters, deterministic
+    // (charter-preferred over a moving average). The fixed 2.0% ignored the D-1 passthrough; the
+    // ~0.16pp/yr wedge compounded into the parked demand-survival tail (0.9981/0.9984). Resolves it
+    // to exact dormancy (the 3% tolerance absorbs the small emergent residual).
+    // config.demandTrendGrowth overrides for isolation runs (legacy = 0.02).
+    const demandTrendGrowthRate = config.demandTrendGrowth
+      ?? (((config.baselineGDPGrowth ?? BASELINE_GDP_GROWTH_RATE) - DEFAULT_POPULATION_GROWTH_RATE)
+        * (config.productivityPassthrough ?? DEFAULT_PRODUCTIVITY_PASSTHROUGH)
+        + (config.populationGrowthRate ?? DEFAULT_POPULATION_GROWTH_RATE));
+    const demandTrendFactor = Math.pow(
+      1 + demandTrendGrowthRate,
+      Math.max(0, (year - config.startYear) - 1),
+    );
+    const effectiveBaseC = (demandBaselineRealC ?? BASELINE_CONSUMPTION_2025) * demandTrendFactor;
+    const effectiveBaseG = (demandBaselineRealG ?? BASELINE_GOVT_SPENDING_2025) * demandTrendFactor;
+    const effectiveBaseI = (demandBaselineRealI ?? BASELINE_INVESTMENT_2025) * demandTrendFactor;
     const consumerDemandRatio = realPrevConsumption / effectiveBaseC;
     const govDemandRatio = realPrevGovSpending / effectiveBaseG;
     const businessDemandRatio = realPrevInvestment / effectiveBaseI;
@@ -1403,6 +1500,13 @@ export function runSimulation(
     }
 
     // 10. Policy effects
+    // Close-out §9 item 3 (ruled fix): the enhanced-UI benefit is priced at the displaced
+    // pool's prior wage, not the remaining-workers average — the pool object comes from the
+    // same math as the incidence layer (year-0 cluster results captured on the first
+    // iteration; year 0 is displacement-free by construction, so the pool is empty there
+    // and pricing reduces to the average wage — bit-identical to the pre-fix path).
+    if (year0ClusterResults === null) year0ClusterResults = clusterResults;
+    const displacedPool = computeDisplacedPool(year0ClusterResults, clusterResults);
     const policyEffects = computePolicyEffects(
       config.policyConfig,
       year,
@@ -1414,6 +1518,8 @@ export function runSimulation(
       previousMacro?.gdpNominal ?? BASELINE_GDP_NOMINAL_2025,
       previousFundSize,
       aggregate.totalDirectDisplacement,
+      displacedPool.count,
+      displacedPool.avgWage,
       previousMacro?.aiGDPContribution ?? 0,  // Phase 5g: for UBI productivity indexing
       startYearAiGDP,                          // Phase 5g: AI GDP at index start year
     );
@@ -1489,7 +1595,7 @@ export function runSimulation(
     const mergedDeflationOverrides = buildDeflationIntensityOverrides(config);
     // Phase 5-tax: Pass deployment types and AI cost params for per-cluster 3-component deflation
     const clusterDeploymentMap = new Map(effectiveClusters.map(c => [c.id, c.deploymentType]));
-    const sectorWeightedDeflationRate = computeSectorWeightedDeflation(
+    const sectorDeflationResult = computeSectorWeightedDeflation(
       clusterResults, year, mergedDeflationOverrides,
       clusterDeploymentMap, effectiveAiCostParams,
       augmentationByCluster, effectiveProductivityByCluster,
@@ -1497,6 +1603,9 @@ export function runSimulation(
       clusterBetterByCluster, clusterCheaperByCluster,
       config.augmentationMultiplier ?? DEFAULT_AUGMENTATION_MULTIPLIER,
     );
+    // Stage 1.5: scalar total (back-compat: monetization + aiDeflationRate output) + per-sector routing.
+    const sectorWeightedDeflationRate = sectorDeflationResult.total;
+    const sectorDeflationByConsumption = sectorDeflationResult.byConsumption;
 
     // DEPRECATED: Duplicate min wage computation moved before cluster loop (Phase 5g Step 9).
     // policyWageFloor and annualMinWage are now computed at the top of the year loop.
@@ -1642,10 +1751,29 @@ export function runSimulation(
     } else {
       // 14a: Revenue from previous year's 8-component tax model
       const prevMacroForFiscal = previousMacro!;
-      // Note: MacroOutput exposes 6 of the 8 tax components directly.
-      // transferTax and nonCorporateAssetTax are local to computeMacro() but
-      // their sum can be derived: other = totalRevenue - labor - corporate.
-      // We pass the 6 available + derive the rest from totalGovernmentRevenue.
+      // FS-6f (ruled): THE 8-CHANNEL COMPLETENESS ASSERTION. All eight components are now
+      // exposed on MacroOutput and passed DIRECTLY (the routing-blind residual derivation is
+      // retired). The booked total must reconstruct from the exposed components exactly — a
+      // future 9th revenue channel added to the macro total without being exposed here fails
+      // LOUD instead of landing silently in transferTax. (Same addition order as macro.ts.)
+      const reconstructedRevenue =
+        prevMacroForFiscal.wageIncomeTax
+        + prevMacroForFiscal.employeePayrollTax
+        + prevMacroForFiscal.employerPayrollTax
+        + prevMacroForFiscal.capitalGainsTax
+        + prevMacroForFiscal.nonCorporateAssetTax
+        + prevMacroForFiscal.transferTax
+        + prevMacroForFiscal.corporateTaxRevenue
+        + prevMacroForFiscal.stateLocalRevenue;
+      if (Math.abs(reconstructedRevenue - prevMacroForFiscal.totalGovernmentRevenue) > 0.5) {
+        throw new Error(
+          `[ATLAS fiscal] Revenue completeness violated at year ${year}: the 8 exposed tax `
+          + `components sum to ${reconstructedRevenue} but totalGovernmentRevenue(t−1) is `
+          + `${prevMacroForFiscal.totalGovernmentRevenue}. A revenue channel was added to the `
+          + `macro total without being exposed on MacroOutput — expose it and pass it through `
+          + `computeEndogenousRevenue explicitly.`,
+        );
+      }
       const revenue = computeEndogenousRevenue(
         prevMacroForFiscal.wageIncomeTax,
         prevMacroForFiscal.employeePayrollTax,
@@ -1653,44 +1781,44 @@ export function runSimulation(
         prevMacroForFiscal.corporateTaxRevenue,
         prevMacroForFiscal.capitalGainsTax,
         prevMacroForFiscal.stateLocalRevenue,
-        // transferTax + nonCorporateAssetTax derived from total - other known components
-        prevMacroForFiscal.totalGovernmentRevenue
-          - prevMacroForFiscal.wageIncomeTax
-          - prevMacroForFiscal.employeePayrollTax
-          - prevMacroForFiscal.employerPayrollTax
-          - prevMacroForFiscal.corporateTaxRevenue
-          - prevMacroForFiscal.capitalGainsTax
-          - prevMacroForFiscal.stateLocalRevenue
-          - prevMacroForFiscal.nonCorporateAssetTax,
+        prevMacroForFiscal.transferTax,
         prevMacroForFiscal.nonCorporateAssetTax,
         prevMacroForFiscal.gdpNominal,
       );
 
       // 14b: Government spending (with Phase 8b effective consolidation multipliers)
       const spending = computeGovernmentSpending(
-        revenue.totalGovernmentRevenue,
+        revenue.bookedRevenueT1,
         BASELINE_PRIMARY_DEFICIT_GDP_RATIO,
         prevMacroForFiscal.gdpNominal,
         policyEffects.transferChannelAddition,
         0, // retrainingCosts — already included in transferChannelAddition
-        0, // otherPolicyCosts — reserved for future use
+        // Stage 5b (F1): wage-subsidy + SWF-contribution costs — previously these reached the
+        // reporting deficit (policyEffects.fiscalCost → computeFiscalPressure) but NEVER the debt
+        // path. Book the full policy fiscal cost: fiscalCost = wage + transfer + SWF, so the
+        // non-transfer remainder goes here. Dormant when only transfer policies are enabled.
+        policyEffects.fiscalCost - policyEffects.transferChannelAddition,
         previousDebtStock,
         previousWeightedAvgDebtRate,
         consolidation.discretionaryMultiplier,
         consolidation.obligationMultiplier,
+        // Stage 5 (H3): book the incremental-UE stabilizer transfers (cash + in-kind) the income
+        // side paid — SAME dollar flow, t−1 per the fiscal block's uniform convention (like revenue).
+        // Previously this spending never reached the debt path (households got unbooked income).
+        prevMacroForFiscal.incrementalTransferSpending,
       );
 
       // 14c: Deficit and debt accumulation
       const debtResult = computeDebtAccumulation(
         spending.totalGovernmentSpending,
-        revenue.totalGovernmentRevenue,
+        revenue.bookedRevenueT1,
         spending.interestExpense,
         previousDebtStock,
         prevMacroForFiscal.gdpNominal,
       );
 
-      const debtServiceRevenueRatio = revenue.totalGovernmentRevenue > 0
-        ? spending.interestExpense / revenue.totalGovernmentRevenue
+      const debtServiceRevenueRatio = revenue.bookedRevenueT1 > 0
+        ? spending.interestExpense / revenue.bookedRevenueT1
         : 0;
 
       // 14d: Full employment GDP and output gap
@@ -1710,45 +1838,74 @@ export function runSimulation(
       // Previous year's labor force for same-period consistency
       const prevYearLFGrowth = Math.pow(1 + (config.populationGrowthRate ?? DEFAULT_POPULATION_GROWTH_RATE), yearsSinceStartFM - 1);
       const prevDynamicLaborForce = config.laborForce * prevYearLFGrowth;
-      const fullEmploymentGDP = computeFullEmploymentGDP(
-        BASELINE_GDP_NOMINAL_2025,
-        config.baselineGDPGrowth,
-        yearsSinceStartFM - 1,
-        prevDynamicLaborForce,
-        BASELINE_CPS_EMPLOYMENT,
-        NATURAL_UNEMPLOYMENT_RATE,
-        automationCoverage,
+      void prevDynamicLaborForce;  // DEPRECATED input of computeFullEmploymentGDP (E-8c F-A); kept per the no-delete rule
+      // E-8c F-A (ratified): the plucking potential replaces the BASELINE×(1+g)^t line (the F-A
+      // finding: +6.0% year-0 offset + the capacity-gated bootstrap fed +2.1pp into the Taylor
+      // gap terms). gPotential = perWorker productivity + population (PRODUCTION side — no D-1
+      // passthrough); the AI boost multiplies the COUNTERFACTUAL line (ratified composition
+      // order) so realized AI-era production is never absorbed into the counterfactual.
+      const gPotential = (config.baselineGDPGrowth - DEFAULT_POPULATION_GROWTH_RATE)
+        + (config.populationGrowthRate ?? DEFAULT_POPULATION_GROWTH_RATE);
+      const pluckingBoost = 1 + AI_PRODUCTIVITY_BOOST_AT_FULL_COVERAGE * automationCoverage;
+      const boostAdjust = prevPluckingBoost > 0 ? pluckingBoost / prevPluckingBoost : 1.0;
+      pluckingPotentialGDP = computePluckingPotential(
+        pluckingPotentialGDP,
+        prevMacroForFiscal.gdpReal,
+        gPotential,
+        boostAdjust,
       );
-      const outputGap = fullEmploymentGDP > 0
-        ? (prevMacroForFiscal.gdpReal - fullEmploymentGDP) / fullEmploymentGDP
+      prevPluckingBoost = pluckingBoost;
+      const outputGap = pluckingPotentialGDP > 0
+        ? (prevMacroForFiscal.gdpReal - pluckingPotentialGDP) / pluckingPotentialGDP
         : 0;
 
       // 14e: Taylor Rule with dual mandate (Phase 8 Fix 4)
+      // E-8b item 1 (ratified, units correction): config.inflationTarget is the Fed's 2% PCE; the
+      // composite is CPI-basis — every comparison uses target + PCE_CPI_WEDGE (the pre-E-8b form
+      // compared CPI inflation to a PCE target: ~0.5pp structurally hawkish, ~0.75pp on policy).
+      const effectiveCPITarget = (config.inflationTarget ?? 0.02) + (config.pceCpiWedge ?? PCE_CPI_WEDGE);
       const prevCompositeInflation = prevMacroForFiscal.compositeInflation ?? 0;
-      const prevUnemploymentRate = prevMacroForFiscal.unemploymentRate ?? NATURAL_UNEMPLOYMENT_RATE;
+      // E-9 item 2 (ratified): the Fed's mandate variable is the endogenous PCE PROXY read against
+      // the 2% PCE target DIRECTLY (no wedge) — resolves the audit's row-3 mixed basis at the root.
+      // usePceProxy:false = the E-8b fixed-wedge fallback (CPI composite vs target+wedge).
+      const usePceProxy = config.usePceProxy ?? true;
+      const fedInflationInput = usePceProxy
+        ? (prevMacroForFiscal.pceProxyInflation ?? (prevCompositeInflation - (config.pceCpiWedge ?? PCE_CPI_WEDGE)))
+        : prevCompositeInflation;
+      const fedTarget = usePceProxy ? (config.inflationTarget ?? 0.02) : effectiveCPITarget;
+      // E-9 item 3 (ratified): NAIRU unified on the cited FRED/CBO value everywhere (the Phillips
+      // side already used it). Year-0 employment gap ≈ FRED_NAIRU − realized-2025 UE (disclosed in
+      // the Gate A attribution). legacyNairu = the pre-E-9 split (Taylor on realized-2025).
+      const fedNairu = (config.legacyNairu ?? false) ? NATURAL_UNEMPLOYMENT_RATE : FRED_NAIRU_RATE;
+      const prevUnemploymentRate = prevMacroForFiscal.unemploymentRate ?? fedNairu;
       const taylorPrescribed = computeTaylorRule(
         config.neutralRealRate ?? 0.007,                        // Fix 4: configurable r*, default 0.7%
-        prevCompositeInflation,
-        config.inflationTarget ?? 0.02,
+        fedInflationInput,                                      // E-9 item 2
+        fedTarget,                                              // E-9 item 2
         outputGap,
         yearParams.taylorInflationCoeff.effective,               // Fix 4: per-year overridable via sidebar
         yearParams.taylorOutputGapCoeff.effective,                // Fix 4: per-year overridable via sidebar
         prevUnemploymentRate,                                    // NEW: employment gap
-        NATURAL_UNEMPLOYMENT_RATE,                               // NEW: natural rate baseline
+        fedNairu,                                                // E-9 item 3: unified FRED NAIRU
         yearParams.taylorEmploymentGapCoeff.effective,            // NEW: per-year overridable via sidebar
       );
 
       // 14f: Fiscal dominance check + policy rate override
+      // E-9b (ratified): policy-rate INERTIA — the smoothed prescription replaces the instantaneous
+      // one everywhere downstream (the last instantaneous agent joins the gradual-adjustment family).
+      // Init at the OBSERVED policy rate (was INITIAL_10Y_YIELD — a wrong-constant pair, §2-class).
       const policyRateOverride = config.policyRateSchedule
         ? interpolatePolicy(config.policyRateSchedule, year)
         : null;
-      const prevPolicyRate = previousFiscalMonetary?.federalReserve.policyRate ?? INITIAL_10Y_YIELD;
+      const prevPolicyRate = previousFiscalMonetary?.federalReserve.policyRate ?? INITIAL_POLICY_RATE;
+      const taylorRho = config.taylorSmoothing ?? DEFAULT_TAYLOR_SMOOTHING;
+      const smoothedPrescription = taylorRho * prevPolicyRate + (1 - taylorRho) * taylorPrescribed;
       const fedResult = computeFiscalDominance(
-        taylorPrescribed,
+        smoothedPrescription,
         prevPolicyRate,
         spending.interestExpense,
-        revenue.totalGovernmentRevenue,
-        config.fiscalDominanceThreshold ?? 0.25,
+        revenue.bookedRevenueT1,
+        config.fiscalDominanceThreshold ?? DEFAULT_FISCAL_DOMINANCE_THRESHOLD,  // L9c-5: cited (IMF DSA-class)
         config.fiscalDominanceDampening ?? 0.5,
         policyRateOverride,
       );
@@ -1759,7 +1916,7 @@ export function runSimulation(
         fedResult.policyRate,
         config.effectiveLowerBound ?? -0.005,
         fedResult.fiscalDominanceActive,
-        taylorPrescribed,
+        smoothedPrescription,  // E-9b: the Fed's desired path is the inertial one
         fedResult.policyRate,
         yearParams.qeMonetizationRate.effective,
         debtServiceRevenueRatio,
@@ -1770,6 +1927,10 @@ export function runSimulation(
         fiscalProfile.maxYieldResponseRate,
         // Phase 8 Fix 3: previous monetization rate for asymmetric taper
         previousFiscalMonetary?.monetization.monetizationRate ?? 0,
+        // E-8c F-B: the fiscal-dominance co-conditions (lagged premium, like the lagged yield)
+        previousFiscalMonetary?.bondMarket.fiscalRiskPremium ?? 0,
+        config.monetizationDominanceThreshold ?? DEFAULT_MONETIZATION_DOMINANCE_THRESHOLD,
+        config.monetizationPremiumCoCondition ?? DEFAULT_MONETIZATION_PREMIUM_COCONDITION,
       );
       const monetizationRateVal = monetizationResult.rate;
 
@@ -1789,7 +1950,10 @@ export function runSimulation(
       // interest expense goes to bondholders/institutions with low MPC (20%).
       // When interest expense dominates (debt crisis), monetization produces much less CPI inflation.
       const totalGovSpending = spending.totalGovernmentSpending;
+      // Stage 5: stabilizer transfers are transfer-like spending (high-MPC recipients) — include
+      // them in the transfer share for monetization transmission composition.
       const transferSpendingEst = policyEffects.transferChannelAddition
+        + spending.stabilizerTransfers
         + (BASELINE_GOVT_TRANSFERS * (previousMacro?.cumulativeInflationFactor ?? 1.0));
       const interestExpenseEst = spending.interestExpense;
       const discretionarySpendingEst = Math.max(0, totalGovSpending - transferSpendingEst - interestExpenseEst);
@@ -1822,11 +1986,27 @@ export function runSimulation(
       );
 
       // 14i: Expected policy rates (10-year forward projection)
+      // E-7 (ratified): the market inflation anchor de-anchors toward LAGGED REALIZED composite at
+      // 1/τ_cred. τ = 0 is the special-cased never-de-anchor SENTINEL (the mathematical legacy limit
+      // is τ → ∞; 0 is a convenience toggle — anchor frozen at its init value, the Fed target).
+      const tauCred = config.credibilityHorizonYears ?? DEFAULT_CREDIBILITY_HORIZON_YEARS;
+      const prevAnchor = previousFiscalMonetary?.bondMarket.marketInflationAnchor
+        ?? (config.marketAnchorInit ?? ANCHOR_INIT_2025);  // E-9c row 1: inherit the OBSERVED 2025 expectations state (unified with the bondMarket state field)
+      const marketInflationAnchor = tauCred === 0
+        ? prevAnchor
+        : prevAnchor + (1 / tauCred) * (prevCompositeInflation - prevAnchor);
       // Phase 8 Fix 4: employment gap projection + configurable convergence speed
       const yearsRemaining = config.endYear - year;
+      // E-9 flag [β] (ratified): the projection runs in PROXY space — current proxy converging
+      // toward (the CPI-basis market anchor − the CURRENT proxy gap): markets expect the basis gap
+      // to persist (exact in zero-AI where the gap is stationary). Materiality of the gap term in
+      // C is reported per the ratification; the mean-reverting-gap form is a REGISTERED refinement.
+      const currentProxyGap = usePceProxy
+        ? (prevCompositeInflation - fedInflationInput)
+        : (config.pceCpiWedge ?? PCE_CPI_WEDGE);
       const expectedAvgPolicyRate = computeExpectedPolicyRates(
-        prevCompositeInflation,
-        config.inflationTarget ?? 0.02,
+        fedInflationInput,                                      // E-9: proxy-space projection
+        fedTarget,
         outputGap,
         config.neutralRealRate ?? 0.007,
         yearParams.taylorInflationCoeff.effective,       // per-year overridable
@@ -1837,9 +2017,12 @@ export function runSimulation(
         fedResult.dominanceFactor,
         // Phase 8 Fix 4: employment gap + convergence speed
         prevUnemploymentRate,
-        NATURAL_UNEMPLOYMENT_RATE,
+        fedNairu,                                         // E-9 item 3
         yearParams.taylorEmploymentGapCoeff.effective,    // per-year overridable
         config.inflationConvergenceYears ?? 5,
+        marketInflationAnchor - currentProxyGap,          // E-7 anchor translated to proxy space ([β])
+        prevPolicyRate,                                   // E-9b: the inherited rate
+        taylorRho,                                        // E-9b: markets project the inertial rule
       );
 
       // 14j: Fiscal risk premium (Phase 8 Fix 4: trajectory-based composite model)
@@ -1856,6 +2039,24 @@ export function runSimulation(
       const nominalGDPGrowthRate = nominalGDPHistory.length >= 2
         ? (nominalGDPHistory[nominalGDPHistory.length - 1]! - nominalGDPHistory[nominalGDPHistory.length - 2]!) / nominalGDPHistory[nominalGDPHistory.length - 2]!
         : baselineNominalGrowth;
+      // E-8 (ratified): the market consolidation expectation — ramps toward 1 while LAGGED
+      // debtService/revenue exceeds the credibility trigger, decays SYMMETRICALLY at the same
+      // rate below it (item 2 choice: markets re-price both directions; one rate, no hysteresis).
+      // E-8b item 4 (R-B relocation): the expectation prices the SELECTED profile. For the R-C
+      // default (observed political economy) and other non-committal profiles it stays 0 — the
+      // Laubach evidence slope ALREADY embeds the observed regime's average adjustment pricing;
+      // ramping it too would double-count. It ramps only for profiles that announce consolidation
+      // (marketPricesConsolidation: true), compressing premia below the evidence slope.
+      const credTrigger = config.fiscalCredibilityTrigger ?? DEFAULT_FISCAL_CREDIBILITY_TRIGGER;
+      const adjHorizon = config.fiscalAdjustmentHorizonYears ?? DEFAULT_FISCAL_ADJUSTMENT_HORIZON_YEARS;
+      const prevAdjExp = previousFiscalMonetary?.bondMarket.adjustmentExpectation ?? 0;
+      const prevServiceRatio = previousFiscalMonetary?.fiscal.debtServiceRevenueRatio ?? BASELINE_DEBT_SERVICE_REVENUE_RATIO;  // E-9c row 2: the observed 2025 ratio (was ?? 0)
+      const adjustmentExpectation = !(fiscalProfile.marketPricesConsolidation ?? false)
+        ? 0
+        : prevServiceRatio > credTrigger
+          ? Math.min(1, prevAdjExp + 1 / adjHorizon)
+          : Math.max(0, prevAdjExp - 1 / adjHorizon);
+
       const fiscalRiskResult = computeFiscalRiskPremium(
         debtResult.debtGDPRatio,
         prevDebtGDPForRisk,
@@ -1867,6 +2068,21 @@ export function runSimulation(
         config.fiscalRiskPremiumMax ?? 0.06,
         config.fiscalRiskLevelMidpoint ?? 2.0,
         config.fiscalRiskTrajectoryMidpoint ?? 0.15,
+        adjustmentExpectation,  // E-8 (profile-gated per E-8b item 4)
+        config.legacyFiscalPremium ?? false,                    // E-8b isolation toggle
+        initialDebtGDPRatio,                                    // E-8b: the 2025 debt anchor
+        // D-fix: the anchor matches the slot's basis — PRIMARY baseline with the primary slot
+        (config.legacyTotalDeficitPremium ?? false)
+          ? BASELINE_DEFICIT_GDP_RATIO
+          : BASELINE_PRIMARY_DEFICIT_GDP_RATIO,
+        config.laubachLevelBeta ?? DEFAULT_LAUBACH_LEVEL_BETA,
+        config.laubachDeficitBeta ?? DEFAULT_LAUBACH_DEFICIT_BETA,
+        nominalGDPHistory.length >= 1 && nominalGDPHistory[nominalGDPHistory.length - 1]! > 0
+          ? ((config.legacyTotalDeficitPremium ?? false)
+              ? debtResult.totalDeficit
+              : debtResult.totalDeficit - spending.interestExpense)  // D-fix: the PRIMARY deficit
+            / nominalGDPHistory[nominalGDPHistory.length - 1]!
+          : undefined,
       );
       const rawFiscalRiskPremium = fiscalRiskResult.fiscalRiskPremium;
       // Phase 8 fix: Consolidation credibility — markets reward fiscal effort
@@ -1913,9 +2129,15 @@ export function runSimulation(
       const yieldResult = computeTenYearYield(
         fedResult.policyRate,
         expectedAvgPolicyRate,
-        config.termPremium ?? 0.003,  // Phase 8 Fix 4: configurable, down from 0.005
+        config.termPremium ?? TERM_PREMIUM,  // E-8c F-C: single source — the ACM-cited constant
         fiscalRiskPremium,
-        moneyResult.bondFinancedDeficit,
+        // D-fix (ruled, retire-or-recite → RETIRED): the supply-pressure premium was a SECOND
+        // reader of the deficit the Laubach reduced-form already prices (the E-11 double-count
+        // class). The Greenwood-Vayanos recite was considered and not taken: its issuance basis
+        // (primary deficit + rollover volume) is dominated by the rollover of the existing stock,
+        // which is proportional to the debt that β_level already prices — a third read of the
+        // same integrator through a different window. legacySupplyPressure: true = the old reader.
+        (config.legacySupplyPressure ?? false) ? moneyResult.bondFinancedDeficit : 0,
         foreignDemandRatio,
         prevMacroForFiscal.gdpNominal,
         // Phase 8 Fix 3: absorption capacity for demand-adjusted supply pressure
@@ -1977,11 +2199,22 @@ export function runSimulation(
         config.maturityStressSensitivity ?? 1.0,
       );
 
+      // E-9 item 4 (ratified): SPLIT rollover per the constant's own WAM citation — the coupon
+      // stock (~17%/yr, 1/6 WAM) reprices at the 10Y-based rate; the bills layer (~13%/yr of the
+      // total 30%) rolls at the POLICY-based rate. legacySingleRollover = the pre-E-9 single bucket.
+      // Residual approximation documented: two buckets vs the true maturity ladder.
+      const billsShare = (config.legacySingleRollover ?? false) ? 0
+        : Math.max(0, rolloverResult.effectiveRolloverRate - DEBT_ROLLOVER_COUPON_RATE);
+      const couponShare = rolloverResult.effectiveRolloverRate - billsShare;
+      const blendedNewIssueRate = rolloverResult.effectiveRolloverRate > 0
+        ? (couponShare * yieldResult.tenYearYield + billsShare * fedResult.policyRate)
+          / rolloverResult.effectiveRolloverRate
+        : yieldResult.tenYearYield;
       const newWeightedAvgRate = computeWeightedAverageDebtRate(
         previousDebtStock,
         previousWeightedAvgDebtRate,
         rolloverResult.effectiveRolloverRate, // Phase 8 Fix 3: was DEBT_ROLLOVER_RATE (hardcoded 0.30)
-        yieldResult.tenYearYield,
+        blendedNewIssueRate,                  // E-9 item 4: 17/13 blend
         debtResult.totalDeficit,
         debtResult.debtStock,
       );
@@ -1994,12 +2227,14 @@ export function runSimulation(
           interestExpense: spending.interestExpense,
           debtServiceRevenueRatio,
           weightedAverageDebtRate: newWeightedAvgRate,
-          totalGovernmentRevenue: revenue.totalGovernmentRevenue,
+          bookedRevenueT1: revenue.bookedRevenueT1,
           revenueGDPRatio: revenue.revenueGDPRatio,
           laborTaxRevenue: revenue.laborTaxRevenue,
           corporateTaxRevenue: revenue.corporateTaxRevenue,
           primaryDeficit: debtResult.primaryDeficit,
           totalDeficit: debtResult.totalDeficit,
+          // Stage 5 (H3): stabilizer outlay booked this year (= prev year's income-side flow)
+          stabilizerTransfers: spending.stabilizerTransfers,
           // Phase 8a: Fiscal consolidation
           consolidationIntensity: consolidation.consolidationIntensity,
           discretionaryMultiplier: consolidation.discretionaryMultiplier,
@@ -2017,12 +2252,14 @@ export function runSimulation(
           fiscalDominanceGap: fedResult.fiscalDominanceGap,
           dominanceFactor: fedResult.dominanceFactor,
           outputGap,
-          fullEmploymentGDP,
+          fullEmploymentGDP: pluckingPotentialGDP,  // E-8c F-A: the plucking ceiling
         },
         bondMarket: {
           tenYearYield: yieldResult.tenYearYield,
           expectedAveragePolicyRate: expectedAvgPolicyRate,
-          termPremium: config.termPremium ?? 0.003,  // Phase 8 Fix 4: configurable
+          marketInflationAnchor,  // E-7 state
+          adjustmentExpectation,  // E-8 state
+          termPremium: config.termPremium ?? TERM_PREMIUM,  // E-8c F-C: single source
           fiscalRiskPremium,
           supplyPressurePremium: yieldResult.supplyPressurePremium,
           mortgageRate: rates.mortgageRate,
@@ -2049,6 +2286,9 @@ export function runSimulation(
           // Phase 8 Fix 3: Monetization transmission and taper diagnostics
           transmissionEfficiency: moneyResult.transmissionEfficiency,
           taperApplied: monetizationResult.taperApplied,
+          // Stage 4: surface the FLOORED dynamic velocity used in the Fisher term (was previously
+          // only visible as the un-floored baseline on MonetaryState).
+          velocity: dynamicVelocityForMonetization,
         },
       };
 
@@ -2114,6 +2354,17 @@ export function runSimulation(
       mortgageStressIndex,
       dynamicHomeownership,
       shelterCPIWeight: config.shelterCPIWeight,
+      // Stage 1: sectoral price architecture params
+      aiExposedCPIWeight: config.aiExposedCPIWeight,
+      laborServicesCPIWeight: config.laborServicesCPIWeight,
+      foodEnergyCPIWeight: config.foodEnergyCPIWeight,
+      aiDeflationPassthrough: config.aiDeflationPassthrough,
+      laborCostShare: config.laborCostShare,
+      // Stage 1.5: per-consumption-sector deflation routing + embodied passthroughs
+      sectorDeflationByConsumption,
+      laborServicesPassthrough: config.laborServicesPassthrough,
+      foodEnergyPassthrough: config.foodEnergyPassthrough,
+      shelterPassthrough: config.shelterPassthrough,
       shelterInflationStickiness: config.shelterInflationStickiness,
       housingWealthMPC: config.housingWealthMPC,
       mpcWageUESensitivity: config.mpcWageUESensitivity,
@@ -2141,15 +2392,18 @@ export function runSimulation(
       traditionalInvestmentDemandSensitivity: config.traditionalInvestmentDemandSensitivity,
       traditionalInvestmentGDPFraction: config.traditionalInvestmentGDPFraction,
       baselineCreditFunded: capturedBaselineCreditFunded ?? undefined,
-      // ═══ Phase 6: Consumer Credit Inputs (previous year — bank underwriting lag) ═══
+      // ═══ Phase 6 / Stage 2: Consumer Credit Inputs (previous year — bank underwriting lag) ═══
+      // Stage 2 firewall: underwrite NOMINAL income (debt service is nominal — Fisher 1933). Previously
+      // these were deflated by priceLevel, so AI cost-deflation inflated "real" income and made 43%-UE
+      // borrowers read as abundantly creditworthy. Now compared to a nominal trend-grown baseline below.
       prevRealWageIncome: previousMacro
-        ? previousMacro.afterTaxWageIncome / previousMacro.priceLevel
+        ? previousMacro.afterTaxWageIncome
         : baselineHouseholdIncome ?? 0,
       prevRealTransferIncome: previousMacro
-        ? previousMacro.afterTaxTransferIncome / previousMacro.priceLevel
+        ? previousMacro.afterTaxTransferIncome
         : 0,
       prevRealAssetIncome: previousMacro
-        ? previousMacro.afterTaxAssetIncome / previousMacro.priceLevel
+        ? previousMacro.afterTaxAssetIncome
         : 0,
       prevHomePriceChangeRate: previousMacro?.homePriceChangeRate ?? 0,
       prevCWI: previousMacro?.consumerWelfareIndex ?? creditBaselineCWI ?? 100,
@@ -2210,6 +2464,53 @@ export function runSimulation(
       aiDisplacementUnemployment: currentYearAiDisplacementStock,
       aggregateReplacementDifficultyWagePremium,
       scarcityIntensity: config.scarcityIntensity ?? DEFAULT_SCARCITY_INTENSITY,
+      // Stage 3: endogenous wage equation params
+      inflationIndexation: config.inflationIndexation,
+      productivityPassthrough: config.productivityPassthrough,
+      phillipsSlope: config.phillipsSlope,
+      downwardWageRigidity: config.downwardWageRigidity,
+      // Stage 5 (H3): unified incremental-UE transfer support
+      // Stage 6.5: stock-flow housing params + baseline
+      formationSensitivity: config.formationSensitivity,
+      headshipRecoveryRate: config.headshipRecoveryRate,
+      housingSupplyElasticity: config.housingSupplyElasticity,
+      embodiedCapacityGain: config.embodiedCapacityGain,
+      housingDepreciationRate: config.housingDepreciationRate,
+      landShare: config.landShare,
+      constructionLaborShare: config.constructionLaborShare,
+      landIncomeBeta: config.landIncomeBeta,
+      landScarcityElasticity: config.landScarcityElasticity,
+      rentOccupancyElasticity: config.rentOccupancyElasticity,
+      rentCostAnchorWeight: config.rentCostAnchorWeight,
+      baselineCapRate: config.baselineCapRate,
+      capRateMortgageBeta: config.capRateMortgageBeta,
+      capRateInvestorCompression: config.capRateInvestorCompression,
+      fireSaleElasticity: config.fireSaleElasticity,
+      investorDemandIntensity: config.investorDemandIntensity,
+      baselineAssetIncomeShare: baselineAssetIncomeShare ?? undefined,
+      // Stage 7: residual profits
+      otherCostsShare: config.otherCostsShare,
+      aiSectorLaborShare: config.aiSectorLaborShare,
+      rentSharingElasticity: config.rentSharingElasticity,
+      secularProfitDriftRate: config.secularProfitDriftRate,
+      // E-10
+      builderAdjustmentLambda: config.builderAdjustmentLambda,
+      housingPipelineDuration: config.housingPipelineDuration,
+      landClosureKappa: config.landClosureKappa,
+      mortgageRateReference: config.mortgageRateReference,
+      opexPassthrough: config.opexPassthrough,
+      rentDownwardRigidity: config.rentDownwardRigidity,
+      rentIncomeElasticity: config.rentIncomeElasticity,
+      diagSpotBuilderPrice: config.diagSpotBuilderPrice,
+      builderPriceMode: config.builderPriceMode,
+      constructionCreditSensitivity: config.constructionCreditSensitivity,
+      // F4/OD-8 examination
+      creditExpectationTurnover: config.creditExpectationTurnover,
+      creditBarRealTrend: config.creditBarRealTrend,
+      assetShareDriftRate: config.assetShareDriftRate,
+      landRateSensitivity: config.landRateSensitivity,
+      cashTransferPerUnemployed: config.cashTransferPerUnemployed,
+      inKindTransferPerUnemployed: config.inKindTransferPerUnemployed,
       laborForceBaseline: config.laborForce ?? US_LABOR_FORCE_2025,
     };
     const macro = computeMacro(macroInputs);
@@ -2245,8 +2546,8 @@ export function runSimulation(
       homeownershipQ4: dynamicHomeownership[3] ?? 0.75,
       homeownershipQ5: dynamicHomeownership[4] ?? 0.81,
       avgHomeownership: dynamicHomeownership.reduce((a, b) => a + b, 0) / 5,
-      // Phase 8 Fix 5: nominalWageGrowth kept on MacroOutput but zeroed (wage growth chain deprecated)
-      nominalWageGrowth: 0,
+      // Stage 3: nominalWageGrowth is the endogenous wage path computed in computeMacro — keep it (was zeroed).
+      nominalWageGrowth: macro.nominalWageGrowth,
       // Phase 10.A — cumulative AI-displacement unemployment override (simulation.ts authoritative)
       aiDisplacementUnemployment: currentYearAiDisplacementStock,
       // Phase 9: Supply chain diagnostics
@@ -2283,14 +2584,24 @@ export function runSimulation(
       // Baseline underwritable income: uses same discount weights as computeConsumerCreditConditions
       // so that income adequacy ratio starts at 1.0 at baseline (no artificial tightening)
       const trw = config.transferReliabilityWeight ?? DEFAULT_TRANSFER_RELIABILITY_WEIGHT;
+      // Stage 2: NOMINAL baseline (priceLevel = 1.0 at year 0, so this is year-0 nominal dollars).
       baselineHouseholdIncome = (
         macro.afterTaxWageIncome * 1.0
         + macro.afterTaxTransferIncome * trw
         + macro.afterTaxAssetIncome * ASSET_INCOME_UNDERWRITING_WEIGHT
-      ) / macro.priceLevel;
+      );
+    }
+    // Stage 6.5 (OD-9b): capture the year-0 asset-income share — the investor land bid's baseline
+    if (baselineAssetIncomeShare === null && macro.totalIncome > 0) {
+      baselineAssetIncomeShare = macro.aggregateAssetIncome / macro.totalIncome;
     }
     if (baselineCorporateProfits === null) {
-      baselineCorporateProfits = macro.afterTaxCorporateProfits;
+      // Stage 0 (item 2): capture the profit-coverage baseline from the model's ENDOGENOUS profits
+      // (corporateProfits × (1−corpTax)), NOT afterTaxCorporateProfits — which at year 0 reflects the
+      // 0.13 BEA profit/GDP bootstrap rather than the 0.11-margin trajectory the model actually follows
+      // from t≥2. Capturing from endogenous profits makes profitCoverageRatio start and stay ≈ 1.0.
+      const corpTaxRate0 = yearParams.effectiveCorporateTaxRate.effective;
+      baselineCorporateProfits = macro.corporateProfits * (1 - corpTaxRate0);
       creditBaselineCWI = macro.consumerWelfareIndex;
     }
     // Capacity gate baseline: capture credit-funded investment from year 0's ENDOGENOUS profits.
@@ -2423,21 +2734,19 @@ export function runSimulation(
     // The effectiveCIF is encoded in macro's cumulativeInflationFactor output vs the dampened version.
     // We track it via the macro output's cumulativeInflationFactor — if no dampening, it equals CIF.
     if (fiscalMonetaryOutput.fiscal && fiscalProfile) {
-      // effectiveCIF is the dampened factor used for transfers inside computeMacro.
-      // Since macro applies dampening internally, we can derive it:
-      // if colaDampening is active, macro.baselineTransferIncome = BASELINE_TRANSFER_INCOME × effectiveCIF.
-      // For simplicity, store the CIF from macro output (which is always the raw undampened CIF).
-      // The actual dampened CIF is only used internally in macro. We report it for CSV transparency.
-      const cif = macroWithJobs.cumulativeInflationFactor;
-      let effectiveCIF = cif;
-      if (cif > fiscalProfile.colaDampeningThreshold) {
+      // Stage 5b (Pass 2): the COLA-dampening lever now operates on the COLA-floored obligation
+      // index (macro's obligationGCOLAIndex), not the CIF. Mirror macro's internal computation
+      // exactly for CSV transparency.
+      const colaIdx = macroWithJobs.obligationGCOLAIndex;
+      let effectiveCOLA = colaIdx;
+      if (colaIdx > fiscalProfile.colaDampeningThreshold) {
         const dampenRange = fiscalProfile.colaDampeningMaxCIF - fiscalProfile.colaDampeningThreshold;
         const dampenIntensity = dampenRange > 0
-          ? Math.min(1, (cif - fiscalProfile.colaDampeningThreshold) / dampenRange) : 1.0;
+          ? Math.min(1, (colaIdx - fiscalProfile.colaDampeningThreshold) / dampenRange) : 1.0;
         const dampenFactor = 1.0 - dampenIntensity * fiscalProfile.colaDampeningRate;
-        effectiveCIF = 1.0 + (cif - 1.0) * dampenFactor;
+        effectiveCOLA = 1.0 + (colaIdx - 1.0) * dampenFactor;
       }
-      fiscalMonetaryOutput.fiscal.effectiveCOLAFactor = effectiveCIF;
+      fiscalMonetaryOutput.fiscal.effectiveCOLAFactor = effectiveCOLA;
     }
 
     // Phase 8a: Track debt/GDP history for consolidation lag

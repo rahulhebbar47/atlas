@@ -114,7 +114,39 @@ Three AI vectors (generative, agentic, embodied), each with 4 parameters:
 |---|---|---|---|---|
 | Augmentation Adoption Steepness | `config.augmentationAdoptionSteepness` | 0.1–2.0 | Eq 1.7 | Logistic steepness of the pre-BFCS augmentation S-curve: `rate = 1 / (1 + exp(−steepness × yearsSinceAugTrigger))`. At the 0.8 default, augmentation reaches ≈98% in ~5 years post-viability. |
 | Competitive Pressure Threshold | `config.competitivePressureThreshold` | 0.05–0.5 | Eq 1.4 | Adoption-rate level above which competitive pressure kicks in and accelerates adoption further (default 0.2 → pressure activates once >20% adopted). |
-| Scarcity Intensity (Phillips Mechanism 2) | `config.scarcityIntensity` | 0–1.0 | Eq 4.3 | Intensity of the AI-driven wage scarcity premium: `premium = aiShare × scarcityIntensity × aggregateReplacementDifficultyWagePremium`. |
+| Scarcity Intensity | `config.scarcityIntensity` | 0–1.0 | Eq 4.3 | Peak of the hump-shaped wage scarcity premium LEVEL `= scarcityIntensity × coverage × (1−coverage)`; its contribution to wage GROWTH is the year-over-year Δ of the level (wages rise as coverage→0.5, normalize beyond). |
+
+##### The Endogenous Wage Equation (`WageEquationControls`)
+
+`nominalWageGrowth = inflationIndexation × compositeInflation(t−1) + productivityPassthrough × perWorkerProductivity − phillipsSlope × max(0, UE−NAIRU) + Δ scarcityPremiumLevel`, with `× (1 − downwardWageRigidity)` when negative.
+
+| Label | Config Field | Default | Range | Description |
+|---|---|---|---|---|
+| Inflation Indexation | `config.inflationIndexation` | 1.0 | 0–1.5 | Fraction of LAGGED composite inflation passed into nominal wage growth (COLA). 1.0 = full indexation. Lagged (R7) to break the wage-price spiral. |
+| Productivity Passthrough | `config.productivityPassthrough` | 1.0 | 0–1.5 | Fraction of genuine per-worker productivity growth (1.6% = baselineGDPGrowth − population) reaching wages. Population growth enters aggregate wage income via employment, not the wage level. |
+| Phillips Slope | `config.phillipsSlope` | 0.30 | 0–1.0 | Wage-Phillips semi-elasticity: pp reduction in annual nominal wage growth per pp of excess unemployment. One-sided (below-NAIRU tightness does not boost). Source: Blanchard (2016) / Galí (0.2–0.5). |
+| Downward Wage Rigidity | `config.downwardWageRigidity` | 0.60 | 0–1.0 | Asymmetric resistance to NOMINAL wage cuts: when growth would be negative, only (1−rigidity) passes through. 1.0 = wages never cut; 0 = fully flexible. **Daly & Hobijn (2014)** document strong nominal rigidity (spike at 0% wage change), but 1930–33 saw ~20–25% aggregate nominal-wage declines — so a single value cannot be 1.0; 0.60 keeps wages sticky in mild downturns yet lets them fall materially in a 40%-UE collapse. (Registered open item: duration/severity-dependent erosion of this rigidity — decision record: docs/FABLE_AUDIT_SUMMARY.md.) |
+
+##### Residual Corporate Profits
+
+`corporateProfits = GDP − wageBill − nonCorpIncome − otherCostsShare×GDP` — margins are OUTPUTS; labor share is a COMPUTED OUTPUT. The three-way split of AI gains is closed: prices (the sector passthroughs) → consumers; wage passthrough + rent-sharing → workers; capital gets the residual by identity.
+
+| Label | Config Field | Default | Range | Description |
+|---|---|---|---|---|
+| Productivity Passthrough | `config.productivityPassthrough` | **0.90** (D-1) | 0–1.5 | Calibrated to the OBSERVED aggregate labor-share drift (≈ −0.10pp/yr; 1980-2020 fell only ~5-6pp). The famous productivity-pay "decoupling" is predominantly median/composition/deflator (Stansbury & Summers 2017; Lawrence; EPI) — **the ~0.3-class values are the misapplied median-capture figure and are explicitly rejected** for this parameter, which controls the labor-vs-capital split now that profits are residual. (D-3: `inflationIndexation` stays 1.0 — the 10.B 0.7 was a short-run passthrough misapplied to a 25-yr horizon; permanent real-wage erosion violates nominal homogeneity.) |
+| Other Costs Share | `config.otherCostsShare` | ≈0.113 (init-derived) | 0.05–0.30 | Model-frame proxy of NIPA CFC (≈17% GDP) + production taxes (≈6.6%), net of the PI-frame wage-share wedge; derived at init so the year-0 residual = the BEA profit ratio exactly. |
+| AI-Sector Labor Share | `config.aiSectorLaborShare` | 0.15 | 0–0.5 | 10.B: big-tech labor intensity. AI profits = aiGDP × (1−this) × (1−otherCostsShare); per-worker equity capture is a Stage-8 distribution matter. |
+| Rent-Sharing Elasticity | `config.rentSharingElasticity` | 0.10 | 0–0.3 | Wage-growth clawback per unit profit-share deviation (Card, Cardoso, Heining & Kline 2018; surveyed 0.05-0.15). TWO-SIDED: recessions compress rent-sharing (stabilizing) — contrast the one-sided investor land bid (R24). |
+| Secular Profit Drift | `config.secularProfitDriftRate` | 0.001/yr | 0–0.003 | **The worldview fork as one dial** (Q-2): at 0.001 the rent-sharing baseline drifts at the observed 1980-2020 labor-share-decline rate (the trend continues); at **0** the baseline is constant and rent-sharing makes the D-1 drift self-limiting (asymptote ≈ −1.6pp — the post-2015-stabilization reading). Same number as the D-1 calibration; no new free constant. |
+
+##### Unified Incremental-Unemployment Transfer Support
+
+Single source of truth: household income (cash), consumption (in-kind, NIPA PCE), and the federal budget (sum) all read these two constants per incrementally unemployed person.
+
+| Label | Config Field | Default | Range | Description |
+|---|---|---|---|---|
+| Cash Support per Unemployed | `config.cashTransferPerUnemployed` | 8,000 | 0–40,000 | Annual CASH support per incremental unemployed in 2025 dollars (→ transfer income → MPC → C); indexed over time by the COLA index (never cut nominally; subject to the COLA-dampening lever). Stock-average with recipiency baked in: UI = $430/wk (DOL ETA CY2024 AWBA) × 28% stock recipiency × 52 ≈ $6,260; SNAP = $345/mo household (USDA FNS FY2024) × 40% receipt ≈ $1,700. |
+| In-Kind Support per Unemployed | `config.inKindTransferPerUnemployed` | 5,000 | 0–30,000 | Annual IN-KIND support per incremental unemployed in 2025 dollars (→ PCE consumption directly; also a budget outlay; NOT cash income, untaxed, bypasses MPC and credit multipliers); indexed over time by the cumulative labor-services sector price index (healthcare is labor-services consumption, so this support inflates with that sector and deflates with the Baumol channel). Medicaid ≈ $4,500 (KFF FY2021 per-enrollee × 0.75 Great-Recession enrollment elasticity) + ACA APTC ≈ $500. |
 | Replacement Multiplier | `config.replacementMultiplier` | 0.5–10.0 | Eq 1.9 | Multiplier in the AI replacement productivity formula: `effectiveProductivity = 1 + weightedCapability × betterScore × replacementMultiplier × (1 + cheaperScore)`. Drives the "more output per displaced worker" effect in Eq 5.5. |
 
 #### `InferenceCostCurveControls.tsx` (Phase 10.A floored decay)
@@ -247,6 +279,21 @@ Three AI vectors (generative, agentic, embodied), each with 4 parameters:
 | Wage Pass-Through | `config.wagePassThrough` | 0–1 | — | Fraction of unit-labor-cost increases passed through to prices. |
 | Wage Automation Sensitivity | `config.wageAutomationSensitivity` | 0–1 | — | Sensitivity of automation adoption to minimum-wage cost pressure (higher minimum wage → more automation). |
 
+#### Sectoral Price Architecture
+
+Composite CPI = weighted blend of four consumption sectors (§5.2.3). Each sector's CPI weight is user-adjustable (normalized to sum 1). Each **passthrough** is "the fraction of AI cost savings reaching consumer prices in this sector, **net of regulatory friction and government policy**" — this single knob deliberately absorbs regulation, permitting, and supply-management policy. The cluster→sector routing (R10) is a documented constant, **not** user-adjustable.
+
+| Label | Config Field | Default | Range | Description |
+|---|---|---|---|---|
+| AI-Exposed CPI Weight | `config.aiExposedCPIWeight` | 0.22 | 0–1 | Consumption share of AI-exposed goods & services (durables, info/comm, financial & professional, etc.). |
+| Labor-Services CPI Weight | `config.laborServicesCPIWeight` | 0.22 | 0–1 | Consumption share of labor-intensive services (medical, education, transport/recreation services). |
+| Food & Energy CPI Weight | `config.foodEnergyCPIWeight` | 0.20 | 0–1 | Consumption share of food + energy. |
+| AI-Deflation Passthrough (AI-exposed) | `config.aiDeflationPassthrough` | 0.70 | 0–1 | Fraction of **cognitive** AI cost savings reaching AI-exposed prices (competitive → most savings pass; retained → margins). |
+| Labor-Services Passthrough | `config.laborServicesPassthrough` | 0.15 | 0–1 | Fraction of **embodied** (service-robotics) cost savings reaching service prices, net of licensing/regulatory friction. |
+| Food & Energy Passthrough | `config.foodEnergyPassthrough` | 0.10 | 0–1 | Fraction of **embodied** (agricultural-automation) cost savings reaching food/energy prices, net of supply management. |
+| Shelter Passthrough | `config.shelterPassthrough` | 0.05 | 0–1 | Fraction of **embodied** (construction-robotics) cost savings reaching shelter prices, net of housing/land-use regulation (near-zero by default). An interim hook; the stock-flow housing block carries the main shelter dynamics. |
+| Labor Cost Share | `config.laborCostShare` | 0.60 | 0–1 | Labor compensation share of service-sector output (Baumol channel + embodied erosion of the labor-cost component). |
+
 ---
 
 ### 3.6 Credit & Financial
@@ -266,21 +313,36 @@ Three AI vectors (generative, agentic, embodied), each with 4 parameters:
 
 ---
 
-### 3.7 Housing
+### 3.7 Housing — STAGE 6.5 stock-flow model
 
-`HousingControls.tsx`
+**Framing (owner ruling 6.5-4): the DEFAULTS encode current regulatory/land-use reality (the supply-constrained regime the modern CPI-shelter data measured); the parameters are the REFORM LEVERS.** Users representing housing-abundance reform raise `housingSupplyElasticity` or lower `landIncomeBeta` and watch shelter inflation fall — that is the model working, not a calibration knob.
 
-| Label | Config Field | Range | Equation Ref | Description |
+| Label | Config Field | Default | Range | Description |
 |---|---|---|---|---|
-| Shelter CPI Weight | `config.shelterCPIWeight` | 20%–50% | Eq 4.4 | `shelterWeight` in `compositeInflation = shelterWeight × shelter + (1 − shelterWeight) × goods`. Default 36% from BLS CPI-U relative importance. |
-| Shelter Stickiness | `config.shelterInflationStickiness` | 0–1 | Eq 4.4 | `stickiness` in `shelterDeflationFromAI = −embodiedCap × stickiness × 0.10`. Higher = shelter deflates less in response to AI capability gains (construction is among the last sectors to automate). |
-| Shelter Inflation Floor | `config.shelterInflationFloor` | −15% to 0% | Eq 4.4 | Hard floor on composite shelter inflation, preventing unrealistically deep shelter deflation (land scarcity constraint). |
-| Mortgage Stress Amp. | `config.mortgageStressAmplifier` | 0–2 | Eq 6.2 | `amplifier` in `mortgageStressIndex = 1.0 + (rawIndex − 1.0) × amplifier`. Amplifies the asymmetry effect where AI first hits high-income quintiles with larger mortgages. |
-| Housing Wealth MPC | `config.housingWealthMPC` | 0–0.15 | Eq 3.4, Eq 6.4 | MPC out of housing-wealth changes. `housingWealthDrag = BASELINE_WEALTH × homePriceChange × housingWealthMPC × avgHomeownership`. |
-| Foreclosure Lag | `config.foreclosureLag` | 0–3 yr | Eq 6.3 | Years between job loss and mortgage default — savings-buffer delay in the dynamic-homeownership model. |
-| Ownership Recovery | `config.homeownershipRecoveryRate` | 0%–10%/yr | Eq 6.3 | Annual rate at which homeownership pulls back toward baseline after a foreclosure episode. |
-| Institutional Buyer Rate | `config.institutionalBuyerRate` | 0–1 | Eq 4.4, Eq 6.4 | Fraction of foreclosed homes absorbed by institutional investors (dampens the `foreclosureSupply` term in shelter-inflation and home-price channels). |
-| Rental Demand Sensitivity | `config.rentalDemandSensitivity` | 0–1 | Eq 4.4 | `rentalSens` in `rentalDemandPressure = max(0, baseOwnership − avgOwnership) × rentalSens` — how much displaced owners' rental demand pressures shelter inflation. |
+| Formation Sensitivity | `config.formationSensitivity` | 0.06 | 0–0.3 | Δln(headship)/yr per unit negative income-growth deviation (one-sided). GR calibration: formation −60% at ≈−4pp (Census HVS/JCHS). **0 disables doubling-up.** |
+| Headship Recovery | `config.headshipRecoveryRate` | 0.12 | 0–0.5 | /yr reversion of headship to baseline (JCHS: ~5-7yr post-GR recovery). |
+| Supply Elasticity | `config.housingSupplyElasticity` | 1.5 | 0–4 | % starts per % profitability gap — **the regulatory-friction dial** (Saiz 2010; Topel-Rosen). Low = restrictive, high = abundance reform. |
+| Embodied Capacity Gain | `config.embodiedCapacityGain` | 1.0 | 0–5 | Construction-capacity gain at full embodied capability (robots build FASTER). ATLAS judgment param. |
+| Depreciation Rate | `config.housingDepreciationRate` | 0.0025 | 0.001–0.005 | /yr stock losses (HUD CINCH). |
+| Land Share λ | `config.landShare` | 0.40 | 0.2–0.6 | Land share of replacement cost — research snapshot (Davis-Heathcote/Lincoln; **no government API serves land prices**). |
+| Construction Labor Share | `config.constructionLaborShare` | 0.35 | 0.2–0.5 | Labor share of construction-cost growth (Census/RSMeans). |
+| Land Income Beta | `config.landIncomeBeta` | 1.0 | 0–1.5 | Land growth per unit nominal income growth (Knoll-Schularick-Steger). Ruled to stay 1.0 — a reform lever, not a tuning knob. |
+| Land Scarcity Elasticity | `config.landScarcityElasticity` | 2.0 | 0–5 | Land growth per unit occupancy gap (ATLAS judgment param, flagged). |
+| Rent-Occupancy Elasticity | `config.rentOccupancyElasticity` | 2.0 | 0.5–5 | Rent growth per unit occupancy gap (Rosen-Smith natural-vacancy literature). |
+| Rent Cost Anchor | `config.rentCostAnchorWeight` | 1.0 | 0–1 | Weight on replacement-cost growth in ΔR (Glaeser-Gyourko, ratified). 0 = literal occupancy-only form. |
+| Baseline Cap Rate | `config.baselineCapRate` | 0.052 | 0.03–0.08 | Rent-price ratio anchor (Davis-Lehnert-Martin; 2024-25 multifamily caps). |
+| Cap-Rate Mortgage Beta | `config.capRateMortgageBeta` | 0.4 | 0–1 | Δcap per Δmortgage rate (NCREIF/CBRE ≈0.3-0.5). Rate rises sink prices with stable rents (GR pattern). |
+| Cap-Rate Investor Compression | `config.capRateInvestorCompression` | 0 | 0–0.5 | Optional direct yield-compression channel (default OFF per ruling 6.5-2). |
+| Fire-Sale Elasticity | `config.fireSaleElasticity` | 1.75 | 0–4 | Price impact per unit unabsorbed foreclosure flow (Mian-Sufi-Trebbi 2015; replaces the hand-set ×3.0). |
+| **Investor Demand Intensity** | `config.investorDemandIntensity` | 0.10 | 0–0.5 | **The land/store-of-value thesis dial:** land bid per unit asset-income-share deviation. **ONE-SIDED by design — land ratchets up; gains are not surrendered when the asset share recedes (held, not dumped).** 0 = capital ignores land. |
+| Mortgage Stress Amp. | `config.mortgageStressAmplifier` | 0.40 | 0–2 | Retained: composition amplifier on credit collateral (Fed SCF quintiles). |
+| Housing Wealth MPC | `config.housingWealthMPC` | 0.05 | 0–0.15 | Retained; the wealth base now scales with the price index: `drag = BASELINE_WEALTH × ΔP_level × MPC × ownership`. |
+| Foreclosure Lag | `config.foreclosureLag` | 0.75 | 0–3 yr | Retained (dynamic-homeownership machinery). |
+| Ownership Recovery | `config.homeownershipRecoveryRate` | 0.02 | 0–0.10/yr | Retained. |
+| Institutional Buyer Rate | `config.institutionalBuyerRate` | 0.40 | 0–1 | Retained, re-pointed: fraction of foreclosures absorbed to RENTAL stock (conservation) vs left vacant (fire-sale pressure). |
+| Shelter CPI Weight | `config.shelterCPIWeight` | 0.36 | 20%–50% | Retained (BLS CPI-U relative importance). |
+
+**RETIRED** (inert on the config, kept for compile compatibility, marked deprecated): `shelterInflationStickiness`, `shelterInflationFloor`, `rentalDemandSensitivity`, `shelterPassthrough`, and the 5-channel price params (`affordabilityPriceSensitivity`, `incomeHousingElasticity`, `affordabilityReversionSensitivity`, `demographicHousingElasticity`, `downwardStickinessRatio`). Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 ---
 
@@ -470,6 +532,54 @@ These are reusable controls referenced by the cards above — they do not expose
 - **`PolicyKeyframeEditor.tsx`** — generic time-varying `PolicySchedule` editor (constant / linear ramp / custom multi-keyframe). Used by every `(schedule)` field above.
 - **`ParameterRow.tsx`** — renders a single parameter in `YearParameterSection` with baseline → autopilot → override provenance.
 - **`CollapsibleSection.tsx`**, **`DimensionSlider.tsx`**, **`FiscalPresetSelector.tsx`**, **`BaselineComparisonToggle.tsx`**, **`CapabilitySparkline.tsx`**, **`BFCSScoreBar.tsx`** — UI primitives with no additional parameters beyond what the parent card exposes.
+
+---
+
+## Model-Dynamics Dials (advanced)
+
+These dials govern the model's monetary, fiscal, and housing dynamics. Each is a config
+field readable in `src/models/constants.ts`, where the full citation block lives at the
+named constant. Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
+
+| Dial | Default | Range | Basis |
+|---|---|---|---|
+| creditExpectationTurnover | 1/7 | 0–1 | Blended household debt duration (Fed Z.1 / G.19); 0 = a fixed legacy expectation that never turns over |
+| assetShareDriftRate | derived | ≥0 | Dividend payout net of tax plus the secular ownership drift; 0 freezes the asset-income share |
+| demandTrendGrowth / creditBarRealTrend | emergent ≈1.84% | — | Per-worker productivity growth passed through to demand, plus population growth; setting 0.02 reproduces the older fixed-trend behavior |
+| landRateSensitivity | 0 (retired) | 0–2 | Interest-rate capitalization of land now arrives through the home-price channel; the direct sensitivity is inactive |
+| credibilityHorizonYears (τ_cred) | 10 | 3–30; 0 = sentinel | 10 years matches the post-1980 anchored-expectations era (confirmed by the 2021–23 episode); 5–8 represents the 1970s de-anchoring pole |
+| fiscalCredibilityTrigger / AdjustmentHorizon | 0.18 / 8y | — | Calibrated to the 1992–1998 US consolidation episode; active only under the fiscal-response profiles |
+| pceCpiWedge (fallback) / pceFormulaEffect | 0.005 / 0.002 | — | The CPI-versus-PCE inflation differential (BLS) / the BEA–BLS formula reconciliation |
+| usePceProxy | true | — | The Federal Reserve reads the NIPA-weighted price proxy, matching its actual target measure |
+| nonShelterBaseInflation | 0.0222 | — | CPI-U all-items inflation with the shelter component removed (the non-shelter complement) |
+| legacyNairu / legacySingleRollover / legacyTotalDeficitPremium / legacySupplyPressure | false | — | Diagnostic toggles that restore retired model forms for comparison runs; all off in normal use |
+| taylorSmoothing (ρ) | 0.5 | 0–0.9 | Clarida–Galí–Gertler (2000): quarterly smoothing 0.79–0.92, ≈0.5 at annual frequency |
+| marketAnchorInit | 0.027 | — | Derived from observed 2025 market pricing (two independent readings agree) |
+| laubachLevelBeta / laubachDeficitBeta | 0.035 / 0.25 | — | Laubach (2009); Engen–Hubbard (2004), primary-deficit basis |
+| monetizationDominanceThreshold / PremiumCoCondition | 0.50 / 0.01 | 0.25–0.8 / 0.002–0.05 | Historical monetization episodes (UK 1926, interwar France, Weimar) set the poles; the lower guard reflects the Volcker-era boundary |
+| fiscalDominanceThreshold | 0.25 | 0.15–0.40 | The IMF debt-sustainability interest-to-revenue band (20–25%) |
+| landClosureKappa | 0.45 | 0.1–1.0 | Calibrated to the 2022–23 land-price correction; 0 disables the closure (the older behavior) |
+| builderAdjustmentLambda | 0.6 | 0–0.9 | Matches the observed housing-starts adjustment cadence in 2022–23 (Census HOUST series) |
+| housingPipelineDuration | 1.2y | ≥0 | Length-biased blend of Census construction-duration data; consistent with the units-under-construction series (UNDCONTSA) |
+| builderPriceMode | trend-aware | spot / adaptive | How builders read prices: current spot, trend-aware (default), or adaptive-legacy — the adaptive setting represents a chronic-under-build world |
+| constructionCreditSensitivity | 2.0 | 0–3 | Solved against the 2006–2012 construction-lending episode (acquisition-development-construction credit data) |
+| opexPassthrough | 0.40 | 0–0.6 | Landlord operating-expense share (National Apartment Association / IREM data) |
+| rentDownwardRigidity | 0.85 | 0–1 | Genesove (2003) nominal rent rigidity plus the 2008–12 record; recalibration to the new-tenant basis is a registered open item |
+| rentIncomeElasticity (θ) | 0.47 | 0.3–0.7 | Derived from a 40-year decomposition of rent-to-income growth; invariant to the rent-measure basis |
+| mortgageRateReference | derived 10Y+spread | — | The 10-year Treasury yield plus the observed spread, dated consistently; the fixed 0.06 setting reproduces a retired fixed-rate behavior |
+| rentVintageLagYears (display) | 1.0 | 0–2 | New-tenant rents lead the stock rent measure by about four quarters (BLS New Tenant Rent Index) |
+
+---
+
+## Supply-Chain Dials (`config.supplyChainConfig`)
+
+> **Dormant by default; calibration grade: largely uncited.** No `supplyChainConfig` is set in
+> the default configuration, so every consumer of this module is gated off — it contributes
+> exactly zero to baseline runs. Its ~20 defaults (shock inputs, resilience, training
+> composition and dynamics, cascade lags and premiums, pass-throughs, hysteresis) carry almost
+> no source citations. A user activating these dials is running scenario-only machinery whose
+> magnitudes are uncited. Any analysis built on this module should first validate it against
+> the 2021–22 chip-shortage record. Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 ---
 

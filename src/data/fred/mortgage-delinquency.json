@@ -1,11 +1,19 @@
 {
   "source": "FRED DRSFRMACBS (Delinquency Rate on Single-Family Residential Mortgages, All Commercial Banks)",
   "seriesOrTable": "DRSFRMACBS",
-  "fetchedAt": "2026-02-23T15:20:30.776Z",
-  "latestDate": "2025-07-01",
-  "mortgageDelinquencyRate": 0.0178,
-  "mortgageDelinquencyRatePercent": 1.78,
+  "fetchedAt": "2026-06-11T17:55:32.919Z",
+  "latestDate": "2026-01-01",
+  "mortgageDelinquencyRate": 0.0189,
+  "mortgageDelinquencyRatePercent": 1.89,
   "recentValues": [
+    {
+      "date": "2026-01-01",
+      "value": 0.0189
+    },
+    {
+      "date": "2025-10-01",
+      "value": 0.0179
+    },
     {
       "date": "2025-07-01",
       "value": 0.0178
@@ -16,11 +24,11 @@
     },
     {
       "date": "2025-01-01",
-      "value": 0.0178
+      "value": 0.0177
     },
     {
       "date": "2024-10-01",
-      "value": 0.0177
+      "value": 0.0178
     },
     {
       "date": "2024-07-01",
@@ -60,7 +68,7 @@
     },
     {
       "date": "2022-04-01",
-      "value": 0.0196
+      "value": 0.0195
     },
     {
       "date": "2022-01-01",
@@ -76,15 +84,7 @@
     },
     {
       "date": "2021-04-01",
-      "value": 0.0248
-    },
-    {
-      "date": "2021-01-01",
-      "value": 0.0268
-    },
-    {
-      "date": "2020-10-01",
-      "value": 0.0275
+      "value": 0.024700000000000003
     }
   ],
   "notes": "Quarterly. Delinquency rate on single-family residential mortgages booked in domestic offices. Pre-2008 baseline ~2%, peak 2010 ~11.5%. Used in Phase 5i mortgage stress amplifier to calibrate relationship between unemployment and mortgage defaults. Historical: ~1.8pp delinquency rise per 1pp unemployment rise (Great Recession, but subprime-weighted)."

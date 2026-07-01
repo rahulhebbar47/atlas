@@ -93,7 +93,7 @@ describe('parameterTimeline', () => {
   it('each year has profileName matching config', () => {
     const pt = defaultTimeline.parameterTimeline!;
     for (const [, yp] of pt) {
-      expect(yp.profileName).toBe('balanced_reduction + balanced_mandate');
+      expect(yp.profileName).toBe('observed_political_economy + balanced_mandate');
     }
   });
 
@@ -328,7 +328,7 @@ describe('CSV provenance columns', () => {
     // All rows should have the profile name
     const profileIdx = header.indexOf('param_profile_name');
     for (const row of rows) {
-      expect(row[profileIdx]).toBe('balanced_reduction + balanced_mandate');
+      expect(row[profileIdx]).toBe('observed_political_economy + balanced_mandate');
     }
 
     // Source values should be one of baseline/autopilot/override for simulated years.

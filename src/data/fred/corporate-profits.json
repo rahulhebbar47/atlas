@@ -1,0 +1,91 @@
+{
+  "source": "FRED CP (Corporate Profits After Tax)",
+  "seriesOrTable": "CP",
+  "fetchedAt": "2026-06-11T17:55:57.468Z",
+  "latestDate": "2026-01-01",
+  "profitsBillions": 3917.196,
+  "profitsDollars": 3917196000000,
+  "recentValues": [
+    {
+      "date": "2026-01-01",
+      "value": 3917.196
+    },
+    {
+      "date": "2025-10-01",
+      "value": 3792.207
+    },
+    {
+      "date": "2025-07-01",
+      "value": 3591.344
+    },
+    {
+      "date": "2025-04-01",
+      "value": 3355.897
+    },
+    {
+      "date": "2025-01-01",
+      "value": 3335.78
+    },
+    {
+      "date": "2024-10-01",
+      "value": 3689.46
+    },
+    {
+      "date": "2024-07-01",
+      "value": 3443.994
+    },
+    {
+      "date": "2024-04-01",
+      "value": 3468.719
+    },
+    {
+      "date": "2024-01-01",
+      "value": 3393.103
+    },
+    {
+      "date": "2023-10-01",
+      "value": 3354.444
+    },
+    {
+      "date": "2023-07-01",
+      "value": 3291.11
+    },
+    {
+      "date": "2023-04-01",
+      "value": 3175.76
+    },
+    {
+      "date": "2023-01-01",
+      "value": 3147.593
+    },
+    {
+      "date": "2022-10-01",
+      "value": 2891.819
+    },
+    {
+      "date": "2022-07-01",
+      "value": 3051.963
+    },
+    {
+      "date": "2022-04-01",
+      "value": 3156.677
+    },
+    {
+      "date": "2022-01-01",
+      "value": 2926.606
+    },
+    {
+      "date": "2021-10-01",
+      "value": 2951.199
+    },
+    {
+      "date": "2021-07-01",
+      "value": 2972.607
+    },
+    {
+      "date": "2021-04-01",
+      "value": 2984.5
+    }
+  ],
+  "notes": "Quarterly (SAAR). Corporate profits after tax in billions. Used as baseline corporate profits for Phase 7 equity module."
+}

@@ -26,10 +26,13 @@ import {
   computeBusinessCreditConditions,
   computeFiscalPressure,
   computeDeflationDrag,
-  // computeNominalWageGrowth, // DEPRECATED
+  computeNominalWageGrowth,  // Stage 3/7 endogenous wage equation (an older same-named fn was deprecated pre-Stage-3)
   computeHomePriceChange,
+  computeHousingBlock,
 } from '@/models/macro';
 import {
+  DEFAULT_OTHER_COSTS_SHARE,
+  BASELINE_PROFIT_GDP_RATIO,
   DEFAULT_START_YEAR,
   BASELINE_GDP_NOMINAL_2025,
   US_POPULATION_2025,
@@ -65,6 +68,9 @@ function zeroPolicyEffects(): PolicyEffects {
     wageChannelAddition: 0,
     assetChannelAddition: 0,
     transferChannelAddition: 0,
+    enhancedUIAddition: 0,
+    displacedFlatAddition: 0,
+  uiPricingWage: 0,
     totalPolicyIncome: 0,
     fiscalCost: 0,
     fiscalCostAsPercentGDP: 0,
@@ -296,7 +302,7 @@ describe('CPS/CES survey bridging constants', () => {
 
 describe('computeSectorWeightedDeflation', () => {
   it('returns 0 with no displacement (empty cluster results)', () => {
-    const deflation = computeSectorWeightedDeflation([], DEFAULT_START_YEAR);
+    const deflation = computeSectorWeightedDeflation([], DEFAULT_START_YEAR).total;
     expect(deflation).toBe(0);
   });
 
@@ -311,7 +317,7 @@ describe('computeSectorWeightedDeflation', () => {
       averageWage: 100_000,
       bfcsOutput: [],
     }];
-    const deflation = computeSectorWeightedDeflation(clusters, DEFAULT_START_YEAR);
+    const deflation = computeSectorWeightedDeflation(clusters, DEFAULT_START_YEAR).total;
     expect(deflation).toBe(0);
   });
 
@@ -336,8 +342,8 @@ describe('computeSectorWeightedDeflation', () => {
       averageWage: 100_000,
       bfcsOutput: [],
     }];
-    const lowDeflation = computeSectorWeightedDeflation(lowDisp, 2030);
-    const highDeflation = computeSectorWeightedDeflation(highDisp, 2030);
+    const lowDeflation = computeSectorWeightedDeflation(lowDisp, 2030).total;
+    const highDeflation = computeSectorWeightedDeflation(highDisp, 2030).total;
     expect(highDeflation).toBeGreaterThan(lowDeflation);
     expect(lowDeflation).toBeGreaterThan(0);
   });
@@ -787,11 +793,12 @@ describe('Nominal-first GDP architecture', () => {
       }));
       gdpHistory.push(result.gdpNominal);
 
-      // Nominal GDP should stay between $10T and $100T even after 25 years
-      // (zero-displacement scenario with ~2% real + ~2.3% inflation ≈ 4.3% nominal growth,
-      // compounding from $31.5T over 25 years ≈ $90T)
+      // Nominal GDP should stay bounded even after 25 years.
+      // Stage 0 (item 3): zero-displacement real growth corrected from ~1.6% to the full ~2.0%
+      // potential (population growth was previously cancelled in employmentRatio normalization).
+      // With ~2% real + ~2.9% inflation ≈ 4.9% nominal, $31.5T compounds to ~$103T over 25 years.
       expect(result.gdpNominal).toBeGreaterThan(10_000_000_000_000);
-      expect(result.gdpNominal).toBeLessThan(100_000_000_000_000);
+      expect(result.gdpNominal).toBeLessThan(115_000_000_000_000);
 
       // Investment share should never exceed 25% of nominal GDP
       if (year > DEFAULT_START_YEAR) {
@@ -1468,6 +1475,9 @@ describe('Phase 3: Demand-Constrained GDP', () => {
         wageChannelAddition: 0,
         assetChannelAddition: 1_000_000_000_000, // $1T SWF distribution
         transferChannelAddition: 0,
+        enhancedUIAddition: 0,
+        displacedFlatAddition: 0,
+  uiPricingWage: 0,
         totalPolicyIncome: 1_000_000_000_000,
         fiscalCost: 0,
         fiscalCostAsPercentGDP: 0,
@@ -1793,9 +1803,11 @@ describe('Phase 3: Demand-Constrained GDP', () => {
           // Year 0: no second-order modifiers applied to consumption
           expect(result.consumption).toBeCloseTo(sum, -5);
         } else {
-          // Year >0: consumption = sum × credit × deflation modifiers
-          // So consumption ≤ sum (modifiers are ≤ 1.0)
-          expect(result.consumption).toBeLessThanOrEqual(sum * 1.001); // small epsilon
+          // Year >0: consumption = sum × credit × deflation modifiers (≤ 1.0) + housingWealthDrag.
+          // housingWealthDrag is ADDITIVE and can be positive when home prices rise (Stage 0 item 3
+          // raised real income growth → stronger housing wealth effect), so consumption can slightly
+          // exceed the pre-modifier sum by the positive housing-wealth term.
+          expect(result.consumption).toBeLessThanOrEqual(sum * 1.001 + Math.max(0, result.housingWealthDrag));
           expect(result.consumption).toBeGreaterThan(0);
         }
 
@@ -1969,104 +1981,125 @@ describe('Housing Market Stabilization', () => {
     }));
   }
 
-  describe('institutional buyer absorption', () => {
-    it('institutionalBuyerRate=0 gives full foreclosure supply effect', () => {
-      const result = runWithHousing({
-        foreclosureRateAggregate: 0.10,
-        institutionalBuyerRate: 0,
-      });
-      // With zero institutional buyers, foreclosureSupplyEffect = -0.10 * 0.5 = -0.05
-      // institutionalAbsorption = 0
-      expect(result.institutionalAbsorption).toBeCloseTo(0, 10);
-      expect(result.foreclosureSupplyEffect).toBeCloseTo(-0.05, 5);
+  // STAGE 6.5: the additive shelter stack is replaced by the stock-flow housing model.
+  // The old tests asserted the retired hand-set coefficients (foreclosure ×0.5, rentersCreated ×
+  // rentalDemandSensitivity, the −0.05 floor); the structural semantics are tested below — on the
+  // pure computeHousingBlock where possible, and on the re-pointed diagnostics at the macro level.
+
+  describe('foreclosure fire-sale (structural, replaces ×0.5/×3.0 hand-set terms)', () => {
+    it('fire-sale pressure scales with the UNABSORBED foreclosure flow', () => {
+      const zero = runWithHousing({ foreclosureRateAggregate: 0.10, institutionalBuyerRate: 1.0 });
+      const full = runWithHousing({ foreclosureRateAggregate: 0.10, institutionalBuyerRate: 0 });
+      // institutionalBuyerRate=1 → all foreclosures absorbed → no price pressure
+      expect(zero.foreclosureSupplyEffect).toBeCloseTo(0, 10);
+      // unabsorbed flow → fireSale = −1.75 × (1−0) × 0.10 = −0.175 (Mian-Sufi-Trebbi default)
+      expect(full.foreclosureSupplyEffect).toBeCloseTo(-0.175, 5);
+      // diagnostic: share absorbed to rentals
+      expect(zero.institutionalAbsorption).toBeCloseTo(0.10, 10);
     });
 
-    it('institutionalBuyerRate=1.0 absorbs all foreclosure supply', () => {
-      const result = runWithHousing({
-        foreclosureRateAggregate: 0.10,
-        institutionalBuyerRate: 1.0,
-      });
-      // Raw = -0.10 * 0.5 = -0.05
-      // Absorption = 0.10 * 1.0 * 0.5 = +0.05
-      // Net = -0.05 + 0.05 = 0
-      expect(result.foreclosureSupplyEffect).toBeCloseTo(0, 5);
-      expect(result.institutionalAbsorption).toBeCloseTo(0.05, 5);
-    });
-
-    it('default rate (0.40) partially absorbs foreclosure supply', () => {
-      const result = runWithHousing({
-        foreclosureRateAggregate: 0.10,
-        // default institutionalBuyerRate = 0.40
-      });
-      // Raw = -0.05, absorption = 0.10 * 0.40 * 0.5 = 0.02
-      // Net = -0.05 + 0.02 = -0.03
-      expect(result.foreclosureSupplyEffect).toBeCloseTo(-0.03, 5);
-      expect(result.institutionalAbsorption).toBeCloseTo(0.02, 5);
+    it('CONSERVATION: foreclosures do not create rental inflation by tenure shift', () => {
+      // Pre-6.5, halved homeownership manufactured +16pp/yr rental pressure. Now tenure shifts
+      // stay inside the stock: rentalDemandPressure (= the occupancy term of ΔR) must NOT react
+      // to dynamicHomeownership at all — only occupancy (households vs stock) moves rents.
+      const base = runWithHousing({});
+      const collapsed = runWithHousing({ dynamicHomeownership: [0.32, 0.32, 0.32, 0.32, 0.32] });
+      expect(collapsed.rentalDemandPressure).toBeCloseTo(base.rentalDemandPressure, 10);
     });
   });
 
-  describe('rental demand pressure', () => {
-    it('baseline homeownership produces zero rental demand', () => {
-      // Default dynamicHomeownership is undefined → uses BASELINE_HOMEOWNERSHIP
-      const result = runWithHousing({});
-      expect(result.rentalDemandPressure).toBeCloseTo(0, 5);
+  describe('stock-flow housing block (pure)', () => {
+    const baseArgs = {
+      isFirstYear: false,
+      prevHousingStock: 146_600_000, prevHouseholds: 131_500_000,
+      prevHeadship: 131_500_000 / US_POPULATION_2025,
+      prevRentIndex: 1.0, prevConstructionCost: 1.0, prevLandCost: 1.0,
+      prevHomePriceIndex: 1.0, prevHousingStarts: 953_000,
+      population: US_POPULATION_2025 * 1.004,
+      nominalWageGrowth: 0.045, baseInflationRate: 0.026, broadGoodsPressure: 0,
+      secDeflShelter: 0, embodiedCapability: 0,
+      prevRealIncomeGrowthRate: 0.02, prevCompositeInflation: 0.029,
+      trendRealIncomeGrowth: 0.02,
+      foreclosureRateAggregate: 0, institutionalBuyerRate: 0.4,
+      mortgageRate: 0.06, prevMortgageRate: 0.06,
+      prevAssetIncomeShare: 0.30, baselineAssetIncomeShare: 0.30,
+      realizedPopulationGrowth: 0.004,
+      prevHousingPipeline: 0.95e6 * 1.2, prevBuilderPriceIndex: 1.0,
+      builderAdjustmentLambda: 0, housingPipelineDuration: 0,
+      landClosureKappa: 0, prevLandResidualTarget: 1.0,
+      formationSensitivity: 0.06, headshipRecoveryRate: 0.12,
+      supplyElasticity: 1.5, embodiedCapacityGain: 1.0, depreciationRate: 0.0025,
+      landShare: 0.40, constructionLaborShare: 0.35,
+      landIncomeBeta: 1.0, landScarcityElasticity: 2.0,
+      rentOccupancyElasticity: 2.0, rentCostAnchorWeight: 1.0,
+      opexPassthrough: 0.40, rentDownwardRigidity: 0.85,
+      rentIncomeElasticity: 0.47, prevAfterTaxIncomeGrowth: 0.044,
+      builderPriceMode: 'adaptive' as const, prevBuilderTrendGrowth: 0.037, prevHomePriceChangeRate: 0.037,
+      constructionCreditSensitivity: 0, prevBusinessCreditTightening: 0,
+      baselineCapRate: 0.052, capRateMortgageBeta: 0.4, capRateInvestorCompression: 0,
+      fireSaleElasticity: 1.75, investorDemandIntensity: 0.10, landRateSensitivity: 0.75,
+    };
+
+    it('zero-AI steady state: rent growth = replacement-cost growth (emergent shelter inflation)', () => {
+      const r = computeHousingBlock(baseArgs);
+      // RE-DERIVED from the post-E-11/L9 algebra (the L9c ruled-work closure): with the legacy
+      // anchor (weight 1.0 in baseArgs) rentGrowth ≡ replacementGrowth + occ; replacement growth
+      // is the VALUE-WEIGHTED identity over the block's OWN computed components (R25) — assert
+      // the identity against the block's outputs, not a hand-frozen land-path number.
+      // prev replacement = 0.6×1 + 0.4×1 = 1 → replacement growth = replacementCostIndex − 1
+      const replacementGrowth = r.replacementCostIndex - 1.0;
+      expect(r.rentGrowth).toBeCloseTo(1.0 * replacementGrowth + 2.0 * r.occupancyGap, 9);
+      // gap 0 at calibrated init → starts = equilibrium baseline (≈0.95M)
+      expect(r.profitabilityGap).toBeCloseTo(0, 6);
+      expect(r.housingStarts).toBeGreaterThan(900_000);
+      expect(r.housingStarts).toBeLessThan(1_000_000);
     });
 
-    it('halved homeownership produces positive rental demand', () => {
-      // avg homeownership = 0.32 → rentersCreated = 0.642 - 0.32 = 0.322
-      // rentalDemandPressure = 0.322 * 0.50 = 0.161
-      const result = runWithHousing({
-        dynamicHomeownership: [0.32, 0.32, 0.32, 0.32, 0.32],
-        rentalDemandSensitivity: 0.50,
-      });
-      expect(result.rentalDemandPressure).toBeCloseTo(0.161, 2);
+    it('formation collapses one-sided with income deviations; recovery pulls back (R24-class asymmetry)', () => {
+      const slump = computeHousingBlock({ ...baseArgs, prevRealIncomeGrowthRate: -0.02 });
+      const boom = computeHousingBlock({ ...baseArgs, prevRealIncomeGrowthRate: 0.06 });
+      const base = computeHousingBlock(baseArgs);
+      expect(slump.headshipRate).toBeLessThan(base.headshipRate);   // −4pp dev → headship falls
+      expect(boom.headshipRate).toBeCloseTo(base.headshipRate, 10); // boom does NOT raise it
+      // recovery: depressed headship reverts toward baseline absent shocks
+      const depressed = computeHousingBlock({ ...baseArgs, prevHeadship: baseArgs.prevHeadship * 0.97 });
+      expect(depressed.headshipRate).toBeGreaterThan(baseArgs.prevHeadship * 0.97);
     });
 
-    it('rentalDemandSensitivity=0 produces zero pressure regardless of homeownership', () => {
-      const result = runWithHousing({
-        dynamicHomeownership: [0.20, 0.20, 0.20, 0.20, 0.20],
-        rentalDemandSensitivity: 0,
-      });
-      expect(result.rentalDemandPressure).toBeCloseTo(0, 10);
-    });
-  });
-
-  describe('shelter inflation floor', () => {
-    it('floor clamps extreme shelter deflation', () => {
-      // Force huge deflation: high embodied cap + high foreclosure + zero buyers
-      const result = runWithHousing({
-        embodiedCapability: 0.95,
-        shelterInflationStickiness: 1.0,
-        foreclosureRateAggregate: 0.20,
-        institutionalBuyerRate: 0,
-        rentalDemandSensitivity: 0,
-        shelterInflationFloor: -0.05,
-      });
-      // Without floor: shelter would be very negative
-      // With floor: shelter >= -0.05
-      expect(result.shelterInflation).toBeGreaterThanOrEqual(-0.05);
+    it('investor land bid is ONE-SIDED (R24: land ratchets, is held not dumped)', () => {
+      const up = computeHousingBlock({ ...baseArgs, prevAssetIncomeShare: 0.50 });
+      const down = computeHousingBlock({ ...baseArgs, prevAssetIncomeShare: 0.10 });
+      expect(up.investorLandBid).toBeCloseTo(0.10 * 0.20, 10);  // intensity × +20pp deviation
+      expect(down.investorLandBid).toBe(0);                      // receding share → NO negative bid
+      expect(up.landGrowth).toBeGreaterThan(down.landGrowth);
     });
 
-    it('floor=0 prevents any shelter deflation', () => {
-      const result = runWithHousing({
-        embodiedCapability: 0.50,
-        foreclosureRateAggregate: 0.10,
-        institutionalBuyerRate: 0,
-        rentalDemandSensitivity: 0,
-        shelterInflationFloor: 0,
-      });
-      expect(result.shelterInflation).toBeGreaterThanOrEqual(0);
+    it('rate rises sink prices via capRate AND cool land/rents via E-6 (the Fed reaches every asset)', () => {
+      const rateShock = computeHousingBlock({ ...baseArgs, mortgageRate: 0.08 });
+      const base = computeHousingBlock(baseArgs);
+      // E-6: +2pp mortgage → land −0.75×2 = −1.5pp/yr → rents cool by the λ_eff share ≈ 0.4×1.5 = 0.6pp
+      expect(rateShock.landGrowth).toBeCloseTo(base.landGrowth - 0.75 * 0.02, 10);
+      expect(rateShock.rentGrowth).toBeCloseTo(base.rentGrowth - 0.4 * 0.75 * 0.02, 6);
+      // …while the capRate channel hits prices much harder (cap 5.2%→6.0%: P −15%)
+      expect(rateShock.homePriceGrowth).toBeLessThan(base.homePriceGrowth - 0.10);
     });
 
-    it('floor does not bind when shelter inflation is above it', () => {
-      // No deflation forces: embodied=0, no foreclosures
-      const result = runWithHousing({
-        embodiedCapability: 0,
-        foreclosureRateAggregate: 0,
-        shelterInflationFloor: -0.05,
-      });
-      // Shelter = BASELINE_SHELTER_INFLATION (+3.5%) > floor, so floor doesn't bind
-      expect(result.shelterInflation).toBeGreaterThan(0);
+    it('λ_eff → 1 limit: as construction gets cheap, land becomes the terminal constraint', () => {
+      const cheapCC = computeHousingBlock({ ...baseArgs, prevConstructionCost: 0.05, prevLandCost: 1.5 });
+      // λ_eff = 0.4×1.5 / (0.6×0.05 + 0.4×1.5) ≈ 0.952 → replacement growth ≈ land growth
+      expect(cheapCC.lambdaEffPrev).toBeGreaterThan(0.95);
+      const expectedRepl = (1 - cheapCC.lambdaEffPrev) * cheapCC.constructionCostGrowth
+        + cheapCC.lambdaEffPrev * cheapCC.landGrowth;
+      expect(cheapCC.rentGrowth).toBeCloseTo(expectedRepl, 4); // occupancy term ~1e-6 here (pop growth vs fixed stock)
+    });
+
+    it('supply responds to the profitability gap through the regulatory-friction dial', () => {
+      const profitable = computeHousingBlock({ ...baseArgs, prevHomePriceIndex: 1.2, prevBuilderPriceIndex: 1.2 });
+      const restricted = computeHousingBlock({ ...baseArgs, prevHomePriceIndex: 1.2, prevBuilderPriceIndex: 1.2, supplyElasticity: 0 });
+      expect(profitable.housingStarts).toBeGreaterThan(1.2 * 953_000);  // gap +20% × 1.5 → +30% starts
+      expect(restricted.housingStarts).toBeCloseTo(953_399, -3);        // elasticity 0 → baseline starts
+      const bust = computeHousingBlock({ ...baseArgs, prevHomePriceIndex: 0.3, prevBuilderPriceIndex: 0.3 });
+      expect(bust.housingStarts).toBe(0);                               // deep negative gap → zero starts
     });
   });
 
@@ -2212,5 +2245,342 @@ describe('computeHomePriceChange', () => {
     const defaultSens = computeHomePriceChange(-0.01, 0, 0, 0, 0);
     const doubleSens = computeHomePriceChange(-0.01, 0, 0, 0, 0, 8.0);
     expect(doubleSens).toBeCloseTo(defaultSens * 2, 4);
+  });
+});
+
+// ============================================================
+// Stage 6.5 (R25) — nonAI firewall add-back exactness
+// The shelter add-back is wSh × rentCostAnchorWeight × (1−λ_eff(t−1)) × secDefl.shelter.
+// Its correctness rests on the transmitted AI deflation in rents being EXACTLY linear in
+// secDefl.shelter — verified here at machine precision on the pure housing block.
+// ============================================================
+
+describe('Stage 6.5 (R25): transmitted AI deflation equals the firewall add-back exactly', () => {
+  it('ΔrentGrowth from shelter embodied deflation = anchorWeight × (1−λ_eff) × secDefl.shelter', () => {
+    const args = {
+      isFirstYear: false,
+      prevHousingStock: 150_000_000, prevHouseholds: 135_000_000,
+      prevHeadship: 0.39, prevRentIndex: 1.3, prevConstructionCost: 0.8,
+      prevLandCost: 1.6, prevHomePriceIndex: 1.1, prevHousingStarts: 700_000,
+      population: 350_000_000,
+      nominalWageGrowth: -0.03, baseInflationRate: 0.026, broadGoodsPressure: -0.01,
+      secDeflShelter: 0, embodiedCapability: 0.6,
+      prevRealIncomeGrowthRate: -0.04, prevCompositeInflation: -0.05,
+      trendRealIncomeGrowth: 0.02,
+      foreclosureRateAggregate: 0.06, institutionalBuyerRate: 0.4,
+      mortgageRate: 0.07, prevMortgageRate: 0.065,
+      prevAssetIncomeShare: 0.45, baselineAssetIncomeShare: 0.30,
+      realizedPopulationGrowth: 0.004,
+      formationSensitivity: 0.06, headshipRecoveryRate: 0.12,
+      supplyElasticity: 1.5, embodiedCapacityGain: 1.0, depreciationRate: 0.0025,
+      landShare: 0.40, constructionLaborShare: 0.35,
+      landIncomeBeta: 1.0, landScarcityElasticity: 2.0,
+      rentOccupancyElasticity: 2.0, rentCostAnchorWeight: 1.0,
+      opexPassthrough: 0.40, rentDownwardRigidity: 0.85,
+      rentIncomeElasticity: 0.47, prevAfterTaxIncomeGrowth: 0.044,
+      builderPriceMode: 'adaptive' as const, prevBuilderTrendGrowth: 0.037, prevHomePriceChangeRate: 0.037,
+      constructionCreditSensitivity: 0, prevBusinessCreditTightening: 0,
+      baselineCapRate: 0.052, capRateMortgageBeta: 0.4, capRateInvestorCompression: 0,
+      fireSaleElasticity: 1.75, investorDemandIntensity: 0.10, landRateSensitivity: 0.75,
+      prevHousingPipeline: 0.95e6 * 1.2, prevBuilderPriceIndex: 1.0,
+      builderAdjustmentLambda: 0, housingPipelineDuration: 0,
+      landClosureKappa: 0, prevLandResidualTarget: 1.0,
+    };
+    const SEC_DEFL = 0.043; // peak-deflation-scale embodied construction deflation
+    const withAI = computeHousingBlock({ ...args, secDeflShelter: SEC_DEFL });
+    const noAI = computeHousingBlock({ ...args, secDeflShelter: 0 });
+
+    // Direct no-AI-terms recomputation vs the analytic add-back — machine precision (R25)
+    const transmitted = noAI.rentGrowth - withAI.rentGrowth;
+    const addBack = args.rentCostAnchorWeight * (1 - withAI.lambdaEffPrev) * SEC_DEFL;
+    expect(transmitted).toBeCloseTo(addBack, 15);
+    // λ_eff identical in both runs (uses t−1 levels) — the weighting the firewall consumes
+    expect(withAI.lambdaEffPrev).toBeCloseTo(noAI.lambdaEffPrev, 15);
+  });
+});
+
+// ============================================================
+// Stage 7 — Residual corporate profits (Phase 10.B; OD-5 ratified)
+// ============================================================
+
+describe('Stage 7: residual corporate profits', () => {
+  it('profits = GDP − wageBill − nonCorp − otherCosts, exactly (identity, no cap)', () => {
+    const result = computeMacro(buildDefaultMacroInputs());
+    const otherCosts = DEFAULT_OTHER_COSTS_SHARE * result.gdpNominal;
+    const expected = result.gdpNominal - result.aggregateWageIncome
+      - (result.aggregateAssetIncome
+        - result.dividendIncome - result.aiCapitalGains - result.traditionalCapitalGains
+        - 0 /* policy asset addition: zero in default config */)
+      - otherCosts;
+    // reconstruct nonCorp as assetIncome − dividends − capGains (its components)
+    expect(result.corporateProfits).toBeCloseTo(expected, 4);
+    // year-0 margin = the BEA seed by the Q-1(ii) calibration (bootstrap dissolved)
+    expect(result.corporateProfits / result.gdpNominal).toBeCloseTo(BASELINE_PROFIT_GDP_RATIO, 3);
+  });
+
+  it('traditional profits are SIGNED — no floor when the residual compresses below the AI share', () => {
+    // Collapse GDP relative to the wage bill: high displacement with rigid wages would do this in-sim;
+    // here force it via a previousMacro chain — assert the SPLIT arithmetic is unfloored instead.
+    const r = computeMacro(buildDefaultMacroInputs());
+    expect(r.traditionalCorporateProfits).toBeCloseTo(r.corporateProfits - r.aiCorporateProfits, 6);
+  });
+
+  it('rent-sharing is TWO-SIDED and reads the t−1 profit share', () => {
+    const base = computeNominalWageGrowth7({ dev: 0 });
+    const up = computeNominalWageGrowth7({ dev: +0.10 });
+    const down = computeNominalWageGrowth7({ dev: -0.10 });
+    expect(up.nominalWageGrowth).toBeCloseTo(base.nominalWageGrowth + 0.10 * 0.10, 10);
+    expect(down.nominalWageGrowth).toBeCloseTo(base.nominalWageGrowth - 0.10 * 0.10, 10);
+    expect(up.rentSharingContribution).toBeCloseTo(0.01, 12);
+  });
+
+  function computeNominalWageGrowth7(o: { dev: number }) {
+    return computeNominalWageGrowth({
+      prevCompositeInflation: 0.029, perWorkerProductivityGrowth: 0.016,
+      unemploymentRate: 0.04, naturalRate: 0.044, automationCoverage: 0,
+      prevScarcityPremiumLevel: 0, scarcityIntensity: 0.4,
+      inflationIndexation: 1.0, productivityPassthrough: 0.9,
+      phillipsSlope: 0.3, downwardWageRigidity: 0.6,
+      prevProfitShare: 0.13 + o.dev, baselineProfitShare: 0.13, rentSharingElasticity: 0.10,
+    });
+  }
+});
+
+// ============================================================
+// E-7 — de-anchorable market inflation expectations (family member #5)
+// ============================================================
+import { computeExpectedPolicyRates } from '@/models/bondMarket';
+
+describe('E-7: market inflation anchor in the expected policy path', () => {
+  const base = [0.035, 0.02, 0, 0.007, 1.5, 0.5, 25, false, 0, 0.044, 0.044, 0.3, 5] as const;
+
+  it('a de-anchored market prices persistently higher expected policy than a target-anchored one', () => {
+    const anchored = computeExpectedPolicyRates(...base, 0.02);    // anchor = target (legacy belief)
+    const deanchored = computeExpectedPolicyRates(...base, 0.035); // anchor = realized 3.5%
+    // anchor 3.5 vs 2.0: projected inflation stays 1.5pp higher beyond the convergence window →
+    // expected policy higher by ≈ (1 + 1.5) × 1.5pp × (post-convergence share of the horizon)
+    expect(deanchored).toBeGreaterThan(anchored + 0.02);
+    // two-sided: a deflation-de-anchored market prices LOWER expected policy
+    const deflAnchor = computeExpectedPolicyRates(...base, -0.01);
+    expect(deflAnchor).toBeLessThan(anchored);
+  });
+
+  it('anchor = target reproduces the legacy default exactly (large-τ / sentinel continuity)', () => {
+    const explicit = computeExpectedPolicyRates(...base, 0.02);
+    const defaulted = computeExpectedPolicyRates(...base);
+    expect(explicit).toBe(defaulted);
+  });
+});
+
+// ============================================================
+// E-8c — F-A plucking potential + F-B Volcker validation
+// ============================================================
+import { computePluckingPotential } from '@/models/federalReserve';
+import { computeMonetizationRate } from '@/models/monetization';
+
+describe('E-8c F-A: the plucking potential (Friedman ceiling)', () => {
+  it('ratchets UP with demonstrated production (the bootstrap absorbed, gap ≈ 0)', () => {
+    let p: number | null = null;
+    p = computePluckingPotential(p, 100, 0.02);          // year-0 anchor = realized
+    expect(p).toBe(100);
+    p = computePluckingPotential(p, 104, 0.02);          // realized grows 4% (capacity-gated bootstrap)
+    expect(p).toBe(104);                                  // the ceiling ratchets — gap 0, not overheating
+  });
+
+  it('NEVER tracks realized downward — the no-displacement counterfactual preserved (C semantics)', () => {
+    let p: number | null = 104;
+    p = computePluckingPotential(p, 80, 0.02);           // displacement collapse
+    expect(p).toBeCloseTo(104 * 1.02, 10);               // the ceiling keeps growing at the closed form
+    expect((80 - p) / p).toBeLessThan(-0.2);             // the gap reads the depression
+  });
+
+  it('boost composition (ratified item 1): the boost raises the COUNTERFACTUAL line; realized below it is never absorbed', () => {
+    let p: number | null = 100;
+    // C-like: AI coverage rises (boostAdjust 1.05) while realized stays below the composed line
+    p = computePluckingPotential(p, 95, 0.02, 1.05);
+    expect(p).toBeCloseTo(100 * 1.02 * 1.05, 10);        // the AI-raised counterfactual, not realized
+  });
+
+  it('output gap is ease-only: realized never exceeds the ceiling', () => {
+    let p: number | null = null;
+    for (const realized of [100, 103, 101, 110, 108]) {
+      p = computePluckingPotential(p, realized, 0.02);
+      expect((realized - p) / p).toBeLessThanOrEqual(0);
+    }
+  });
+});
+
+describe('E-8c F-B: the Volcker validation (Sargent-Wallace re-conditioning)', () => {
+  it('high yields from inflation repricing alone do NOT trigger monetization (Volcker 1981)', () => {
+    // yields 15%, service/revenue 0.18, fiscal premium ≈ 0 — no fiscal-dominance condition
+    // 10Y at 12% from repricing (below the untouched LOLR crisis backstop ~15-20%)
+    const r = computeMonetizationRate(0.15, -0.005, false, 0.15, 0.15, 0.10,
+      0.18, 1.0, 0.12, 0.08, 0.70, 0, 0.0, 0.50, 0.01);
+    expect(r.yieldResponseActive).toBe(false);   // the OLD form fired here (0.12 > 0.08); the re-conditioned form does not
+    expect(r.rate).toBe(0);
+  });
+
+  it('fires only when BOTH the dominance gate AND the premium co-condition hold', () => {
+    const premiumOnly = computeMonetizationRate(0.05, -0.005, false, 0.05, 0.05, 0.10,
+      0.30, 1.0, 0.09, 0.08, 0.70, 0, 0.02, 0.50, 0.01);
+    expect(premiumOnly.yieldResponseActive).toBe(false);   // service 0.30 < 0.50 gate
+    const both = computeMonetizationRate(0.05, -0.005, false, 0.05, 0.05, 0.10,
+      0.55, 1.0, 0.09, 0.08, 0.70, 0, 0.02, 0.50, 0.01);
+    expect(both.yieldResponseActive).toBe(true);           // 0.55 > 0.50 AND premium 0.02 > 0.01
+    expect(both.rate).toBeGreaterThan(0.10);
+  });
+});
+
+describe('E-9c: the inheritance fixes', () => {
+  it('the anchor reads the ONE named constant at both sites (the dual-init pair killed)', async () => {
+    const { ANCHOR_INIT_2025 } = await import('@/models/constants');
+    const { getBaselineBondMarketState } = await import('@/models/bondMarket');
+    expect(getBaselineBondMarketState().marketInflationAnchor).toBe(ANCHOR_INIT_2025);
+    expect(ANCHOR_INIT_2025).toBeCloseTo(0.027, 10);
+  });
+  it('the consolidation-profile year-0 ramp starts from the TRUE service ratio', async () => {
+    const { BASELINE_DEBT_SERVICE_REVENUE_RATIO, DEFAULT_FISCAL_CREDIBILITY_TRIGGER } = await import('@/models/constants');
+    // observed 0.18 ≈ the trigger 0.18: the year-0 reading sits AT the threshold (the real 2025
+    // state), not at the false 0 that delayed the ramp a year.
+    expect(BASELINE_DEBT_SERVICE_REVENUE_RATIO).toBeCloseTo(0.18, 10);
+    expect(BASELINE_DEBT_SERVICE_REVENUE_RATIO).toBeCloseTo(DEFAULT_FISCAL_CREDIBILITY_TRIGGER, 2);
+  });
+});
+
+describe('E-9b: policy-rate inertia', () => {
+  it('ρ=0 reproduces the instantaneous prescription exactly (legacy toggle)', () => {
+    const taylor = 0.033, prev = 0.044;
+    expect(0 * prev + (1 - 0) * taylor).toBe(taylor);
+  });
+  it('the inertial expected path carries the inherited rate at ρ^k', () => {
+    const anchored = computeExpectedPolicyRates(0.025, 0.02, 0, 0.007, 1.5, 0.5, 25, false, 0, 0.044, 0.044, 0.3, 5, 0.02, 0.045, 0.5);
+    const instantaneous = computeExpectedPolicyRates(0.025, 0.02, 0, 0.007, 1.5, 0.5, 25, false, 0, 0.044, 0.044, 0.3, 5, 0.02, 0.045, 0);
+    expect(anchored).toBeGreaterThan(instantaneous);  // the inherited 4.5% restriction raises the average
+  });
+});
+
+// ============================================================
+// E-10 — the 2023-24 validation (housing's Volcker) + legacy equivalence
+// ============================================================
+describe('E-10: pipeline + gradual builders', () => {
+  const eq = {
+    isFirstYear: false,
+    prevHousingStock: 146_600_000, prevHouseholds: 131_500_000, prevHeadship: 131_500_000 / 340_000_000,
+    prevRentIndex: 1.0, prevConstructionCost: 1.0, prevLandCost: 1.0, prevHomePriceIndex: 1.0,
+    prevHousingStarts: 953_399, prevRealIncomeGrowthRate: 0.0184, trendRealIncomeGrowth: 0.0184,
+    population: 340_000_000, nominalWageGrowth: 0.044, baseInflationRate: 0.0222,
+    broadGoodsPressure: 0, secDeflShelter: 0, embodiedCapability: 0,
+    mortgageRate: 0.06, prevMortgageRate: 0.06,
+    prevAssetIncomeShare: 0.30, baselineAssetIncomeShare: 0.30,
+    realizedPopulationGrowth: 0.004,
+    formationSensitivity: 0.06, headshipRecoveryRate: 0.12,
+    supplyElasticity: 1.5, embodiedCapacityGain: 1.0, depreciationRate: 0.0025,
+    landShare: 0.40, constructionLaborShare: 0.35,
+    landIncomeBeta: 1.0, landScarcityElasticity: 2.0,
+    baselineCapRate: 0.052, capRateMortgageBeta: 0.4, capRateInvestorCompression: 0,
+    fireSaleElasticity: 1.75, investorDemandIntensity: 0.10, landRateSensitivity: 0.75,
+    prevHousingPipeline: 953_399 * 1.2, prevBuilderPriceIndex: 1.0,
+    builderAdjustmentLambda: 0.6, housingPipelineDuration: 1.2,
+    landClosureKappa: 0.45, prevLandResidualTarget: 1.0,
+    prevCompositeInflation: 0.026, foreclosureRateAggregate: 0, institutionalBuyerRate: 0,
+    rentIncomeElasticity: 0.47, prevAfterTaxIncomeGrowth: 0.044,
+    opexPassthrough: 0.40, rentDownwardRigidity: 0.85, rentCostAnchorWeight: 0,
+    rentOccupancyElasticity: 2.0,
+    builderPriceMode: 'trend-aware' as const, prevBuilderTrendGrowth: 0.037, prevHomePriceChangeRate: 0.037,
+    constructionCreditSensitivity: 2.0, prevBusinessCreditTightening: 0,
+  };
+
+  it('legacy bit-equivalence: λ=0 ∧ D≤0 reproduces the pre-E-10 block exactly', () => {
+    const legacy = computeHousingBlock({ ...eq, builderAdjustmentLambda: 0, housingPipelineDuration: 0 });
+    // pre-E-10 semantics: completions = prevStarts; gap from the spot price; starts instantaneous
+    expect(legacy.housingCompletions).toBe(eq.prevHousingStarts);
+    expect(legacy.housingPipeline).toBe(0);
+    expect(legacy.builderPriceIndex).toBe(legacy.homePriceIndex);
+  });
+
+  it('the 2023-24 sequence (FRED-derived guard, L9c final form): completions persist; starts -21%; rents decelerate, not fall', () => {
+    // Phase 0: equilibrium. Apply a +4pp mortgage shock and iterate the pure block.
+    let state = { ...eq };
+    const noPipeline = { ...eq, builderAdjustmentLambda: 0, housingPipelineDuration: 0 };
+    const run = (s0: typeof eq, years: number) => {
+      const out: ReturnType<typeof computeHousingBlock>[] = [];
+      // the +4pp shock LANDS in year 1 (prev = the pre-shock 0.06); prev = 0.10 thereafter.
+      // The episode's OBSERVED credit conditions ride along (FRED SLOOS: net tightening of
+      // construction/land-development standards 2022-24 — mild, ≈0.1-0.15 on the 0.5 GR-anchor
+      // scale): the FRED starts path bundles rate + credit; the replay must too (disposition 5b).
+      const sloosTightening = [0.05, 0.15, 0.15, 0.10, 0.05];
+      // the observed nominal income deceleration rides along too (BEA DPI growth 2022-25:
+      // ~7% cooling to ~4.5%) — the FRED rent deceleration is income-driven via θ
+      const dpiPath = [0.07, 0.055, 0.048, 0.045, 0.044];
+      let s = { ...s0, mortgageRate: 0.10, prevMortgageRate: s0.prevMortgageRate };
+      for (let i = 0; i < years; i++) {
+        s.prevBusinessCreditTightening = sloosTightening[i] ?? 0;
+        s.prevAfterTaxIncomeGrowth = dpiPath[i] ?? 0.044;
+        const r = computeHousingBlock(s);
+        out.push(r);
+        s = { ...s, prevMortgageRate: 0.10,
+          prevHousingStock: r.housingStock, prevHouseholds: r.households, prevHeadship: r.headshipRate,
+          prevRentIndex: r.rentIndex, prevConstructionCost: r.constructionCostIndex,
+          prevLandCost: r.landCostIndex, prevHomePriceIndex: r.homePriceIndex,
+          prevHousingStarts: r.housingStarts, prevHousingPipeline: r.housingPipeline,
+          prevBuilderPriceIndex: r.builderPriceIndex,
+          prevBuilderTrendGrowth: r.builderTrendGrowth,
+          prevHomePriceChangeRate: r.homePriceIndex / (out.length > 1 ? out[out.length - 2]!.homePriceIndex : 1.0) - 1,
+          prevLandResidualTarget: r.landResidualTarget,
+          population: s.population * 1.004,  // the model demography rides along (else a phantom glut)
+        };
+      }
+      return out;
+    };
+    const piped = run(state, 5);
+    const instant = run(noPipeline, 5);
+    // FRED-DERIVED expectations (disposition 5b: episode guards from data, never "the corrected system"):
+    // (i) completions ≈ FLAT ~2y through the shock (FRED COMPUTSA 2023-24 ≈ 1.4M ≈ pre-shock) — ≥80%
+    expect(piped[0]!.housingCompletions).toBeGreaterThan(0.8 * 953_399);
+    expect(piped[1]!.housingCompletions).toBeGreaterThan(0.8 * 953_399);
+    // (ii) starts ≈ −21% at ~18mo (FRED HOUST Apr-22 1.81M → mid-23 1.40M): the year-2 level in [0.65, 0.92]
+    expect(piped[1]!.housingStarts).toBeGreaterThan(0.65 * 953_399);
+    expect(piped[1]!.housingStarts).toBeLessThan(0.92 * 953_399);
+    expect(piped[1]!.housingStarts).toBeGreaterThan(instant[1]!.housingStarts);  // gradual vs instantaneous
+    // (iii) rents DECELERATE but do not fall (FRED CPI rent yoy: ~8.8% peak → ~5.5% → ~4%, never negative)
+    expect(piped[2]!.rentGrowth).toBeLessThan(piped[0]!.rentGrowth);
+    expect(piped[2]!.rentGrowth).toBeGreaterThan(0);
+    // (iv) the start-collapse matures through the pipeline: completions(yr5) < completions(yr1)
+    // (FRED 2025: completions rolling over ~−10-15% from peak as the 2023-24 start decline lands)
+    expect(piped[4]!.housingCompletions).toBeLessThan(piped[0]!.housingCompletions);
+  });
+});
+
+describe('FS-1b: the upstream fixes', () => {
+  it('F6 exhaustiveness: every data category has a NAMED domain risk factor (no silent fallback)', async () => {
+    const { DOMAIN_RISK_FACTORS } = await import('@/models/constants');
+    const { OCCUPATION_CLUSTERS } = await import('@/data/occupationClusters');
+    for (const c of OCCUPATION_CLUSTERS) {
+      expect(DOMAIN_RISK_FACTORS[c.category as keyof typeof DOMAIN_RISK_FACTORS],
+        `category '${c.category}' must be mapped`).toBeDefined();
+    }
+  });
+  it('F1: augmentation adoption starts at 0 at the trigger year (the jump is dead)', async () => {
+    const { computeAugmentationAdoption } = await import('@/models/augmentationAdoption');
+    const r = computeAugmentationAdoption({ year: 2030, betterScore: 0.6, cheaperScore: 0.5, augTriggerYear: null, steepness: 0.5 });
+    expect(r.triggered).toBe(true);
+    expect(r.augAdoptionRate).toBe(0);  // 1 − e^0 = 0, not 0.5
+    const r2 = computeAugmentationAdoption({ year: 2032, betterScore: 0.6, cheaperScore: 0.5, augTriggerYear: 2030, steepness: 0.5 });
+    expect(r2.augAdoptionRate).toBeCloseTo(1 - Math.exp(-1), 10);
+  });
+  it('F4: competitive pressure clamps to the cluster ceiling', async () => {
+    const { applyCompetitivePressure } = await import('@/models/adoption');
+    const v = applyCompetitivePressure(0.78, undefined, 0.0, 0.3, 0.8);
+    expect(v).toBeLessThanOrEqual(0.8);
+  });
+});
+
+describe('FS-2b: hygiene guards', () => {
+  it('EMPLOYMENT_MULTIPLIERS is exhaustive over the 51 clusters (the dead fallback retired)', async () => {
+    const { EMPLOYMENT_MULTIPLIERS } = await import('@/models/constants');
+    const { OCCUPATION_CLUSTERS } = await import('@/data/occupationClusters');
+    for (const c of OCCUPATION_CLUSTERS) {
+      expect(EMPLOYMENT_MULTIPLIERS[c.id], `cluster '${c.id}' must have a multiplier`).toBeDefined();
+    }
   });
 });

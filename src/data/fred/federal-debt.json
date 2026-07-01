@@ -1,0 +1,91 @@
+{
+  "source": "FRED GFDEBTN (Federal Debt: Total Public Debt)",
+  "seriesOrTable": "GFDEBTN",
+  "fetchedAt": "2026-06-11T17:55:46.816Z",
+  "latestDate": "2025-10-01",
+  "debtMillions": 38514009,
+  "debtDollars": 38514009000000,
+  "recentValues": [
+    {
+      "date": "2025-10-01",
+      "value": 38514009
+    },
+    {
+      "date": "2025-07-01",
+      "value": 37637552.59555763
+    },
+    {
+      "date": "2025-04-01",
+      "value": 36211469
+    },
+    {
+      "date": "2025-01-01",
+      "value": 36214309.520796455
+    },
+    {
+      "date": "2024-10-01",
+      "value": 36218605
+    },
+    {
+      "date": "2024-07-01",
+      "value": 35464674
+    },
+    {
+      "date": "2024-04-01",
+      "value": 34831634
+    },
+    {
+      "date": "2024-01-01",
+      "value": 34586533
+    },
+    {
+      "date": "2023-10-01",
+      "value": 34001494
+    },
+    {
+      "date": "2023-07-01",
+      "value": 33167334
+    },
+    {
+      "date": "2023-04-01",
+      "value": 32332274
+    },
+    {
+      "date": "2023-01-01",
+      "value": 31458438
+    },
+    {
+      "date": "2022-10-01",
+      "value": 31419689
+    },
+    {
+      "date": "2022-07-01",
+      "value": 30928912
+    },
+    {
+      "date": "2022-04-01",
+      "value": 30568582
+    },
+    {
+      "date": "2022-01-01",
+      "value": 30400960
+    },
+    {
+      "date": "2021-10-01",
+      "value": 29617215
+    },
+    {
+      "date": "2021-07-01",
+      "value": 28428919
+    },
+    {
+      "date": "2021-04-01",
+      "value": 28529436
+    },
+    {
+      "date": "2021-01-01",
+      "value": 28132570
+    }
+  ],
+  "notes": "Quarterly. Total public debt in millions of dollars. Used as initial federal debt stock for Phase 7 fiscal module."
+}

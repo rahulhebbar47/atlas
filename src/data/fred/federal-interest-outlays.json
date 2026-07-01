@@ -1,0 +1,91 @@
+{
+  "source": "FRED FYOINT (Federal Government Current Expenditures: Interest Payments)",
+  "seriesOrTable": "FYOINT",
+  "fetchedAt": "2026-06-11T17:55:55.755Z",
+  "latestDate": "2025-09-30",
+  "interestOutlaysMillions": 970065,
+  "interestOutlaysDollars": 970065000000,
+  "recentValues": [
+    {
+      "date": "2025-09-30",
+      "value": 970065
+    },
+    {
+      "date": "2024-09-30",
+      "value": 879879
+    },
+    {
+      "date": "2023-09-30",
+      "value": 658267
+    },
+    {
+      "date": "2022-09-30",
+      "value": 475887
+    },
+    {
+      "date": "2021-09-30",
+      "value": 352338
+    },
+    {
+      "date": "2020-09-30",
+      "value": 345470
+    },
+    {
+      "date": "2019-09-30",
+      "value": 375158
+    },
+    {
+      "date": "2018-09-30",
+      "value": 324975
+    },
+    {
+      "date": "2017-09-30",
+      "value": 262551
+    },
+    {
+      "date": "2016-09-30",
+      "value": 240033
+    },
+    {
+      "date": "2015-09-30",
+      "value": 223181
+    },
+    {
+      "date": "2014-09-30",
+      "value": 228956
+    },
+    {
+      "date": "2013-09-30",
+      "value": 220885
+    },
+    {
+      "date": "2012-09-30",
+      "value": 220408
+    },
+    {
+      "date": "2011-09-30",
+      "value": 229962
+    },
+    {
+      "date": "2010-09-30",
+      "value": 196194
+    },
+    {
+      "date": "2009-09-30",
+      "value": 186902
+    },
+    {
+      "date": "2008-09-30",
+      "value": 252757
+    },
+    {
+      "date": "2007-09-30",
+      "value": 237109
+    },
+    {
+      "date": "2006-09-30",
+      "value": 226603
+    }
+  ],
+  "notes": "Annual. Federal interest payments in millions. Used to validate Phase 7 interest expense computation."
+}

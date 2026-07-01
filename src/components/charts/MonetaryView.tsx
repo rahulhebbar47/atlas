@@ -81,7 +81,7 @@ export function MonetaryView() {
         laborTaxRevenue: y.fiscalMonetary!.fiscal.laborTaxRevenue,
         corporateTaxRevenue: y.fiscalMonetary!.fiscal.corporateTaxRevenue,
         otherRevenue:
-          y.fiscalMonetary!.fiscal.totalGovernmentRevenue -
+          y.fiscalMonetary!.fiscal.bookedRevenueT1 -
           y.fiscalMonetary!.fiscal.laborTaxRevenue -
           y.fiscalMonetary!.fiscal.corporateTaxRevenue,
       })),

@@ -1,10 +1,14 @@
 {
   "source": "FRED SUBLPDMHSXWBNQ (SLOOS: Household Loan Tightening, Weighted by Balance)",
   "seriesOrTable": "SUBLPDMHSXWBNQ",
-  "fetchedAt": "2026-02-23T15:20:41.259Z",
-  "latestDate": "2026-01-01",
-  "latestValue": -5.5,
+  "fetchedAt": "2026-06-11T17:55:43.283Z",
+  "latestDate": "2026-04-01",
+  "latestValue": -15.2,
   "recentValues": [
+    {
+      "date": "2026-04-01",
+      "value": -15.2
+    },
     {
       "date": "2026-01-01",
       "value": -5.5
@@ -80,10 +84,6 @@
     {
       "date": "2021-07-01",
       "value": -45.8
-    },
-    {
-      "date": "2021-04-01",
-      "value": -52.4
     }
   ],
   "notes": "Quarterly. Net % of banks tightening household loan standards, weighted by outstanding balances. Positive = tightening, negative = easing. Used in Phase 5i to calibrate and validate household credit channel (UE-driven consumer/mortgage tightening)."

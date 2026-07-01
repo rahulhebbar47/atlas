@@ -25,7 +25,13 @@ import { MonetaryView } from '@/components/charts/MonetaryView';
 import { MethodologyView } from '@/components/charts/MethodologyView';
 import { PredictionsView } from '@/components/charts/PredictionsView';
 import { PolicyWindowChart } from '@/components/charts/PolicyWindowChart';
-import { CWIChart } from '@/components/charts/CWIChart';
+// DEPRECATED (close-out K.3): CWIChart's aggregate-deflated lines retired from the default
+// view — the quintile chart is the honest welfare display; the legacy lines live behind its
+// "legacy" toggle under their true labels.
+// import { CWIChart } from '@/components/charts/CWIChart';
+import { QuintileCWIChart } from '@/components/charts/QuintileCWIChart';
+import { QuintilePolicyDeltaChart } from '@/components/charts/QuintilePolicyDeltaChart';
+import { JoblessnessChart } from '@/components/charts/JoblessnessChart';
 import { IncomeCompositionOverviewChart } from '@/components/charts/IncomeCompositionOverviewChart';
 import { GDPCompositionChart } from '@/components/charts/GDPCompositionChart';
 import { ProfitWageChart } from '@/components/charts/ProfitWageChart';
@@ -53,7 +59,13 @@ function OverviewView() {
         <PolicyWindowChart />
       </ErrorBoundary>
       <ErrorBoundary section="Consumer Welfare">
-        <CWIChart />
+        <QuintileCWIChart />
+      </ErrorBoundary>
+      <ErrorBoundary section="Policy Delta">
+        <QuintilePolicyDeltaChart />
+      </ErrorBoundary>
+      <ErrorBoundary section="Joblessness">
+        <JoblessnessChart />
       </ErrorBoundary>
       <ErrorBoundary section="Price Level Decomposition">
         <PriceLevelChart />

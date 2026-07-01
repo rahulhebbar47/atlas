@@ -94,8 +94,8 @@ describe('computeEndogenousRevenue', () => {
       TRANSFER_TAX, NON_CORP_ASSET_TAX, NOMINAL_GDP,
     );
 
-    expect(result.totalGovernmentRevenue).toBe(TOTAL_REVENUE);
-    expect(result.totalGovernmentRevenue).toBe(
+    expect(result.bookedRevenueT1).toBe(TOTAL_REVENUE);
+    expect(result.bookedRevenueT1).toBe(
       result.laborTaxRevenue + result.corporateTaxRevenue + result.otherRevenue,
     );
   });
@@ -120,7 +120,7 @@ describe('computeEndogenousRevenue', () => {
 
     expect(result.revenueGDPRatio).toBe(0);
     // Revenue totals should still be computed correctly even with zero GDP
-    expect(result.totalGovernmentRevenue).toBe(TOTAL_REVENUE);
+    expect(result.bookedRevenueT1).toBe(TOTAL_REVENUE);
   });
 
   it('handles all-zero tax inputs', () => {
@@ -129,7 +129,7 @@ describe('computeEndogenousRevenue', () => {
     expect(result.laborTaxRevenue).toBe(0);
     expect(result.corporateTaxRevenue).toBe(0);
     expect(result.otherRevenue).toBe(0);
-    expect(result.totalGovernmentRevenue).toBe(0);
+    expect(result.bookedRevenueT1).toBe(0);
     expect(result.revenueGDPRatio).toBe(0);
   });
 });
@@ -480,7 +480,7 @@ describe('getBaselineFiscalState', () => {
     expect(baseline).toHaveProperty('interestExpense');
     expect(baseline).toHaveProperty('debtServiceRevenueRatio');
     expect(baseline).toHaveProperty('weightedAverageDebtRate');
-    expect(baseline).toHaveProperty('totalGovernmentRevenue');
+    expect(baseline).toHaveProperty('bookedRevenueT1');
     expect(baseline).toHaveProperty('revenueGDPRatio');
     expect(baseline).toHaveProperty('laborTaxRevenue');
     expect(baseline).toHaveProperty('corporateTaxRevenue');
@@ -519,7 +519,7 @@ describe('getBaselineFiscalState', () => {
   it('computes totalGovernmentRevenue from GDP and revenue ratio', () => {
     const baseline = getBaselineFiscalState();
 
-    expect(baseline.totalGovernmentRevenue).toBeCloseTo(
+    expect(baseline.bookedRevenueT1).toBeCloseTo(
       BASELINE_GDP_NOMINAL_2025 * FEDERAL_REVENUE_GDP_RATIO, 0,
     );
   });
@@ -556,7 +556,7 @@ describe('getBaselineFiscalState', () => {
     expect(baseline.federalDebtStock).toBeGreaterThan(0);
     expect(baseline.debtGDPRatio).toBeGreaterThan(0);
     expect(baseline.interestExpense).toBeGreaterThan(0);
-    expect(baseline.totalGovernmentRevenue).toBeGreaterThan(0);
+    expect(baseline.bookedRevenueT1).toBeGreaterThan(0);
     expect(baseline.revenueGDPRatio).toBeGreaterThan(0);
     expect(baseline.weightedAverageDebtRate).toBeGreaterThan(0);
   });
@@ -607,5 +607,47 @@ describe('computeEndogenousRolloverRate', () => {
     // but WAM stays within ~10% of baseline
     expect(result.weightedAverageMaturity).toBeGreaterThan(5.0);
     expect(result.weightedAverageMaturity).toBeLessThanOrEqual(8.0);
+  });
+});
+
+// ============================================================
+// Stage 5 (H3) — STANDING ASSERTION: budget books transfer flows 1:1
+// The load-bearing budget must book policy transfers AND incremental-UE
+// stabilizer transfers dollar-for-dollar in total spending — the same
+// constants the income/consumption side paid. Registered per Stage 5 brief.
+// ============================================================
+
+describe('Stage 5 standing assertion: budget two-sidedness', () => {
+  it('books stabilizerTransfers dollar-for-dollar in totalGovernmentSpending', () => {
+    const base = computeGovernmentSpending(
+      4_000_000_000_000, 0.027, 30_000_000_000_000,
+      500_000_000_000, 0, 0,
+      36_000_000_000_000, 0.029,
+      1.0, 1.0,
+      0,
+    );
+    const STABILIZER = 1_234_567_890_123; // arbitrary non-round amount
+    const withStabilizer = computeGovernmentSpending(
+      4_000_000_000_000, 0.027, 30_000_000_000_000,
+      500_000_000_000, 0, 0,
+      36_000_000_000_000, 0.029,
+      1.0, 1.0,
+      STABILIZER,
+    );
+    expect(withStabilizer.stabilizerTransfers).toBe(STABILIZER);
+    expect(withStabilizer.totalGovernmentSpending - base.totalGovernmentSpending).toBe(STABILIZER);
+  });
+
+  it('books policyTransferAddition dollar-for-dollar (UBI symmetry, budget side)', () => {
+    const POLICY = 3_100_000_000_000; // ~$3.1T UBI
+    const without = computeGovernmentSpending(
+      4_000_000_000_000, 0.027, 30_000_000_000_000,
+      0, 0, 0, 36_000_000_000_000, 0.029,
+    );
+    const withPolicy = computeGovernmentSpending(
+      4_000_000_000_000, 0.027, 30_000_000_000_000,
+      POLICY, 0, 0, 36_000_000_000_000, 0.029,
+    );
+    expect(withPolicy.totalGovernmentSpending - without.totalGovernmentSpending).toBe(POLICY);
   });
 });

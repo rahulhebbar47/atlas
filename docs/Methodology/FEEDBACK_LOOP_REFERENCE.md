@@ -197,12 +197,13 @@ Consumption ←(-)-── Wage Income ←(-)-── Unemployment ←(+)-── D
 
 **Edge 1→2: GDP Growth → Revenue Pressure** (polarity: `-`, negative GDP growth creates positive pressure)
 ```
-gdpContraction = max(0, -gdpGrowthRate)
+gdpContraction = max(0, -nonAIRealGDPGrowthRate)        # the deflator-firewall input
 revenuePressure = min(cap, sensitivity × gdpContraction)
 ```
+- **The deflator firewall:** the growth signal is `nonAIRealGDPGrowthRate` = growth of `nominalGDP / nonAIPriceLevel` (prices EXCLUDING all AI supply deflation), NOT `realGDPGrowthRate` (which AI cost-deflation inflated, masking nominal contractions as "growth" and keeping this loop dead). In a true zero-AI economy `nonAIPriceLevel == priceLevel`, so this equals `realGDPGrowthRate` exactly — the firewall is invisible. Firms respond to revenue contraction relative to non-AI costs; AI making goods cheaper must not register as growth.
 - `sensitivity`: default `1.50` (REVENUE_PRESSURE_SENSITIVITY_DEFAULT)
 - `cap`: default `0.30` (REVENUE_PRESSURE_CAP)
-- When GDP grows: pressure = 0. When GDP contracts by 5%: pressure = min(0.30, 1.5 × 0.05) = 7.5%
+- When non-AI-real GDP grows: pressure = 0. When it contracts by 5%: pressure = min(0.30, 1.5 × 0.05) = 7.5%
 
 **Edge 2→3: Revenue Pressure → Automation Acceleration** (polarity: `+`)
 ```
@@ -297,27 +298,21 @@ excessUnemployment = max(0, unemploymentRate - naturalRate)
 - `naturalRate` (NAIRU): default `0.044` (4.4%)
 - Below NAIRU: excess = 0, no downward wage pressure
 
-**Edge 2→3: Excess UE → Phillips Pressure** (polarity: `-`)
+**Edge 2→5: STAGE 3 — endogenous nominal wage GROWTH** (replaces the exp-decay wagePressure level multiplier and the `(1−aiShare)` gate, both retired)
 ```
-phillipsPressure = exp(-sensitivity × excessUnemployment)
+nominalWageGrowth(t) = inflationIndexation × compositeInflation(t−1)        # LAGGED by design — breaks wage-price simultaneity
+                     + productivityPassthrough × perWorkerProductivity(1.6%) # genuine per-worker (population enters via employment)
+                     − phillipsSlope × max(0, UE − NAIRU)                     # ONE-SIDED slack; below-NAIRU does NOT boost
+                     + Δ scarcityPremiumLevel                                 # LEVEL hump scarcityIntensity×cov×(1−cov); growth = YoY Δ
+   if nominalWageGrowth < 0:  nominalWageGrowth ×= (1 − downwardWageRigidity)  # applies to TOTAL growth, whatever drove it negative
+   wageIndex(t) = wageIndex(t−1) × (1 + nominalWageGrowth(t))                  # compounded per-worker wage level
 ```
-- `sensitivity`: default `0.15` (PHILLIPS_CURVE_SENSITIVITY)
-- Exponential decay: 0% excess → pressure = 1.0 (full); 10% excess → pressure ≈ 0.22
-- This is the classic Phillips curve: high unemployment = low wage pressure
+- `phillipsSlope` default `0.30` (Blanchard 2016 / Galí wage-Phillips semi-elasticity); `inflationIndexation`/`productivityPassthrough` default `1.0`; `downwardWageRigidity` default `0.60` (Daly-Hobijn).
+- **Rigidity scope:** downward nominal rigidity dampens the *total* negative wage growth regardless of which term (slack, deflation indexation, or scarcity-unwind) drove it negative — nominal stickiness is resistance to nominal cuts, whatever the cause.
+- **Policy min-wage floor:** a LEVEL constraint — `effectiveWageIndex = max(wageIndex, policyWageFloor × trendWageIndex)` — NOT a floor on growth (a growth floor and a level floor diverge badly under deflation). Invisible when `wageIndex == trendWageIndex` (zero-AI).
+- Zero-AI: `nominalWageGrowth = 2.9% + 1.6% = 4.5%` ⇒ real wage tracks 1.6% productivity; the back-compat `wagePressure` output = `wageIndex/trendWageIndex` = 1.0.
 
-**Edge 4: AI Wage Premium** (independent input from automation coverage)
-```
-aiPremium = automationCoverage × multiplier × (1 - automationCoverage)
-```
-- `multiplier`: default `0.40` (AI_WAGE_PRODUCTIVITY_MULTIPLIER)
-- Hump-shaped: peaks at 50% automation coverage (0.5 × 0.40 × 0.5 = 0.10)
-- At 0% or 100% coverage: premium = 0
-- Rationale: at 50% automation, the remaining human workers are scarce and AI-augmented, commanding premium
-
-**Edge 3+4→5: Phillips + Premium → Wage Pressure** (polarity: `+`)
-```
-wagePressure = max(policyWageFloor, phillipsPressure + aiPremium)
-```
+**Edge 3+4→5 (legacy, retired):** the old `wagePressure = max(policyWageFloor, phillipsPressure + aiPremium)` (exp Phillips + hump AI premium) is replaced by the growth equation above. `AI_WAGE_PRODUCTIVITY_MULTIPLIER` is vestigial.
 - `policyWageFloor` = (federalMinimumWage × 2080) / baselineAverageWage
 - Wage pressure ∈ [0, ~1.1] — below 1.0 means wages falling, above 1.0 means rising
 
@@ -394,12 +389,13 @@ GDP = Consumption + Investment + GovernmentSpending + NetExports
 
 **Edge 5→6: GDP → Demand Ratios** (polarity: `+`)
 ```
-consumerDemandRatio = realConsumption(t-1) / baselineConsumption
-govDemandRatio = realGovSpending(t-1) / baselineGovSpending
-businessDemandRatio = realInvestment(t-1) / baselineInvestment
+consumerDemandRatio = realConsumption(t-1) / (baselineConsumption × (1+trend)^(t-1))
+govDemandRatio = realGovSpending(t-1) / (baselineGovSpending × (1+trend)^(t-1))
+businessDemandRatio = realInvestment(t-1) / (baselineInvestment × (1+trend)^(t-1))
 ```
-- Level-based comparison to FIXED year-0 baselines (not growing)
-- Deflated by priceLevel to prevent nominal inflation from inflating demand
+- **Trend baselines:** baselines grow at the real structural **trend** (`baselineGDPGrowth` ~2%, validated against the ~2.1% realized zero-AI growth), matched to the previous year. Spillover fires when real demand falls BELOW trend (minus tolerance), not merely below a frozen year-0 level; a trend baseline sits ≈1.0 in zero-AI. Decision record: docs/FABLE_AUDIT_SUMMARY.md.
+- **Real-QUANTITY ratios are retained** (employment follows the quantity of demand; AI's per-unit labor reduction is already in the displacement channel — a nominal ratio would double-count). Deflated by priceLevel.
+- Tolerance band (0.03) retained: only shortfalls beyond tolerance cut employment.
 
 **Edge 6→7: Demand Ratios → Employment** (polarity: `+`)
 ```
@@ -473,10 +469,15 @@ Unemployment ──(+)-→ Consumer Credit Tightening ──(-)-→ Consumption 
 Consumer credit uses a 4-channel model:
 
 ```
-Channel 1 — Income Adequacy:
-  underwritableIncome = wageIncome × 1.0 + transferIncome × 0.70 + assetIncome × 0.50
-  incomeAdequacyRatio = underwritableIncome / (baseline × (1 + trendGrowth)^years)
+Channel 1 — Income Adequacy (NOMINAL underwriting):
+  underwritableIncome = NOMINAL(wageIncome × 1.0 + transferIncome × 0.70 + assetIncome × 0.50)
+  incomeAdequacyRatio = underwritableIncome / (nominalBaseline × (1 + nominalTrend)^years)
   incomeTightening = incomeAdequacySensitivity × max(0, 1 - incomeAdequacyRatio)
+  # income & baseline are NOMINAL (debt service is nominal — Fisher 1933);
+  # nominalTrend = baselineGDPGrowth + baseInflation. Previously real (priceLevel-deflated), which
+  # let AI cost-deflation inflate "real" income and pin a 43%-UE economy at the loosening cap.
+  # Now nominal income falling below the nominal trend (mass unemployment) correctly tightens credit.
+  # Zero-AI: nominal income grows AT trend ⇒ ratio ≈ 1.0.
 
 Channel 2 — Collateral Values (asymmetric):
   If prices falling:  tightening = collateralSensitivity × mortgageStress × |priceChange|
@@ -499,7 +500,10 @@ Combined:
 ```
 creditConstrainedConsumption = baseConsumption × consumerCreditMultiplier
 ```
-- Multiplier ∈ [0.01, 1.0]: at maximum tightening (0.70), multiplier = 1 - 0.30 × 1.0 = 0.70
+- The multiplier = 1 − `consumerCreditImpact`(0.12) × tightening/`maxConsumerTightening`(1.0).
+  Saturation re-anchored: channel-sum **0.5 ≈ Great-Recession peak** (Fed SLOOS 2008-09 ~65% net tightening; originations −50%) where the haircut = 0.12 × 0.5 = **6%** — the GR credit-channel PCE hit (Mian, Rao & Sufi 2013 QJE: MPC 0.054–0.072 × the net-worth shock ≈ 3.5–4.5% of PCE + SLOOS card/auto channel ≈ 1–2%). **1.0 ≈ Depression-scale** intermediation collapse (Olney 1999: consumer credit −50%, 1930-33; Bernanke 1983 AER) where the haircut saturates at **12%**. An earlier 0.06/0.5 parameterization pinned every scenario AT Great-Recession severity; sub-GR behavior is unchanged (identical slope). Decision record: docs/FABLE_AUDIT_SUMMARY.md.
+- The credit-DEFLATION contribution normalizes by the GR-peak anchor (`CONSUMER_TIGHTENING_GR_PEAK` = 0.5), not the resized ceiling — GR-level tightening produces the same deflation pressure as before; Depression-scale tightening reaches 2 GR-units.
+- (The "0.70 max / 0.30 impact" previously documented here belonged to a retired unified credit model.)
 
 **Edge 4→5: Consumption → GDP Gap** (polarity: `+`)
 ```
@@ -511,14 +515,15 @@ gdpGap = gdpGrowthRate  (used as business credit signal)
 
 Business credit uses 2 channels:
 ```
-Channel 1 — Profitability:
-  profitCoverageRatio = afterTaxProfits / baselineProfits
+Channel 1 — Profitability (GDP-proportional baseline):
+  baselineProfits  = capturedYear0Profits × (laggedNominalGDP / BASELINE_GDP_NOMINAL_2025)
+  profitCoverageRatio = afterTaxProfits / baselineProfits   # ≈ 1.0 when profit SHARE is stable
   profitSignal = 1.0 - profitCoverageRatio
   profitTightening = profitabilitySensitivity × profitSignal
 
-Channel 2 — Revenue Trajectory:
-  growthSignal = -growthTrajectorySensitivity × gdpGrowthRate
-  (Negative GDP growth → positive tightening signal)
+Channel 2 — Revenue Trajectory (trend-relative — neutral at trend growth):
+  growthSignal = -growthTrajectorySensitivity × (gdpGrowthRate - trendNominalGrowthRate)
+  (Below-trend growth → tightening; at-trend → neutral; above-trend → loosening)
 
 Combined:
   totalTightening = clamp(profitTightening + growthSignal, -maxLoosening, maxTightening)
@@ -547,10 +552,10 @@ creditAdoptionAcceleration = min(cap, businessCreditLoosening × creditAdoptionS
 
 | Parameter | Default | Min | Max | Step | Unit | Constant |
 |-----------|---------|-----|-----|------|------|----------|
-| Income Adequacy Sensitivity | 0.50 | 0 | 2.0 | 0.05 | x | `CREDIT_UE_SENSITIVITY` (Note: constant name is legacy) |
-| Max Consumer Tightening | 0.70 | 0.10 | 1.0 | 0.05 | % | `MAX_CREDIT_TIGHTENING` |
+| Income Adequacy Sensitivity | 2.0 | 0 | 4.0 | 0.05 | x | `DEFAULT_INCOME_ADEQUACY_SENSITIVITY` |
+| Max Consumer Tightening | 1.0 (Depression-scale saturation; 0.5 = GR peak) | 0.20 | 1.0 | 0.05 | ratio | `DEFAULT_MAX_CONSUMER_TIGHTENING` |
 | Business Credit GDP Sensitivity | 5.0 | 0 | 10.0 | 0.5 | x | `DEFAULT_BUSINESS_CREDIT_GDP_SENSITIVITY` |
-| Credit → Consumption Impact | 0.06 | 0 | 0.30 | 0.01 | x | `CREDIT_CONSUMPTION_SENSITIVITY` |
+| Credit → Consumption Impact | 0.12 (saturated haircut; 6% at GR peak) | 0.02 | 0.15 | 0.01 | x | `DEFAULT_CONSUMER_CREDIT_IMPACT` |
 
 ---
 
@@ -688,7 +693,15 @@ If debtGDP > consolidationThreshold:
 
 **Color**: `#EC4899` (pink)
 
-**Plain English**: When wages decline, workers struggle to make mortgage payments. The mortgage stress index rises (composition-weighted: high-wage workers with large mortgages are displaced first). Stress leads to foreclosures, destroying housing wealth. Lost housing wealth reduces consumption (wealth effect MPC ≈ 5 cents per dollar of housing wealth lost). Lower consumption depresses GDP and employment, further reducing wages.
+**The live housing system (stock-flow; supersedes the loop-diagram mechanics below where they conflict).** Shelter CPI and home prices are SEPARATE, LINKED indices from a structural system: households form via headship rates; housing starts respond to the profitability gap (supply elasticity anchored to Saiz); replacement cost is construction plus land; rents follow the cost anchor plus occupancy; prices are rents divided by a rate-sensitive capitalization rate, plus fire-sale pressure. The shelter inflation rate is EMERGENT (zero-AI ≈ 3.8–3.95%/yr), not a set constant. **Conservation:** foreclosed units stay in the stock and institutional conversions house the displaced renters — tenure shifts cannot manufacture rental inflation. **A stated design choice:** the investor land bid is ONE-SIDED — land ratchets up with the asset-income share and does not surrender gains when the share recedes (land is held, not dumped). The wealth effect's base scales with the price index. Implementation: `computeHousingBlock` (macro.ts); decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
+
+**Plain English**: When wages decline, workers struggle to make mortgage payments. The mortgage stress index rises (composition-weighted: high-wage workers with large mortgages are displaced first). Stress leads to foreclosures — unabsorbed foreclosure flow pressures HOME PRICES (fire sales), while absorbed units convert to rental stock. Falling home prices reduce consumption (wealth effect) and tighten credit collateral. Meanwhile RENTS follow construction+land costs and occupancy: collapsed construction plus recovering household formation can produce genuine scarcity-driven rent inflation years into a depression.
+
+> **Retired mechanics below (historical).** The variable chain and edge equations that follow
+> document the pre-stock-flow form of this loop, retained as the loop explorer's illustrative
+> structure (some referenced functions, e.g. `computeHomePriceChange`, are retired from the
+> simulation path). The live system is the paragraph above. Decision record:
+> [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 ### Variable Chain
 
@@ -929,10 +942,11 @@ All constants live in `src/models/constants.ts` with source citations.
 ### Credit (Loop 4)
 | Constant | Value | Source |
 |----------|-------|--------|
-| `CREDIT_UE_SENSITIVITY` | 8.0 | ATLAS calibration (income adequacy) |
-| `MAX_CREDIT_TIGHTENING` | 0.70 | ATLAS calibration |
-| `CREDIT_CONSUMPTION_SENSITIVITY` | 0.06 | ATLAS calibration |
+| `DEFAULT_MAX_CONSUMER_TIGHTENING` | 1.0 | Depression-scale saturation: Olney (1999) consumer credit −50% 1930-33; Bernanke (1983 AER) intermediation collapse |
+| `CONSUMER_TIGHTENING_GR_PEAK` | 0.5 | GR-peak anchor: Fed SLOOS 2008-09 ~65% net consumer tightening; mortgage originations −50%; card limits −25-28% |
+| `DEFAULT_CONSUMER_CREDIT_IMPACT` | 0.12 | Mian, Rao & Sufi (2013 QJE): MPC out of net worth 0.054-0.072 → GR credit-channel hit ≈ 6% of PCE at GR-peak ratio 0.5 → 12% saturated; Depression upper bound per Bernanke (1983)/Olney (1999) |
 | `DEFAULT_BUSINESS_CREDIT_GDP_SENSITIVITY` | 5.0 | ATLAS calibration |
+| (retired) `MAX_CREDIT_TIGHTENING` 0.70 / `CREDIT_CONSUMPTION_SENSITIVITY` | — | a retired unified credit model (historical) |
 
 ### Fiscal-Monetary (Loop 5)
 | Constant | Value | Source |

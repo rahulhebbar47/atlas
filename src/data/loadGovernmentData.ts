@@ -47,31 +47,33 @@ import fredSLOOSHousehold from '@/data/fred/sloos-household-tightening.json';
 import fredSLOOSBusiness from '@/data/fred/sloos-business-tightening.json';
 
 // ============================================================
-// Optional imports — FRED Phase 7: Fiscal-Monetary
-// These JSON files may not exist yet. Uses import.meta.glob with
-// { eager: true } so missing files don't break the build.
+// Static imports — FRED Phase 7: Fiscal-Monetary
+//
+// FS-6f FINDING (found BY the ruled fallback hardening, first run): the previous
+// import.meta.glob patterns referenced filenames that do not exist (e.g.
+// 'treasury-yield-10y.json' vs the committed 'treasury-10yr.json'), and the extractors
+// read keys the committed files never had (e.g. 'federalDebtTotal' vs the committed
+// 'debtMillions') — so the ENTIRE fiscal-monetary family had been riding the silent
+// fallback estimates while the observed FRED data sat committed and unread (the
+// cited-dead/uncited-live genus at the data layer; the fetch script and this loader were
+// never reconciled). Static imports of the ACTUAL committed files replace the globs:
+// a missing file now fails the build — the doctrine (observed data over estimates).
 // ============================================================
-const fredDebtModules = import.meta.glob('@/data/fred/federal-debt.json', { eager: true });
-const fredTreasuryYieldModules = import.meta.glob('@/data/fred/treasury-yield-10y.json', { eager: true });
-const fredDeficitGDPModules = import.meta.glob('@/data/fred/deficit-gdp-ratio.json', { eager: true });
-const fredBBBSpreadModules = import.meta.glob('@/data/fred/bbb-corporate-spread.json', { eager: true });
-const fredInterestOutlaysModules = import.meta.glob('@/data/fred/federal-interest-outlays.json', { eager: true });
-const fredCorpProfitsATModules = import.meta.glob('@/data/fred/corporate-profits-after-tax.json', { eager: true });
-const fredCorpTaxReceiptsModules = import.meta.glob('@/data/fred/federal-corp-tax-receipts.json', { eager: true });
-const fredSP500Modules = import.meta.glob('@/data/fred/sp500.json', { eager: true });
+import fredFederalDebt from '@/data/fred/federal-debt.json';
+import fredTreasury10Y from '@/data/fred/treasury-10yr.json';
+import fredDeficitGDP from '@/data/fred/federal-deficit-gdp.json';
+import fredBBBSpread from '@/data/fred/bbb-corporate-spread.json';
+import fredInterestOutlays from '@/data/fred/federal-interest-outlays.json';
+import fredCorporateProfits from '@/data/fred/corporate-profits.json';
+import fredCorpTaxReceipts from '@/data/fred/corporate-tax-receipts.json';
+import fredSP500 from '@/data/fred/sp500.json';
 
-// Helper to extract the first module value from import.meta.glob result
-function getGlobModule(modules: Record<string, unknown>): Record<string, unknown> | null {
-  const keys = Object.keys(modules);
-  if (keys.length === 0) return null;
-  const mod = modules[keys[0]!] as Record<string, unknown> | null;
-  if (!mod) return null;
-  // Vite eager imports may wrap in { default: ... }
-  if ('default' in mod && typeof mod.default === 'object' && mod.default !== null) {
-    return mod.default as Record<string, unknown>;
-  }
-  return mod;
-}
+// DEPRECATED (FS-6f): the glob mechanism and its unwrapper — retired with the optionality
+// premise (every file in this family is committed; missing data is a build error, not a
+// runtime estimate). Old code:
+// const fredDebtModules = import.meta.glob('@/data/fred/federal-debt.json', { eager: true });
+// ... (seven more glob declarations with mismatched filenames)
+// function getGlobModule(modules: Record<string, unknown>): Record<string, unknown> | null { ... }
 
 // ============================================================
 // Type for the CPI sector inflation data
@@ -147,14 +149,31 @@ export interface GovernmentData {
 // ============================================================
 
 /**
+ * FS-6f (ruled): a data-extraction failure THROWS a developer-facing error instead of
+ * silently returning a fallback estimate. Fallback-on-failure inverted the project's own
+ * "data not found over estimates" doctrine: a future file-shape drift would have silently
+ * shifted economic baselines (the 0.132-vs-derived-0.124 registry episode is the
+ * demonstrated harm class). Every committed file parsed here exists and parses today,
+ * so this hardening changes no live value; it converts future drift into a loud error.
+ */
+function failParse(field: string, source: string): never {
+  throw new Error(
+    `[ATLAS data] Failed to parse ${field} from ${source} — the committed file is missing, ` +
+    `empty, or its shape changed. Re-run the relevant fetch script (scripts/fetch-*.ts) or fix ` +
+    `the file. Do NOT substitute estimates for observed data.`,
+  );
+}
+
+/**
  * Extract BLS total employment from CES data.
  * Finds Dec 2025 (or latest available month) and converts from thousands.
  */
 function extractTotalEmployment(): number {
-  const FALLBACK = 158_316_000;
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 158_316_000;
   try {
     const data = blsTotalEmployment.data;
-    if (!Array.isArray(data) || data.length === 0) return FALLBACK;
+    if (!Array.isArray(data) || data.length === 0) return failParse('totalEmployment', 'src/data/bls/total-employment.json');
 
     // Find Dec 2025 first (most recent year-end)
     const dec2025 = data.find(
@@ -172,9 +191,9 @@ function extractTotalEmployment(): number {
       if (!isNaN(val) && val > 0) return val * 1000;
     }
 
-    return FALLBACK;
+    return failParse('totalEmployment', 'src/data/bls/total-employment.json');
   } catch {
-    return FALLBACK;
+    return failParse('totalEmployment', 'src/data/bls/total-employment.json');
   }
 }
 
@@ -184,15 +203,16 @@ function extractTotalEmployment(): number {
  * agricultural, private household workers. Used for unemployment calculations.
  */
 function extractCPSEmployment(): number {
-  const FALLBACK = 163_949_000; // Derived from LF × (1 - UE_rate): 171495 × 0.956
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 163_949_000; // Derived from LF × (1 - UE_rate): 171495 × 0.956
   try {
     const val = (fredCPSEmployment as Record<string, unknown>).cpsEmploymentAbsolute;
     if (typeof val === 'number' && val > 100_000_000) return val;
     const thousands = (fredCPSEmployment as Record<string, unknown>).cpsEmployment;
     if (typeof thousands === 'number' && thousands > 100_000) return thousands * 1000;
-    return FALLBACK;
+    return failParse('cpsEmployment', 'src/data/fred/cps-employment.json');
   } catch {
-    return FALLBACK;
+    return failParse('cpsEmployment', 'src/data/fred/cps-employment.json');
   }
 }
 
@@ -200,15 +220,16 @@ function extractCPSEmployment(): number {
  * Extract BLS labor force level from CPS data (in thousands → absolute).
  */
 function extractLaborForce(): number {
-  const FALLBACK = 168_000_000;
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 168_000_000;
   try {
     const monthly = blsLaborForce.latestMonthly;
     if (monthly && typeof monthly.value === 'number' && monthly.value > 0) {
       return monthly.value * 1000;
     }
-    return FALLBACK;
+    return failParse('laborForce', 'src/data/bls/labor-force.json');
   } catch {
-    return FALLBACK;
+    return failParse('laborForce', 'src/data/bls/labor-force.json');
   }
 }
 
@@ -216,15 +237,16 @@ function extractLaborForce(): number {
  * Extract BLS unemployment rate from CPS data (percent → decimal).
  */
 function extractUnemploymentRate(): number {
-  const FALLBACK = 0.041;
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.041;
   try {
     const monthly = blsUnemploymentRate.latestMonthly;
     if (monthly && typeof monthly.value === 'number' && monthly.value > 0) {
       return monthly.value / 100;
     }
-    return FALLBACK;
+    return failParse('unemploymentRate', 'src/data/bls/unemployment-rate.json');
   } catch {
-    return FALLBACK;
+    return failParse('unemploymentRate', 'src/data/bls/unemployment-rate.json');
   }
 }
 
@@ -232,17 +254,17 @@ function extractUnemploymentRate(): number {
  * Extract BLS average weekly hours and hourly earnings.
  */
 function extractLaborMarket(): { avgWeeklyHours: number; avgHourlyEarnings: number } {
-  const FALLBACK_HOURS = 34.3;
-  const FALLBACK_EARNINGS = 35.50;
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK_HOURS = 34.3;  const FALLBACK_EARNINGS = 35.50;
   try {
     const hours = parseFloat(blsLaborMarket.avgWeeklyHours?.latestMonthly);
     const earnings = parseFloat(blsLaborMarket.avgHourlyEarnings?.latestMonthly);
     return {
-      avgWeeklyHours: !isNaN(hours) && hours > 0 ? hours : FALLBACK_HOURS,
-      avgHourlyEarnings: !isNaN(earnings) && earnings > 0 ? earnings : FALLBACK_EARNINGS,
+      avgWeeklyHours: !isNaN(hours) && hours > 0 ? hours : failParse('avgWeeklyHours', 'src/data/bls/labor-market.json'),
+      avgHourlyEarnings: !isNaN(earnings) && earnings > 0 ? earnings : failParse('avgHourlyEarnings', 'src/data/bls/labor-market.json'),
     };
   } catch {
-    return { avgWeeklyHours: FALLBACK_HOURS, avgHourlyEarnings: FALLBACK_EARNINGS };
+    return failParse('labor market (hours/earnings)', 'src/data/bls/labor-market.json');
   }
 }
 
@@ -250,15 +272,16 @@ function extractLaborMarket(): { avgWeeklyHours: number; avgHourlyEarnings: numb
  * Extract base inflation rate from CPI-U All Items sector.
  */
 function extractBaseInflationRate(): number {
-  const FALLBACK = 0.025;
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.025;
   try {
     const allItems = blsCPISectorIndices.sectors?.all_items;
     if (allItems && typeof allItems.latestAnnualInflation === 'number') {
       return allItems.latestAnnualInflation;
     }
-    return FALLBACK;
+    return failParse('baseInflationRate (CPI-U all items)', 'src/data/bls/cpi-sector-indices.json');
   } catch {
-    return FALLBACK;
+    return failParse('baseInflationRate (CPI-U all items)', 'src/data/bls/cpi-sector-indices.json');
   }
 }
 
@@ -266,20 +289,21 @@ function extractBaseInflationRate(): number {
  * Extract CPI sector weights from BLS relative importance data.
  */
 function extractCPISectorWeights(): Record<string, number> {
-  const FALLBACK: Record<string, number> = {
-    food_home: 0.079, food_away: 0.056, shelter: 0.370, medical_care: 0.084,
-    transportation: 0.151, education_comm: 0.062, info_technology: 0.013,
-    apparel: 0.025, recreation: 0.053, other_services: 0.032, energy: 0.062,
-    other_goods: 0.013,
-  };
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK: Record<string, number> = {
+  // food_home: 0.079, food_away: 0.056, shelter: 0.370, medical_care: 0.084,
+  // transportation: 0.151, education_comm: 0.062, info_technology: 0.013,
+  // apparel: 0.025, recreation: 0.053, other_services: 0.032, energy: 0.062,
+  // other_goods: 0.013,
+  // };
   try {
     const weights = blsCPISectorWeights.weights;
     if (weights && typeof weights === 'object' && Object.keys(weights).length > 0) {
       return weights as Record<string, number>;
     }
-    return FALLBACK;
+    return failParse('cpiSectorWeights', 'src/data/bls/cpi-sector-weights.json');
   } catch {
-    return FALLBACK;
+    return failParse('cpiSectorWeights', 'src/data/bls/cpi-sector-weights.json');
   }
 }
 
@@ -318,23 +342,18 @@ function extractGDPComponents(): {
   netExportRatio: number;
   isFallback: boolean;
 } {
-  const FALLBACK = {
-    gdpNominal: 29_000_000_000_000,
-    consumptionRatio: 0.681,
-    investmentRatio: 0.175,
-    governmentRatio: 0.18,
-    netExportRatio: -0.03,
-    isFallback: true,
-  };
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = { gdpNominal: 29_000_000_000_000, consumptionRatio: 0.681,
+  //   investmentRatio: 0.175, governmentRatio: 0.18, netExportRatio: -0.03, isFallback: true };
   try {
     const bea = beaGDPComponents;
-    if (!bea || typeof bea.gdpNominal !== 'number') return FALLBACK;
+    if (!bea || typeof bea.gdpNominal !== 'number') return failParse('gdpNominal', 'src/data/bea/gdp-components.json');
 
     let { consumptionRatio, investmentRatio, governmentRatio, netExportRatio } = bea;
-    if (typeof consumptionRatio !== 'number') consumptionRatio = FALLBACK.consumptionRatio;
-    if (typeof investmentRatio !== 'number') investmentRatio = FALLBACK.investmentRatio;
-    if (typeof governmentRatio !== 'number') governmentRatio = FALLBACK.governmentRatio;
-    if (typeof netExportRatio !== 'number') netExportRatio = FALLBACK.netExportRatio;
+    if (typeof consumptionRatio !== 'number') consumptionRatio = failParse('consumptionRatio', 'src/data/bea/gdp-components.json');
+    if (typeof investmentRatio !== 'number') investmentRatio = failParse('investmentRatio', 'src/data/bea/gdp-components.json');
+    if (typeof governmentRatio !== 'number') governmentRatio = failParse('governmentRatio', 'src/data/bea/gdp-components.json');
+    if (typeof netExportRatio !== 'number') netExportRatio = failParse('netExportRatio', 'src/data/bea/gdp-components.json');
 
     // Normalize ratios to sum to 1.0 (safety net for BEA rounding)
     const ratioSum = consumptionRatio + investmentRatio + governmentRatio + netExportRatio;
@@ -357,7 +376,7 @@ function extractGDPComponents(): {
       isFallback: 'isFallback' in bea && (bea as Record<string, unknown>).isFallback === true,
     };
   } catch {
-    return FALLBACK;
+    return failParse('GDP components', 'src/data/bea/gdp-components.json');
   }
 }
 
@@ -370,14 +389,15 @@ function extractIncomeShares(): {
   transferShare: number;
   isFallback: boolean;
 } {
-  const FALLBACK = { wageShare: 0.60, assetShare: 0.20, transferShare: 0.20, isFallback: true };
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = { wageShare: 0.60, assetShare: 0.20, transferShare: 0.20, isFallback: true };
   try {
     const pi = beaPersonalIncome;
-    if (!pi) return FALLBACK;
+    if (!pi) return failParse('personal income shares', 'src/data/bea/personal-income.json');
 
-    let wageShare = typeof pi.wageShare === 'number' ? pi.wageShare : FALLBACK.wageShare;
-    let assetShare = typeof pi.assetShare === 'number' ? pi.assetShare : FALLBACK.assetShare;
-    let transferShare = typeof pi.transferShare === 'number' ? pi.transferShare : FALLBACK.transferShare;
+    let wageShare = typeof pi.wageShare === 'number' ? pi.wageShare : failParse('wageShare', 'src/data/bea/personal-income.json');
+    let assetShare = typeof pi.assetShare === 'number' ? pi.assetShare : failParse('assetShare', 'src/data/bea/personal-income.json');
+    let transferShare = typeof pi.transferShare === 'number' ? pi.transferShare : failParse('transferShare', 'src/data/bea/personal-income.json');
 
     // Normalize shares to sum to 1.0
     const shareSum = wageShare + assetShare + transferShare;
@@ -395,7 +415,7 @@ function extractIncomeShares(): {
       isFallback: 'isFallback' in pi && (pi as Record<string, unknown>).isFallback === true,
     };
   } catch {
-    return FALLBACK;
+    return failParse('income shares', 'src/data/bea/personal-income.json');
   }
 }
 
@@ -403,14 +423,15 @@ function extractIncomeShares(): {
  * Extract FRED M2 velocity.
  */
 function extractM2Velocity(): number {
-  const FALLBACK = 1.2;
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 1.2;
   try {
     if (typeof fredM2Velocity.velocity === 'number' && fredM2Velocity.velocity > 0) {
       return fredM2Velocity.velocity;
     }
-    return FALLBACK;
+    return failParse('m2Velocity', 'src/data/fred/m2-velocity.json');
   } catch {
-    return FALLBACK;
+    return failParse('m2Velocity', 'src/data/fred/m2-velocity.json');
   }
 }
 
@@ -418,14 +439,15 @@ function extractM2Velocity(): number {
  * Extract FRED NAIRU (already decimal).
  */
 function extractNairuRate(): number {
-  const FALLBACK = 0.044;
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.044;
   try {
     if (typeof fredNAIRU.naturalUnemploymentRate === 'number' && fredNAIRU.naturalUnemploymentRate > 0) {
       return fredNAIRU.naturalUnemploymentRate;
     }
-    return FALLBACK;
+    return failParse('fredNairuRate', 'src/data/fred/nairu.json');
   } catch {
-    return FALLBACK;
+    return failParse('fredNairuRate', 'src/data/fred/nairu.json');
   }
 }
 
@@ -433,14 +455,15 @@ function extractNairuRate(): number {
  * Extract FRED federal funds rate (already decimal).
  */
 function extractFedFundsRate(): number {
-  const FALLBACK = 0.045;
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.045;
   try {
     if (typeof fredFedFundsRate.federalFundsRate === 'number' && fredFedFundsRate.federalFundsRate > 0) {
       return fredFedFundsRate.federalFundsRate;
     }
-    return FALLBACK;
+    return failParse('fedFundsRate', 'src/data/fred/fed-funds-rate.json');
   } catch {
-    return FALLBACK;
+    return failParse('fedFundsRate', 'src/data/fred/fed-funds-rate.json');
   }
 }
 
@@ -449,17 +472,19 @@ function extractFedFundsRate(): number {
 // ============================================================
 
 function extractMortgageDelinquencyRate(): number {
-  const FALLBACK = 0.0178; // FRED DRSFRMACBS, 2025 average
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.0178; // FRED DRSFRMACBS, 2025 average
   try {
     const data = fredMortgageDelinquency as Record<string, unknown>;
     const val = data.mortgageDelinquencyRate;
     if (typeof val === 'number' && val > 0 && val < 1) return val;
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    return failParse('mortgageDelinquencyRate', 'src/data/fred/mortgage-delinquency.json');
+  } catch { return failParse('mortgageDelinquencyRate', 'src/data/fred/mortgage-delinquency.json'); }
 }
 
 function extractMortgageRate30yr(): number {
-  const FALLBACK = 0.0617; // FRED MORTGAGE30US, 2025-2026 annual avg
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.0617; // FRED MORTGAGE30US, 2025-2026 annual avg
   try {
     const data = fredMortgageRate30yr as Record<string, unknown>;
     const val = data.annualAverage;
@@ -467,22 +492,24 @@ function extractMortgageRate30yr(): number {
     // latestValue is already in decimal (0.0601)
     const latest = data.latestValue;
     if (typeof latest === 'number' && latest > 0 && latest < 1) return latest;
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    return failParse('mortgageRate30yr', 'src/data/fred/mortgage-rate-30yr.json');
+  } catch { return failParse('mortgageRate30yr', 'src/data/fred/mortgage-rate-30yr.json'); }
 }
 
 function extractCaseShillerIndex(): number {
-  const FALLBACK = 328.15; // FRED CSUSHPINSA, Nov 2025
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 328.15; // FRED CSUSHPINSA, Nov 2025
   try {
     const data = fredCaseShiller as Record<string, unknown>;
     const val = data.latestValue;
     if (typeof val === 'number' && val > 0) return val;
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    return failParse('caseShillerIndex', 'src/data/fred/case-shiller-national.json');
+  } catch { return failParse('caseShillerIndex', 'src/data/fred/case-shiller-national.json'); }
 }
 
 function extractHousingStarts(): number {
-  const FALLBACK = 1_358_500; // FRED HOUST, 2025 annual avg (thousands SAAR → absolute)
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 1_358_500; // FRED HOUST, 2025 annual avg (thousands SAAR → absolute)
   try {
     const data = fredHousingStarts as Record<string, unknown>;
     const val = data.annualAverageAbsolute;
@@ -490,19 +517,20 @@ function extractHousingStarts(): number {
     // Fallback to annualAverage (in thousands) × 1000
     const avg = data.annualAverage;
     if (typeof avg === 'number' && avg > 0) return avg * 1000;
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    return failParse('housingStarts', 'src/data/fred/housing-starts.json');
+  } catch { return failParse('housingStarts', 'src/data/fred/housing-starts.json'); }
 }
 
 function extractBaselineShelterInflation(): number {
-  const FALLBACK = 0.035; // BLS CPI Shelter ~3.5% (10-year avg 2015-2024)
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.035; // BLS CPI Shelter ~3.5% (10-year avg 2015-2024)
   try {
     const data = fredCPIShelter as Record<string, unknown>;
     // Use YoY shelter inflation rate
     const val = data.yoyShelterInflation;
     if (typeof val === 'number' && val > -0.1 && val < 0.2) return val;
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    return failParse('baselineShelterInflation', 'src/data/fred/cpi-shelter.json');
+  } catch { return failParse('baselineShelterInflation', 'src/data/fred/cpi-shelter.json'); }
 }
 
 // ============================================================
@@ -518,18 +546,15 @@ function extractTaxRates(gdpNominal: number): {
   baselineProfitGDPRatio: number;
   isFallback: boolean;
 } {
-  const FALLBACK = {
-    effectiveIncomeTaxRate: 0.132,
-    effectivePayrollRate: 0.136,
-    effectiveCorporateTaxRate: 0.14,
-    effectiveCapGainsRate: 0.165,
-    corporateRetentionRate: 0.40,
-    baselineProfitGDPRatio: 0.11,
-    isFallback: true,
-  };
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw). The
+  // 0.132 income-tax literal below is the demonstrated harm class: the April registry
+  // recorded it as the live value while the live derived value was 0.1242.
+  // const FALLBACK = { effectiveIncomeTaxRate: 0.132, effectivePayrollRate: 0.136,
+  //   effectiveCorporateTaxRate: 0.14, effectiveCapGainsRate: 0.165,
+  //   corporateRetentionRate: 0.40, baselineProfitGDPRatio: 0.11, isFallback: true };
   try {
     const data = beaGovernmentReceipts as Record<string, unknown>;
-    if (!data) return FALLBACK;
+    if (!data) return failParse('government receipts', 'src/data/bea/government-receipts.json');
 
     const personalTaxes = data.personalCurrentTaxes as number;
     const socialInsurance = data.socialInsuranceContributions as number;
@@ -542,7 +567,7 @@ function extractTaxRates(gdpNominal: number): {
 
     if (!personalTaxes || !totalPI || !socialInsurance || !wageIncome ||
         !corpTaxes || !corpProfitsBT || !corpProfitsAT || !undistributed) {
-      return FALLBACK;
+      return failParse('effective tax rate components (one or more missing)', 'src/data/bea/government-receipts.json');
     }
 
     return {
@@ -555,7 +580,7 @@ function extractTaxRates(gdpNominal: number): {
       isFallback: false,
     };
   } catch {
-    return FALLBACK;
+    return failParse('effective tax rates', 'src/data/bea/government-receipts.json');
   }
 }
 
@@ -568,15 +593,14 @@ function extractTaxRates(gdpNominal: number): {
  * Units: millions of dollars (e.g., 36_000_000 = $36T).
  */
 function extractFederalDebtTotal(): number {
-  const FALLBACK = 36_000_000; // ~$36T in millions
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 36_000_000; // ~$36T in millions
   try {
-    const data = getGlobModule(fredDebtModules);
-    if (!data) return FALLBACK;
-    // GFDEBTN is in millions of dollars
-    const val = data.federalDebtTotal ?? data.value ?? data.latestValue;
+    // FS-6f: read the committed key directly (GFDEBTN, millions of dollars)
+    const val = (fredFederalDebt as Record<string, unknown>).debtMillions;
     if (typeof val === 'number' && val > 1_000_000) return val; // sanity: >$1T
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    return failParse('debtMillions', 'src/data/fred/federal-debt.json');
+  } catch { return failParse('debtMillions', 'src/data/fred/federal-debt.json'); }
 }
 
 /**
@@ -584,17 +608,14 @@ function extractFederalDebtTotal(): number {
  * Stored as percent in FRED → convert to decimal.
  */
 function extractTreasuryYield10Y(): number {
-  const FALLBACK = 0.043; // 4.3%
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.043; // 4.3%
   try {
-    const data = getGlobModule(fredTreasuryYieldModules);
-    if (!data) return FALLBACK;
-    const val = data.treasuryYield10Y ?? data.value ?? data.latestValue;
-    if (typeof val === 'number' && val > 0) {
-      // If val > 1, it's in percent form → convert to decimal
-      return val > 1 ? val / 100 : val;
-    }
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    // FS-6f: read the committed key directly (DGS10, decimal form)
+    const val = (fredTreasury10Y as Record<string, unknown>).yieldDecimal;
+    if (typeof val === 'number' && val > 0 && val < 0.20) return val;
+    return failParse('yieldDecimal', 'src/data/fred/treasury-10yr.json');
+  } catch { return failParse('yieldDecimal', 'src/data/fred/treasury-10yr.json'); }
 }
 
 /**
@@ -603,18 +624,14 @@ function extractTreasuryYield10Y(): number {
  * Result is a positive decimal (e.g., 0.06 = 6% of GDP).
  */
 function extractBaselineDeficitGDPRatio(): number {
-  const FALLBACK = 0.06; // 6% of GDP
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.06; // 6% of GDP
   try {
-    const data = getGlobModule(fredDeficitGDPModules);
-    if (!data) return FALLBACK;
-    const val = data.deficitGDPRatio ?? data.value ?? data.latestValue;
-    if (typeof val === 'number') {
-      // FRED FYFSGDA188S: surplus is positive, deficit is negative; stored as percent
-      const decimal = Math.abs(val > 1 || val < -1 ? val / 100 : val);
-      if (decimal > 0 && decimal < 1) return decimal;
-    }
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    // FS-6f: read the committed key directly (FYFSGDA188S, stored as a positive decimal)
+    const val = (fredDeficitGDP as Record<string, unknown>).deficitGDPRatioPositive;
+    if (typeof val === 'number' && val > 0 && val < 1) return val;
+    return failParse('deficitGDPRatioPositive', 'src/data/fred/federal-deficit-gdp.json');
+  } catch { return failParse('deficitGDPRatioPositive', 'src/data/fred/federal-deficit-gdp.json'); }
 }
 
 /**
@@ -622,16 +639,14 @@ function extractBaselineDeficitGDPRatio(): number {
  * FRED stores as percent → convert to decimal.
  */
 function extractBBBCorporateSpread(): number {
-  const FALLBACK = 0.015; // 150bp
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 0.015; // 150bp
   try {
-    const data = getGlobModule(fredBBBSpreadModules);
-    if (!data) return FALLBACK;
-    const val = data.bbbCorporateSpread ?? data.value ?? data.latestValue;
-    if (typeof val === 'number' && val > 0) {
-      return val > 1 ? val / 100 : val;
-    }
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    // FS-6f: read the committed key directly (BAMLC0A4CBBB, decimal form)
+    const val = (fredBBBSpread as Record<string, unknown>).spreadDecimal;
+    if (typeof val === 'number' && val > 0 && val < 0.10) return val;
+    return failParse('spreadDecimal', 'src/data/fred/bbb-corporate-spread.json');
+  } catch { return failParse('spreadDecimal', 'src/data/fred/bbb-corporate-spread.json'); }
 }
 
 /**
@@ -639,14 +654,14 @@ function extractBBBCorporateSpread(): number {
  * Units: dollars (already in absolute dollar terms in our JSON).
  */
 function extractFederalInterestOutlays(): number {
-  const FALLBACK = 1_050_000_000_000; // $1.05T
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 1_050_000_000_000; // $1.05T
   try {
-    const data = getGlobModule(fredInterestOutlaysModules);
-    if (!data) return FALLBACK;
-    const val = data.federalInterestOutlays ?? data.value ?? data.latestValue;
-    if (typeof val === 'number' && val > 0) return val;
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    // FS-6f: read the committed key directly (FYOINT, absolute dollars)
+    const val = (fredInterestOutlays as Record<string, unknown>).interestOutlaysDollars;
+    if (typeof val === 'number' && val > 100_000_000_000) return val; // sanity: >$100B
+    return failParse('interestOutlaysDollars', 'src/data/fred/federal-interest-outlays.json');
+  } catch { return failParse('interestOutlaysDollars', 'src/data/fred/federal-interest-outlays.json'); }
 }
 
 /**
@@ -654,21 +669,14 @@ function extractFederalInterestOutlays(): number {
  * FRED CP is quarterly SAAR in billions → convert to dollars.
  */
 function extractCorporateProfitsAfterTax(): number {
-  const FALLBACK = 3_000_000_000_000; // $3T
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 3_000_000_000_000; // $3T
   try {
-    const data = getGlobModule(fredCorpProfitsATModules);
-    if (!data) return FALLBACK;
-    // Check for pre-converted absolute value first
-    const absolute = data.corporateProfitsAfterTaxAbsolute ?? data.valueAbsolute;
-    if (typeof absolute === 'number' && absolute > 1_000_000_000) return absolute;
-    // Otherwise assume billions → convert
-    const val = data.corporateProfitsAfterTax ?? data.value ?? data.latestValue;
-    if (typeof val === 'number' && val > 0) {
-      // If < 100_000, likely in billions → convert
-      return val < 100_000 ? val * 1_000_000_000 : val;
-    }
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    // FS-6f: read the committed key directly (CP, absolute dollars)
+    const val = (fredCorporateProfits as Record<string, unknown>).profitsDollars;
+    if (typeof val === 'number' && val > 1_000_000_000_000) return val; // sanity: >$1T
+    return failParse('profitsDollars', 'src/data/fred/corporate-profits.json');
+  } catch { return failParse('profitsDollars', 'src/data/fred/corporate-profits.json'); }
 }
 
 /**
@@ -676,14 +684,19 @@ function extractCorporateProfitsAfterTax(): number {
  * Units: dollars.
  */
 function extractFederalCorpTaxReceipts(): number {
-  const FALLBACK = 420_000_000_000; // $420B
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 420_000_000_000; // $420B
   try {
-    const data = getGlobModule(fredCorpTaxReceiptsModules);
-    if (!data) return FALLBACK;
-    const val = data.federalCorpTaxReceipts ?? data.value ?? data.latestValue;
-    if (typeof val === 'number' && val > 0) return val;
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    // FS-6f UNIT CORRECTION: FRED FCTAX is denominated in BILLIONS of dollars; the pre-FS-6f
+    // fetch script labeled the raw value "receiptsMillions" and derived a dollars field 1000×
+    // too small. The corrected script writes "receiptsBillions"; the mislabeled key is read
+    // as billions for the current committed vintage. (Validation-only field: no simulation
+    // consumer reads it — verified at FS-6f.)
+    const f = fredCorpTaxReceipts as Record<string, unknown>;
+    const raw = f.receiptsBillions ?? f.receiptsMillions;
+    if (typeof raw === 'number' && raw > 100 && raw < 2000) return raw * 1_000_000_000;
+    return failParse('receiptsMillions (FCTAX, billions — see unit correction)', 'src/data/fred/corporate-tax-receipts.json');
+  } catch { return failParse('receiptsMillions (FCTAX, billions — see unit correction)', 'src/data/fred/corporate-tax-receipts.json'); }
 }
 
 /**
@@ -691,14 +704,14 @@ function extractFederalCorpTaxReceipts(): number {
  * Units: index value (e.g., 5800).
  */
 function extractSP500Level(): number {
-  const FALLBACK = 5800;
+  // DEPRECATED (FS-6f, ruled — silent fallback retired; parse failures throw):
+  // const FALLBACK = 5800;
   try {
-    const data = getGlobModule(fredSP500Modules);
-    if (!data) return FALLBACK;
-    const val = data.sp500Level ?? data.value ?? data.latestValue;
+    // FS-6f: read the committed key directly (SP500 index level)
+    const val = (fredSP500 as Record<string, unknown>).sp500Level;
     if (typeof val === 'number' && val > 100) return val;
-    return FALLBACK;
-  } catch { return FALLBACK; }
+    return failParse('sp500Level', 'src/data/fred/sp500.json');
+  } catch { return failParse('sp500Level', 'src/data/fred/sp500.json'); }
 }
 
 /**
@@ -706,11 +719,12 @@ function extractSP500Level(): number {
  * Both inputs are decimals. Returns decimal (e.g., 0.017 = 170bp).
  */
 function computeMortgageSpread(mortgageRate: number, treasuryYield: number): number {
-  const FALLBACK = 0.017; // 170bp
+  // DEPRECATED (FS-6f, ruled — silent substitution retired; out-of-bounds throws):
+  // const FALLBACK = 0.017; // 170bp
   const spread = mortgageRate - treasuryYield;
   // Sanity: spread should be positive and < 500bp
   if (spread > 0 && spread < 0.05) return spread;
-  return FALLBACK;
+  return failParse(`mortgageSpread (derived ${spread.toFixed(4)} outside (0, 0.05))`, 'mortgage-rate-30yr.json minus treasury-yield-10y.json');
 }
 
 // ============================================================
@@ -745,15 +759,9 @@ const _fiscalDebt = extractFederalDebtTotal();
 const _treasuryYield = extractTreasuryYield10Y();
 const _mortgageRate = extractMortgageRate30yr();
 
-const fredFiscalMonetaryAvailable = (() => {
-  // Fiscal-monetary data is "real" if at least the federal debt JSON loaded successfully
-  try {
-    const debtData = getGlobModule(fredDebtModules);
-    return debtData !== null;
-  } catch {
-    return false;
-  }
-})();
+// FS-6f: the family is statically imported — a missing file fails the build, so by the
+// time this module evaluates, the data is structurally present (extraction failures throw).
+const fredFiscalMonetaryAvailable = true;
 
 /**
  * Central government data object.

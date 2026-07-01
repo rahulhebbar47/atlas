@@ -47,6 +47,10 @@ export interface FiscalPolicyProfile {
   // Reaction Timing
   /** Debt/GDP ratio that triggers fiscal response. Range: 0.50-10.0. */
   consolidationThreshold: number;
+  /** E-8b item 4 (R-B): true = markets price this profile's announced consolidation (the
+   *  adjustmentExpectation ramps, compressing premia below the Laubach evidence slope). False/absent
+   *  = the observed-regime default — the evidence slope alone carries the pricing. */
+  marketPricesConsolidation?: boolean;
   /** Debt/GDP at full response intensity. Range: threshold+0.5 to 10.0. */
   consolidationMaxThreshold: number;
 
@@ -142,6 +146,47 @@ export const FISCAL_POLICY_PRESETS: Record<string, FiscalPolicyProfile> = {
     consolidationThreshold: 1.5,
     consolidationMaxThreshold: 3.0,
     consolidationLag: 2,
+  },
+
+  observed_political_economy: {
+    name: 'Observed Political Economy (R-C default)',
+    description: 'E-8b (ratified, R-C): the DEFAULT — forward-reasoned from the observed record. '
+      + 'Long recognition lag (AI displacement is gradual and deniable; slower political trigger '
+      + 'than a financial crash), transfer-heavy deficit-financed expansion when it bites (the '
+      + 'COVID template — carried by the existing automatic stabilizers and scenario policy), '
+      + 'consolidation ABSENT until bond-market duress, monetization pressure arriving first. '
+      + 'Baseline debt RISES, CBO-like (R-A); sustainability comes from r ≈ g with Laubach-sized '
+      + 'premia, not forced adjustment. STATUTE GUARD: maxObligationCut = 0.',
+    maxDiscretionaryCut: 0.10,
+    maxObligationCut: 0,           // statute guard (carried from E-8, binding)
+    maxRevenueIncrease: 0.04,
+    colaDampeningRate: 0.10,
+    colaDampeningThreshold: 2.0,
+    colaDampeningMaxCIF: 4.0,
+    consolidationThreshold: 2.2,   // duress-only (R-C: no consolidation until the bond market forces it)
+    consolidationMaxThreshold: 3.0,
+    consolidationLag: 4,           // long recognition lag (R-C)
+    marketPricesConsolidation: false,  // the Laubach evidence slope IS the observed-regime pricing
+  },
+
+  gradual_stabilization: {
+    name: 'Gradual Stabilization (E-8 baseline)',
+    description: 'E-8 (ratified): the OBSERVED-REGIME default — phased primary-balance adjustment '
+      + 'at the 1990s pace (~0.55pp of GDP/yr; 1992-1998: 4.5pp over six years) via discretionary '
+      + 'and revenue levers ONLY. STATUTE GUARD: maxObligationCut = 0 — the Stage-5b/6b '
+      + 'statute-indexed transfer stocks are untouchable in the baseline; COLA dampening stays a '
+      + 'visible, mild lever. Dialing consolidationThreshold to 999 = the never-consolidates world '
+      + '(the E-7 conditional-instability finding as a scenario).',
+    maxDiscretionaryCut: 0.12,
+    maxObligationCut: 0,          // statute guard (E-8 §2, binding)
+    maxRevenueIncrease: 0.05,
+    colaDampeningRate: 0.15,
+    colaDampeningThreshold: 2.0,
+    colaDampeningMaxCIF: 4.0,
+    consolidationThreshold: 1.1,  // between the 2011 episode (~0.95) and the current trajectory
+    consolidationMaxThreshold: 2.0,  // the threshold→max intensity ramp IS the pressure-proportional pace (E-8b relocation)
+    consolidationLag: 1,
+    marketPricesConsolidation: true,  // E-8b item 4: an announced consolidation regime — markets price it
   },
 
   balanced_reduction: {
@@ -265,7 +310,9 @@ export const FEDERAL_RESERVE_PRESETS: Record<string, FederalReserveProfile> = {
 // ============================================================
 
 /** Default fiscal policy preset name. */
-export const DEFAULT_FISCAL_POLICY_PRESET = 'balanced_reduction';
+// E-8b (ratified, R-A/R-C): the baseline fiscal regime is the OBSERVED one — no consolidation
+// until duress; debt rises CBO-like; r ≈ g + evidence premia carry sustainability.
+export const DEFAULT_FISCAL_POLICY_PRESET = 'observed_political_economy';
 
 /** Default Federal Reserve preset name. */
 export const DEFAULT_FEDERAL_RESERVE_PRESET = 'balanced_mandate';

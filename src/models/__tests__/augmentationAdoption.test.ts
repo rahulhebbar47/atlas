@@ -14,15 +14,15 @@ describe('computeAugmentationAdoption', () => {
     expect(r.triggerYear).toBe(null);
   });
 
-  it('just above threshold → triggered, rate = 0.5 at trigger year (logistic midpoint)', () => {
+  it('just above threshold → triggered, rate = 0 at trigger year (FS-1b F1: the sibling form starts at 0)', () => {
     // better=0.4, cheaper=0.3 → product=0.12 > 0.1
     const r = computeAugmentationAdoption({
       year: 2026, betterScore: 0.4, cheaperScore: 0.3, augTriggerYear: null, steepness: 0.8,
     });
     expect(r.triggered).toBe(true);
     expect(r.triggerYear).toBe(2026);
-    // At yearsSince=0, 1/(1+exp(0)) = 0.5
-    expect(r.augAdoptionRate).toBeCloseTo(0.5, 10);
+    // FS-1b F1: the sibling form — 1 − e^0 = 0 at the trigger year (the 0.5 jump retired)
+    expect(r.augAdoptionRate).toBe(0);
   });
 
   it('5 years post-trigger at steepness 0.8 → rate ≈ 0.98', () => {

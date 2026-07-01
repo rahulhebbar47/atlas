@@ -1,14 +1,30 @@
 {
   "source": "FRED CUSR0000SAH1 (CPI-U: Shelter, U.S. City Average, SA)",
   "seriesOrTable": "CUSR0000SAH1",
-  "fetchedAt": "2026-02-23T15:20:39.671Z",
-  "latestDate": "2026-01-01",
-  "latestIndex": 421.965,
-  "yoyShelterInflation": 0.03024080824456324,
-  "yoyShelterInflationPercent": 3.0240808244563238,
+  "fetchedAt": "2026-06-11T17:55:41.521Z",
+  "latestDate": "2026-05-01",
+  "latestIndex": 427.998,
+  "yoyShelterInflation": 0.033539478736274775,
+  "yoyShelterInflationPercent": 3.3539478736274777,
   "fiveYearAvgAnnualInflation": 0,
   "fiveYearAvgAnnualInflationPercent": 0,
   "recentValues": [
+    {
+      "date": "2026-05-01",
+      "value": 427.998
+    },
+    {
+      "date": "2026-04-01",
+      "value": 426.642
+    },
+    {
+      "date": "2026-03-01",
+      "value": 424.069
+    },
+    {
+      "date": "2026-02-01",
+      "value": 422.942
+    },
     {
       "date": "2026-01-01",
       "value": 421.965
@@ -68,22 +84,6 @@
     {
       "date": "2024-10-01",
       "value": 405.721
-    },
-    {
-      "date": "2024-09-01",
-      "value": 403.956
-    },
-    {
-      "date": "2024-08-01",
-      "value": 402.895
-    },
-    {
-      "date": "2024-07-01",
-      "value": 401.139
-    },
-    {
-      "date": "2024-06-01",
-      "value": 399.699
     }
   ],
   "notes": "Monthly, SA. CPI shelter component (1982-84 = 100). ~36% of CPI-U weight. Used in Phase 5i to calibrate baseline shelter inflation and validate shelter stickiness parameter. 5-year average captures structural shelter inflation rate."

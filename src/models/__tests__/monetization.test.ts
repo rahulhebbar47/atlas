@@ -319,26 +319,31 @@ describe('computeMonetizationRate', () => {
   });
 
   describe('Case 5: Yield-responsive monetization', () => {
-    it('fires when 10Y yield exceeds threshold', () => {
+    it('fires on the FISCAL-DOMINANCE co-conditions (E-8c F-B re-conditioning, Sargent-Wallace)', () => {
       const result = computeMonetizationRate(
         0.05,                // above ELB
         EFFECTIVE_LOWER_BOUND,
-        false,               // no fiscal dominance
+        false,               // no fiscal dominance (the Fed-constraint case — separate)
         0.05,
         0.05,
         QE_MONETIZATION_RATE,
-        0.20,                // healthy debt service
+        0.60,                // debtService/revenue 0.60 > the 0.50 dominance gate
         1.0,                 // default repression cap
-        0.12,                // prevTenYearYield: 12% (above 8% threshold)
-        0.08,                // yieldResponseThreshold
+        0.12,                // prevTenYearYield (DEPRECATED input — no longer the trigger)
+        0.08,                // yieldResponseThreshold (DEPRECATED)
         0.70,                // maxYieldResponseRate
+        0,
+        0.02,                // prevFiscalRiskPremium 2pp > the 1pp co-condition
+        0.50, 0.01,
       );
       expect(result.yieldResponseActive).toBe(true);
       expect(result.yieldResponseMonetization).toBeGreaterThan(0);
-      // yieldStress = min(1, (0.12 - 0.08) / 0.08) = min(1, 0.50) = 0.50
-      // yieldResponseMonetization = 0.40 + 0.50 × (0.70 - 0.40) = 0.55
-      expect(result.yieldResponseMonetization).toBeCloseTo(0.55, 10);
-      expect(result.rate).toBeCloseTo(0.55, 10);
+      // dominanceStress = min(1, (0.60 - 0.50) / 0.50) = 0.20
+      // yieldResponseMonetization = 0.40 + 0.20 × (0.70 - 0.40) = 0.46
+      expect(result.yieldResponseMonetization).toBeCloseTo(0.46, 10);
+      // NOTE: debtServiceRatio 0.60 also fires Case 2 repression (>0.50, Reinhart-Sbrancia, untouched):
+      // repression = 0.40 + 0.20 × (1.0 - 0.40) = 0.52 — the max-of-cases rate is 0.52
+      expect(result.rate).toBeCloseTo(0.52, 10);
     });
 
     it('returns inactive when yield is below threshold', () => {
@@ -351,16 +356,17 @@ describe('computeMonetizationRate', () => {
         QE_MONETIZATION_RATE,
         0.20,
         1.0,
-        0.06,                // prevTenYearYield: 6% (below 8% threshold)
-        0.08,                // yieldResponseThreshold
+        0.06,                // prevTenYearYield (DEPRECATED input)
+        0.08,                // yieldResponseThreshold (DEPRECATED)
         0.70,
       );
+      // E-8c F-B: without the dominance co-conditions (service 0.20, premium 0) the case is silent
       expect(result.yieldResponseActive).toBe(false);
       expect(result.yieldResponseMonetization).toBe(0);
       expect(result.rate).toBe(0); // no other case fires either
     });
 
-    it('caps yieldStress at 1.0 for extreme yields', () => {
+    it('caps dominanceStress at 1.0 for extreme service ratios (E-8c F-B); LOLR untouched at crisis yields', () => {
       const result = computeMonetizationRate(
         0.05,
         EFFECTIVE_LOWER_BOUND,
@@ -368,19 +374,21 @@ describe('computeMonetizationRate', () => {
         0.05,
         0.05,
         QE_MONETIZATION_RATE,
-        0.20,
+        1.20,                // service/revenue 120% — dominanceStress = min(1, (1.20-0.50)/0.50) = 1.0
         1.0,
-        0.20,                // prevTenYearYield: 20% (way above threshold)
-        0.08,                // yieldResponseThreshold
+        0.20,                // prevTenYearYield: 20% — fires the UNTOUCHED Case-6 LOLR backstop
+        0.08,                // yieldResponseThreshold (DEPRECATED)
         0.70,
+        0,
+        0.05,                // premium co-condition met
+        0.50, 0.01,
       );
-      // Case 5: yieldStress = min(1, (0.20 - 0.08) / 0.08) = min(1, 1.50) = 1.0
-      // yieldResponseMonetization = 0.40 + 1.0 × (0.70 - 0.40) = 0.70
+      // Case 5 (re-conditioned): 0.40 + 1.0 × (0.70 - 0.40) = 0.70
       expect(result.yieldResponseMonetization).toBeCloseTo(0.70, 10);
-      // Case 6 also fires (20% > 12%): crisisIntensity ≈ 0.6154
-      // lolrRate = 0.70 + 0.6154 × (0.95 - 0.70) ≈ 0.854 → LOLR wins over Case 5
+      // Case 6 LOLR fires at 20% yields (untouched): lolrRate ≈ 0.854 → max-of-cases
+      // (Case 2 repression at service 1.20 also fires: 0.40 + 1.0×0.6 = 1.0... stress=min(1,(1.2-0.5)/0.5)=1.0 → 1.0)
       expect(result.lolrActive).toBe(true);
-      expect(result.rate).toBeCloseTo(0.854, 2);
+      expect(result.rate).toBeGreaterThanOrEqual(0.854 - 0.01);
     });
   });
 
@@ -646,7 +654,7 @@ describe('computeMoneyCreation', () => {
   });
 
   describe('Fisher equation: inflationFromMonetization', () => {
-    it('computes inflation as (moneyCreated * transmissionEfficiency * velocity / nominalGDP) - aiDeflation', () => {
+    it('computes signed Fisher inflation = moneyCreated × transmissionEfficiency × velocity / nominalGDP (Stage 4: no aiDeflation netting)', () => {
       const deficit = 2_000_000_000_000; // $2T
       const monetizationRate = 0.50;
       const moneyCreated = deficit * monetizationRate; // $1T
@@ -665,22 +673,19 @@ describe('computeMoneyCreation', () => {
       // Transmission: 0.50*0.85 + 0.30*0.70 + 0.20*0.20 = 0.675
       const expectedTransmission = 0.675;
       const effectiveMoneyCreated = moneyCreated * expectedTransmission;
-      const expectedInflation = (effectiveMoneyCreated * VELOCITY) / NOMINAL_GDP - AI_DEFLATION;
+      // Stage 4 (R9): SIGNED Fisher term — NO aiDeflation netting (AI deflation lives in the sector terms).
+      const expectedInflation = (effectiveMoneyCreated * VELOCITY) / NOMINAL_GDP;
       expect(result.inflationFromMonetization).toBeCloseTo(expectedInflation, 10);
       expect(result.inflationFromMonetization).toBeGreaterThan(0);
     });
 
-    it('floors inflation at 0 when AI deflation exceeds monetization inflation', () => {
-      const result = computeMoneyCreation(
-        100_000_000_000,     // $100B — small deficit
-        0.10,                // low monetization
-        PREV_MONEY_SUPPLY,
-        VELOCITY,
-        NOMINAL_GDP,
-        0.10,                // 10% AI deflation — larger than monetization effect
-      );
-
-      expect(result.inflationFromMonetization).toBe(0);
+    it('Stage 4: monetary inflation does NOT net against aiDeflation and has no floor (signed Fisher term)', () => {
+      const deficit = 100_000_000_000, rate = 0.10;
+      // Identical regardless of the aiDeflation argument, and strictly positive (no max(0,…) floor).
+      const hiDefl = computeMoneyCreation(deficit, rate, PREV_MONEY_SUPPLY, VELOCITY, NOMINAL_GDP, 0.10);
+      const loDefl = computeMoneyCreation(deficit, rate, PREV_MONEY_SUPPLY, VELOCITY, NOMINAL_GDP, 0.0);
+      expect(hiDefl.inflationFromMonetization).toBeCloseTo(loDefl.inflationFromMonetization, 12);
+      expect(hiDefl.inflationFromMonetization).toBeGreaterThan(0);
     });
 
     it('returns 0 inflation when nominalGDP is 0 (degenerate case)', () => {

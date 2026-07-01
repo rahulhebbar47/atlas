@@ -1,14 +1,14 @@
 # POLICY_MODEL.md — ATLAS Policy Simulation Specification
 
-> **Note**: This document reflects the initial Phase 1 policy framing for conceptual reference, augmented with current-implementation addenda inline. See `DATA_MODEL.md` and `VARIABLE_REGISTRY.md` for the canonical specification.
+> **Note**: This document specifies the policy simulation layer — the income channels users adjust, each policy lever's mechanism, and its implementation pointers. The canonical formulas live in `DATA_MODEL.md`; every variable is indexed in `VARIABLE_REGISTRY.md`. Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
-## Current-Implementation Addenda (Phases 5e → 10.A)
+## Implementation Notes (read first)
 
-The original interfaces below are conceptually correct but the **actual config types and runtime behavior have evolved**. Read this section first; the original Section 1–7 below uses outdated `number` field types and pre-Phase-5-tax channel arithmetic.
+The design sections below (1–7) describe each lever conceptually, with flat field types for readability. The implemented configuration uses the shapes stated in these notes (time-varying schedules; post-tax channels). The config types in `src/types/index.ts` are the contract.
 
-### A. PolicySchedule Keyframes (Phase 5e)
+### A. Time-Varying Policy Schedules
 
-Nine policy fields are no longer flat `number` values — they are `PolicySchedule` objects with linearly-interpolated `(year, value)` keyframes. Source: `src/types/index.ts:1054–1062`; interpolation in `src/utils/policyInterpolation.ts` (`interpolatePolicy`, `flatToSchedule`, `normalizeSchedule`).
+Nine policy fields are `PolicySchedule` objects with linearly-interpolated `(year, value)` keyframes. Source: `src/types/index.ts:1054–1062`; interpolation in `src/utils/policyInterpolation.ts` (`interpolatePolicy`, `flatToSchedule`, `normalizeSchedule`).
 
 ```typescript
 interface PolicyKeyframe { year: number; value: number; }
@@ -17,7 +17,7 @@ interface PolicySchedule { keyframes: PolicyKeyframe[]; }
 
 **Fields converted to schedules** (every read in `simulation.ts` and `policy.ts` uses `interpolatePolicy(schedule, year)`):
 
-| Section | Original field | Now |
+| Section | Conceptual field | Implemented type |
 |---|---|---|
 | 2.1 Minimum Wage | `federalMinimum: number` | `federalMinimum: PolicySchedule` |
 | 2.2 Wage Subsidy | `subsidyPercentage: number` | `subsidyPercentage: PolicySchedule` |
@@ -31,11 +31,11 @@ interface PolicySchedule { keyframes: PolicyKeyframe[]; }
 
 The UI uses `PolicyKeyframeEditor.tsx` (sparkline + add/remove keyframe rows) for each. CSV import/export round-trips schedules via `csvQuoteSchedule()` / `parseSchedule()` — flat numeric legacy values are accepted on import.
 
-### B. Phase 5-tax — 4-Channel Decomposition & Post-Tax Income
+### B. Four-Channel Post-Tax Decomposition
 
-The original "Wages / Assets / Transfers" 3-channel model has been replaced by a **4-channel post-tax decomposition** (Phase 5-tax, commit `8153f15`). Source: `src/models/macro.ts:1854–1917` (post-tax decomposition); CWI redefined as post-tax disposable income at `macro.ts:2221`.
+Income resolves through a **four-channel post-tax decomposition** (the three conceptual channels plus taxes as an explicit negative channel). Source: `src/models/macro.ts:1854–1917` (post-tax decomposition); CWI redefined as post-tax disposable income at `macro.ts:2221`.
 
-The four channels are now:
+The four channels:
 
 1. **Wages** (pre-tax) → minus payroll & income tax
 2. **Asset income** (pre-tax) → minus capital gains / dividend tax (split into dividends, capital gains, interest, rental)
@@ -52,11 +52,11 @@ consumption = postTaxWages × 0.95 + postTaxAssets × 0.42 + postTaxTransfers ×
 
 ### C. Work-Week Reduction (Section 2.3) is DEPRECATED
 
-`WorkWeekPolicy.standardHours` is preserved in the config type but **no computation logic was ever implemented** (Phase 5h Fix 6). Source: `src/models/policy.ts:75–78`. The control is hidden from the UI. Section 2.3 below is structural scaffolding only — do not expect it to affect the simulation.
+`WorkWeekPolicy.standardHours` is preserved in the config type but **no computation logic was ever implemented**. Source: `src/models/policy.ts:75–78`. The control is hidden from the UI. Section 2.3 below is structural scaffolding only — do not expect it to affect the simulation.
 
-### D. Fiscal Response Profile Split (Phase 8a → Fix 4)
+### D. The Fiscal / Federal-Reserve Profile Split
 
-Section 5's "Monetary Policy Integration" predates the **Phase 8 Fix 4 split** of fiscal/monetary response into two independent components. Source: `src/models/fiscalResponseProfiles.ts` (entire file); `src/models/fiscalDimensions.ts:33–101`.
+Section 5 describes monetary integration conceptually; the implemented system splits the response into **two independent components**. Source: `src/models/fiscalResponseProfiles.ts` (entire file); `src/models/fiscalDimensions.ts:33–101`.
 
 - **`FiscalPolicyProfile`** (Congress side — `SimulationConfig.fiscalPolicyProfile`): four dimensions —
   - `spendingResponseToDebt` ∈ [0,1] — how aggressively to cut spending as debt/GDP rises
@@ -67,9 +67,9 @@ Section 5's "Monetary Policy Integration" predates the **Phase 8 Fix 4 split** o
 
 `resolveCombinedProfile()` merges the two into the legacy `FiscalResponseProfile` interface that the rest of the simulation reads.
 
-**Key behavioral nuance**: aggressive `spendingResponseToDebt` triggers the **Keynesian Austerity Paradox** — consolidation contracts GDP fast enough that debt/GDP worsens, not improves. The `no_adjustment` preset is the only profile that avoids the trap in the default scenario.
+**A noted regime mechanism**: aggressive `spendingResponseToDebt` can produce consolidation that contracts GDP faster than it reduces debt — the austerity-trap configuration, in which debt/GDP worsens rather than improves. Whether a given preset lands in the trap depends on the scenario; compare presets directly in the dashboard.
 
-### E. State-Level Policy Overrides — Implementation Detail (Phase 6)
+### E. State-Level Policy Overrides — Implementation Detail
 
 Section 6 defines the interface but omits how overrides are applied. Source: `src/models/stateSimulation.ts:71–75` (`applyStatePolicyModifiers`); `src/data/stateData.ts` (`REGULATORY_LAG_MODIFIERS` map).
 
@@ -166,7 +166,7 @@ This lowers the effective cost to employers, which RAISES the C* threshold (make
 
 ### 2.3 Work Week Reduction
 
-> ⚠ **DEPRECATED (Phase 5h Fix 6)**: Type and config field exist but no computation logic was ever implemented. UI control is hidden. See addendum §C above.
+> ⚠ **DEPRECATED**: Type and config field exist but no computation logic was ever implemented. UI control is hidden. See Implementation Note C above.
 
 Redistribute available work across more people:
 ```typescript
@@ -302,6 +302,8 @@ This feeds back into E(t) — some displaced workers return to employment throug
 ---
 
 ## 5. Monetary Policy Integration
+
+> The implemented fiscal and monetary response is the two-profile system in Implementation Note D; this section's integration narrative is the conceptual frame those profiles parameterize.
 
 ### 5.1 Transfer Funding and Inflation
 

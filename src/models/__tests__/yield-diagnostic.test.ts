@@ -74,7 +74,7 @@ function logYearDetails(y: SimulationYearOutput, label: string) {
     console.log(`  primaryDeficit:                  $${(fi.primaryDeficit / 1e12).toFixed(4)}T`);
     console.log(`  interestExpense:                 $${(fi.interestExpense / 1e12).toFixed(4)}T`);
     console.log(`  federalDebtStock:                $${(fi.federalDebtStock / 1e12).toFixed(4)}T`);
-    console.log(`  totalGovernmentRevenue:          $${(fi.totalGovernmentRevenue / 1e12).toFixed(4)}T`);
+    console.log(`  bookedRevenueT1:        $${(fi.bookedRevenueT1 / 1e12).toFixed(4)}T`);
     console.log(`  revenueGDPRatio:                 ${fi.revenueGDPRatio.toFixed(4)}`);
     console.log(`  debtServiceRevenueRatio:         ${fi.debtServiceRevenueRatio.toFixed(4)}`);
     console.log(`  weightedAverageDebtRate:         ${(fi.weightedAverageDebtRate * 100).toFixed(4)}%`);

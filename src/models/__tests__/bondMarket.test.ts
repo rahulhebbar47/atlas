@@ -38,13 +38,18 @@ import {
 // ============================================================
 
 describe('computeFiscalRiskPremium', () => {
+  // E-8b: these tests exercise the PRESERVED legacy logistic path (useLegacyLogistic = true).
+  const legacyPremium = (...args: Parameters<typeof computeFiscalRiskPremium> extends [infer A, infer B, infer C, infer D, ...unknown[]] ? [A, B, C, D, number?, number?, number?, number?, number?, number?] : never) =>
+    computeFiscalRiskPremium(args[0] as number, args[1] as number, args[2] as number, args[3] as number,
+      (args[4] as number) ?? 0.5, (args[5] as number) ?? 0.35, (args[6] as number) ?? 0.15, (args[7] as number) ?? 0.06,
+      (args[8] as number) ?? 2.0, (args[9] as number) ?? 0.15, 0, true);
   it('returns near-zero premium when debt is stable and low', () => {
     // Stable debt at 60% (current=prev), low rate (3%), moderate growth (4%)
     // Trajectory: 0 change, but sigmoid centered at +10pp → baseline ~27% of max → ~16bp trajectory
     // Sustainability: r=0.03 < g=0.04 → zero (r-g < 0)
     // Level: 0.60 << 2.0 midpoint → very low level risk
     // Total: weighted sum with default weights (0.50/0.35/0.15)
-    const result = computeFiscalRiskPremium(
+    const result = legacyPremium(
       0.60,  // current debt/GDP
       0.60,  // prev debt/GDP (stable)
       0.03,  // weighted avg debt rate
@@ -60,7 +65,7 @@ describe('computeFiscalRiskPremium', () => {
     // Debt rising from 1.2 to 1.3 (10pp increase)
     // Phase 8 Fix 5: Trajectory sigmoid centered at 0.15 (was 0.10).
     // At 10pp change, sigmoid ≈ 10.9% → modest trajectory risk.
-    const result = computeFiscalRiskPremium(
+    const result = legacyPremium(
       1.30,  // current debt/GDP
       1.20,  // prev debt/GDP (rising by 10pp)
       0.03,  // low rate
@@ -75,7 +80,7 @@ describe('computeFiscalRiskPremium', () => {
   it('returns positive sustainability risk when r > g', () => {
     // Stable debt, but high rates (6%) vs low growth (1%)
     // r - g = 0.05 (500bp unsustainability gap) → max sustainability risk (60bp with default max=0.06)
-    const result = computeFiscalRiskPremium(
+    const result = legacyPremium(
       1.20,  // current debt/GDP
       1.20,  // prev debt/GDP (stable)
       0.06,  // high weighted avg debt rate
@@ -93,7 +98,7 @@ describe('computeFiscalRiskPremium', () => {
   it('returns positive level risk at high debt/GDP', () => {
     // Stable at 2.5x (well above 2.0 midpoint)
     // Level sigmoid centered at 2.0 with transition over 60pp → 2.5 is 50pp above → very high level risk
-    const result = computeFiscalRiskPremium(
+    const result = legacyPremium(
       2.50,  // current debt/GDP (very high)
       2.50,  // prev debt/GDP (stable)
       0.03,  // moderate rate
@@ -109,7 +114,7 @@ describe('computeFiscalRiskPremium', () => {
   it('caps total at maxPremium', () => {
     // Extreme scenario: debt rising rapidly (3.0→3.5), very high rates (10%), negative growth (-5%)
     // All three components should be maxed out
-    const result = computeFiscalRiskPremium(
+    const result = legacyPremium(
       3.50,  // current debt/GDP
       3.00,  // prev debt/GDP (rising by 50pp)
       0.10,  // very high rate
@@ -126,15 +131,15 @@ describe('computeFiscalRiskPremium', () => {
 
   it('respects custom weights', () => {
     // Same inputs, different weight configurations
-    const defaultWeights = computeFiscalRiskPremium(
+    const defaultWeights = legacyPremium(
       1.30, 1.20, 0.06, 0.01,
       // defaults: trajectory=0.50, sustainability=0.35, level=0.15
     );
-    const trajectoryHeavy = computeFiscalRiskPremium(
+    const trajectoryHeavy = legacyPremium(
       1.30, 1.20, 0.06, 0.01,
       0.90, 0.05, 0.05, // emphasize trajectory
     );
-    const sustainabilityHeavy = computeFiscalRiskPremium(
+    const sustainabilityHeavy = legacyPremium(
       1.30, 1.20, 0.06, 0.01,
       0.05, 0.90, 0.05, // emphasize sustainability
     );
@@ -147,7 +152,7 @@ describe('computeFiscalRiskPremium', () => {
   it('returns minimal premium when debt is stable, r<g, and level is low', () => {
     // Good conditions: stable at 80%, r=2% < g=3%, well below level midpoint
     // Trajectory sigmoid baseline still applies (change=0, centered at +10pp)
-    const result = computeFiscalRiskPremium(
+    const result = legacyPremium(
       0.80,  // current debt/GDP
       0.80,  // prev debt/GDP (stable)
       0.02,  // low rate

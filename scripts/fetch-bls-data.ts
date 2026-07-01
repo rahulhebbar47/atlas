@@ -63,7 +63,7 @@ interface OccupationMapping {
 
 const OCCUPATION_MAPPINGS: OccupationMapping[] = [
   // Technology
-  { clusterId: 'tech_swe', clusterName: 'Software Engineering', socCodes: ['15-1252', '15-1253', '15-1254', '15-1256'] },
+  { clusterId: 'tech_swe', clusterName: 'Software Engineering', socCodes: ['15-1252', '15-1254', '15-1256'] }, // FS-6f: 15-1253 belongs to tech_qa (was double-listed — a re-fetch would have double-counted QA),
   { clusterId: 'tech_data_ml', clusterName: 'Data / ML Engineering', socCodes: ['15-2051', '15-2098'] },
   { clusterId: 'tech_it', clusterName: 'IT Support / Sysadmin', socCodes: ['15-1231', '15-1244', '15-1232'] },
   { clusterId: 'tech_qa', clusterName: 'QA / Testing', socCodes: ['15-1253'] },

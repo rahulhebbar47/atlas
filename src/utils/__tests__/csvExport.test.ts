@@ -140,11 +140,11 @@ describe('exportSimulationResultsCSV', () => {
   // ----------------------------------------------------------
   it('produces valid CSV with correct column count', () => {
     const expectedCount = getExpectedColumnCount();
-    expect(expectedCount).toBe(648);
-    expect(headerRow.length).toBe(648);
+    expect(expectedCount).toBe(649); // FS-6f: +1 = the transfer_tax column (the 8th revenue channel exposed)
+    expect(headerRow.length).toBe(649); // FS-6f: transfer_tax column added
 
     for (let r = 0; r < dataRows.length; r++) {
-      expect(dataRows[r]!.length).toBe(648);
+      expect(dataRows[r]!.length).toBe(649); // FS-6f: transfer_tax column added
     }
   });
 

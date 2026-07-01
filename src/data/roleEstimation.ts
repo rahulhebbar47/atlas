@@ -5,7 +5,12 @@
  * but not per-seniority breakdowns. These parameters control how cluster-level
  * data is disaggregated into role-level estimates.
  *
- * Source: docs/BLS_API.md "Role-Level Estimation" section
+ * Source: docs/BLS_API.md "Role-Level Estimation" section (the METHOD only).
+ * CITATION STATUS (FS-6f, honest): the seniority wage-scaling form (0.5 + seniorityLevel)
+ * and the skew-factor default carry NO empirical source — they are design heuristics.
+ * They are user-adjustable, and the disaggregation is anchored to the observed cluster
+ * totals (the heuristics move composition within a cluster, never the cluster's
+ * employment or wage bill).
  *
  * These parameters are user-adjustable in the UI (Phase 4+).
  */

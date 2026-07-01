@@ -5,6 +5,13 @@
  * When a cluster is displaced, second-order effects hit adjacent
  * service clusters via ADJACENCY_WEIGHTS (DATA_MODEL.md §9.2).
  *
+ * FS-5b NOTE: ADJACENCY_WEIGHTS is REGISTERED-INACTIVE structure — it is NOT on the
+ * simulation path (FS-5, liveness-proven). The flows this diagram draws are an
+ * ILLUSTRATION computed from the inactive matrix (direct displacement × weight); they are
+ * not simulation output and are not subtracted from any cluster's employment. The
+ * user-visible labeling decision (mark illustrative / remove / hold for the registered
+ * enrichment) is logged with the owner at FS-5b.
+ *
  * Layout:
  *   Left column: Source clusters (those with displacement)
  *   Right column: Target clusters (receiving cascading effects)
@@ -312,14 +319,18 @@ export function MultiplierFlowDiagram({ clusterId }: { clusterId: string }) {
 
   return (
     <div className="bg-bg-card border border-border rounded-[16px] p-4">
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.12em] text-text-muted">
           Cascade Effects
         </h3>
         <span className="font-mono text-[11px] text-text-secondary">
-          {formatNumber(totalCascade, { compact: true })} second-order jobs affected
+          {formatNumber(totalCascade, { compact: true })} second-order jobs depicted
         </span>
       </div>
+      <p className="text-text-muted text-[11px] mb-3">
+        Illustrative: depicts the inter-industry flow concept. The model applies cluster-level
+        employment multipliers; see DATA_MODEL §9.2.
+      </p>
 
       <svg
         viewBox={`0 0 ${DIAGRAM_WIDTH} ${DIAGRAM_HEIGHT}`}

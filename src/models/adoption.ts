@@ -11,7 +11,7 @@
  */
 
 import type { AdoptionParams, AdoptionResult, DeploymentType } from '@/types';
-import { DEFAULT_ADOPTION_PARAMS, DEFAULT_COMPETITIVE_PRESSURE_THRESHOLD } from './constants';
+import { DEFAULT_ADOPTION_PARAMS, DEFAULT_COMPETITIVE_PRESSURE_THRESHOLD, ADOPTION_TAIL_ASYMMETRY_SCALE } from './constants';
 
 /**
  * Compute the base adoption rate at time t for an occupation-role
@@ -58,7 +58,7 @@ export function computeBaseAdoptionRate(
   // Note: this replaces the prior logistic `ceiling/(1+exp(-kt))` which started at 0.5 at t=0.
   // The new curve starts at 0 at t=0 and asymptotically approaches `ceiling`. Intentional — realistic
   // early-stage adoption dynamics (per Phase 10.A plan; see Part 10 for verification points).
-  const asymmetry = 1 + wagePremium * 5;
+  const asymmetry = 1 + wagePremium * ADOPTION_TAIL_ASYMMETRY_SCALE;
   const standardApproach = 1 - Math.exp(-steepness * timeSinceTrigger);
   const rate = Math.pow(Math.max(0, standardApproach), asymmetry);
 
@@ -107,6 +107,9 @@ export function applyCompetitivePressure(
   peerAlpha: number = 0.5,
   /** Phase 10.A: user-adjustable threshold override (config.competitivePressureThreshold). */
   thresholdOverride?: number,
+  /** FS-1b F4 (ruled): the cluster's declared adoption ceiling — pressure may not push adoption
+   *  past the ceiling computeBaseAdoptionRate enforced (the 1.0 literal retires). */
+  clusterCeiling: number = 1.0,
 ): number {
   const threshold = thresholdOverride
     ?? adoptionParams.competitivePressureThreshold
@@ -118,7 +121,7 @@ export function applyCompetitivePressure(
   // The complementary peerAlpha × pressure is applied to α in computeEffectiveAlpha (competitive driver).
   const adjusted = baseAdoptionRate * (1 + pressure * (1 - peerAlpha));
 
-  return Math.min(1, adjusted);
+  return Math.min(clusterCeiling, adjusted);
 }
 
 /**
@@ -213,6 +216,7 @@ export function getAdoptionRate(
   // Step 2: Competitive pressure (peer-α aware split)
   const afterCompetitive = applyCompetitivePressure(
     baseRate, adoptionParams, peerAlpha, competitivePressureThreshold,
+    clusterCeiling ?? 1.0,  // FS-1b F4: the inner clamp matches the composer's (defense in depth)
   );
 
   // Step 3: Revenue pressure (displacement-demand feedback)
