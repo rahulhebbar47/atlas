@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ATLAS — AI Transformation Labor & Automation Simulator</title>
+<meta name="description" content="An open economic model for understanding how AI will transform the labor force — and what we must do to ensure everyone thrives.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,300;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  /* ============================== */
+  /*  RESET & FOUNDATIONS           */
+  /* ============================== */
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    /* Deep space palette */
+    --bg-void: #04070D;
+    --bg-deep: #080D18;
+    --bg-surface: #0C1424;
+    --bg-elevated: #111D33;
+    --bg-card: #13203A;
+
+    /* Text */
+    --text-primary: #E8ECF4;
+    --text-secondary: #8A96AD;
+    --text-muted: #4E5D75;
+    --text-accent: #C4D0E4;
+
+    /* Warm accent — hope, humanity, the golden thread */
+    --gold: #D4A03C;
+    --gold-bright: #F0C05A;
+    --gold-glow: rgba(212, 160, 60, 0.15);
+    --gold-subtle: rgba(212, 160, 60, 0.06);
+
+    /* Capability vector colors */
+    --cap-lang: #3B82F6;
+    --cap-code: #10B981;
+    --cap-agent: #F59E0B;
+    --cap-decide: #8B5CF6;
+    --cap-robot: #EF4444;
+    --cap-auto: #06B6D4;
+    --cap-gen: #EC4899;
+    --cap-sci: #84CC16;
+
+    /* Status */
+    --growth: #22C55E;
+    --caution: #F97316;
+    --critical: #EF4444;
+
+    /* Borders & dividers */
+    --border: rgba(138, 150, 173, 0.1);
+    --border-accent: rgba(212, 160, 60, 0.2);
+
+    /* Fonts */
+    --font-display: 'Instrument Serif', Georgia, serif;
+    --font-body: 'DM Sans', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+
+    /* Sizing */
+    --max-width: 1200px;
+    --section-padding: clamp(80px, 12vh, 160px);
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background: var(--bg-void);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    font-size: 17px;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  ::selection {
+    background: rgba(212, 160, 60, 0.3);
+    color: var(--text-primary);
+  }
+
+  a {
+    color: var(--gold);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  a:hover { color: var(--gold-bright); }
+
+  /* ============================== */
+  /*  GLOBAL TEXTURE & ATMOSPHERE   */
+  /* ============================== */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 10%, rgba(59, 130, 246, 0.03) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 50% at 80% 30%, rgba(139, 92, 246, 0.025) 0%, transparent 60%),
+      radial-gradient(ellipse 70% 40% at 50% 90%, rgba(212, 160, 60, 0.02) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Grain overlay */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ============================== */
+  /*  LAYOUT                        */
+  /* ============================== */
+  .container {
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 clamp(24px, 4vw, 64px);
+    position: relative;
+    z-index: 2;
+  }
+
+  section {
+    padding: var(--section-padding) 0;
+    position: relative;
+  }
+
+  /* ============================== */
+  /*  NAVIGATION                    */
+  /* ============================== */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    padding: 20px 0;
+    transition: all 0.4s;
+  }
+  nav.scrolled {
+    background: rgba(4, 7, 13, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 14px 0;
+  }
+  nav .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .nav-logo {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    color: var(--text-primary);
+  }
+  .nav-logo span { color: var(--gold); }
+  .nav-links {
+    display: flex;
+    gap: 32px;
+    list-style: none;
+  }
+  .nav-links a {
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    transition: color 0.2s;
+  }
+  .nav-links a:hover { color: var(--text-primary); }
+
+  .nav-cta {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 10px 24px;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    border-radius: 4px;
+    transition: all 0.25s;
+    cursor: pointer;
+    background: transparent;
+  }
+  .nav-cta:hover {
+    background: var(--gold);
+    color: var(--bg-void);
+  }
+
+  /* ============================== */
+  /*  HERO                          */
+  /* ============================== */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    padding-top: 100px;
+  }
+
+  /* Orbital lines behind hero */
+  .hero-orbits {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 140%;
+    height: 140%;
+    pointer-events: none;
+  }
+  .hero-orbit {
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: orbit-pulse 8s ease-in-out infinite;
+  }
+  .hero-orbit:nth-child(1) { width: 40%; height: 40%; animation-delay: 0s; }
+  .hero-orbit:nth-child(2) { width: 60%; height: 60%; animation-delay: 1.5s; }
+  .hero-orbit:nth-child(3) { width: 80%; height: 80%; animation-delay: 3s; }
+  .hero-orbit:nth-child(4) { width: 100%; height: 100%; animation-delay: 4.5s; }
+  @keyframes orbit-pulse {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.35; }
+  }
+
+  /* Floating capability dots on orbits */
+  .orbit-dot {
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    animation: float-dot 20s linear infinite;
+  }
+  .orbit-dot::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    background: inherit;
+    opacity: 0.3;
+    filter: blur(4px);
+  }
+  @keyframes float-dot {
+    from { transform: rotate(0deg) translateX(var(--orbit-radius)) rotate(0deg); }
+    to { transform: rotate(360deg) translateX(var(--orbit-radius)) rotate(-360deg); }
+  }
+
+  .hero-eyebrow {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 28px;
+    opacity: 0;
+    animation: reveal-up 0.8s ease-out 0.3s forwards;
+  }
+  .hero-eyebrow::before {
+    content: '';
+    display: inline-block;
+    width: 40px;
+    height: 1px;
+    background: var(--gold);
+    vertical-align: middle;
+    margin-right: 16px;
+  }
+
+  .hero-title {
+    font-family: var(--font-display);
+    font-size: clamp(48px, 7vw, 96px);
+    line-height: 1.05;
+    font-weight: 400;
+    color: var(--text-primary);
+    max-width: 900px;
+    margin-bottom: 36px;
+    opacity: 0;
+    animation: reveal-up 1s ease-out 0.5s forwards;
+  }
+  .hero-title em {
+    font-style: italic;
+    color: var(--gold);
+  }
+
+  .hero-subtitle {
+    font-size: clamp(18px, 2.2vw, 22px);
+    color: var(--text-secondary);
+    max-width: 640px;
+    line-height: 1.65;
+    margin-bottom: 52px;
+    opacity: 0;
+    animation: reveal-up 1s ease-out 0.7s forwards;
+  }
+
+  .hero-actions {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    opacity: 0;
+    animation: reveal-up 1s ease-out 0.9s forwards;
+  }
+
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 16px 36px;
+    background: var(--gold);
+    color: var(--bg-void);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .btn-primary:hover {
+    background: var(--gold-bright);
+    transform: translateY(-1px);
+    box-shadow: 0 8px 30px rgba(212, 160, 60, 0.25);
+    color: var(--bg-void);
+  }
+  .btn-primary svg { transition: transform 0.25s; }
+  .btn-primary:hover svg { transform: translateX(3px); }
+
+  .btn-ghost {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 16px 36px;
+    background: transparent;
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.25s;
+  }
+  .btn-ghost:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+  }
+
+  .hero-scroll-hint {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    opacity: 0;
+    animation: reveal-up 1s ease-out 1.2s forwards;
+  }
+  .hero-scroll-hint span {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .scroll-line {
+    width: 1px;
+    height: 40px;
+    background: linear-gradient(to bottom, var(--text-muted), transparent);
+    animation: scroll-pulse 2s ease-in-out infinite;
+  }
+  @keyframes scroll-pulse {
+    0%, 100% { opacity: 0.3; transform: scaleY(1); }
+    50% { opacity: 0.8; transform: scaleY(1.3); }
+  }
+
+  @keyframes reveal-up {
+    from { opacity: 0; transform: translateY(24px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ============================== */
+  /*  STAKES SECTION                */
+  /* ============================== */
+  .stakes {
+    border-top: 1px solid var(--border);
+  }
+
+  .section-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-accent);
+    max-width: 120px;
+  }
+  .section-number {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-right: 4px;
+  }
+
+  .section-title {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 4.5vw, 56px);
+    line-height: 1.15;
+    font-weight: 400;
+    margin-bottom: 24px;
+    max-width: 800px;
+  }
+
+  .section-lead {
+    font-size: 19px;
+    color: var(--text-secondary);
+    max-width: 680px;
+    margin-bottom: 56px;
+    line-height: 1.75;
+  }
+
+  .stakes-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-top: 60px;
+  }
+  .stake-card {
+    background: var(--bg-surface);
+    padding: 44px 36px;
+    position: relative;
+    overflow: hidden;
+    transition: background 0.3s;
+  }
+  .stake-card:hover {
+    background: var(--bg-elevated);
+  }
+  .stake-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--accent);
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .stake-card:hover::before { opacity: 1; }
+  .stake-number {
+    font-family: var(--font-display);
+    font-size: 64px;
+    line-height: 1;
+    color: var(--bg-elevated);
+    margin-bottom: 20px;
+    transition: color 0.3s;
+  }
+  .stake-card:hover .stake-number { color: var(--bg-card); }
+  .stake-card h3 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 400;
+    margin-bottom: 14px;
+  }
+  .stake-card p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+
+  /* ============================== */
+  /*  THESIS SECTION                */
+  /* ============================== */
+  .thesis {
+    border-top: 1px solid var(--border);
+  }
+
+  .thesis-statement {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 3.8vw, 44px);
+    line-height: 1.4;
+    font-weight: 400;
+    max-width: 960px;
+    position: relative;
+    padding-left: 40px;
+  }
+  .thesis-statement::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 4px;
+    bottom: 4px;
+    width: 3px;
+    background: linear-gradient(to bottom, var(--gold), var(--gold-bright), var(--cap-code));
+    border-radius: 2px;
+  }
+  .thesis-statement em {
+    color: var(--gold);
+    font-style: italic;
+  }
+
+  .thesis-expansion {
+    margin-top: 48px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+  }
+  .thesis-expansion p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.8;
+  }
+  .thesis-expansion p + p {
+    margin-top: 20px;
+  }
+
+  /* ============================== */
+  /*  FRAMEWORK SECTION (BFCS)      */
+  /* ============================== */
+  .framework {
+    border-top: 1px solid var(--border);
+  }
+
+  .bfcs-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+    margin-top: 48px;
+  }
+
+  .bfcs-intro p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.8;
+  }
+  .bfcs-intro p + p { margin-top: 16px; }
+
+  .bfcs-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+  }
+  .bfcs-card {
+    background: var(--bg-surface);
+    padding: 32px 28px;
+    position: relative;
+  }
+  .bfcs-card-letter {
+    font-family: var(--font-display);
+    font-size: 48px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .bfcs-card h4 {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 12px;
+  }
+  .bfcs-card p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+
+  .bfcs-card:nth-child(1) .bfcs-card-letter { color: var(--cap-code); }
+  .bfcs-card:nth-child(2) .bfcs-card-letter { color: var(--cap-agent); }
+  .bfcs-card:nth-child(3) .bfcs-card-letter { color: var(--cap-lang); }
+  .bfcs-card:nth-child(4) .bfcs-card-letter { color: var(--cap-robot); }
+
+  .bfcs-example {
+    margin-top: 60px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 40px;
+  }
+  .bfcs-example h4 {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 24px;
+  }
+  .threshold-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .threshold-bar-row {
+    display: grid;
+    grid-template-columns: 140px 1fr 60px;
+    align-items: center;
+    gap: 16px;
+  }
+  .threshold-bar-label {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+  .threshold-bar-track {
+    height: 6px;
+    background: var(--bg-elevated);
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+  }
+  .threshold-bar-fill {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    border-radius: 3px;
+    transition: width 1s ease-out;
+  }
+  .threshold-bar-threshold {
+    position: absolute;
+    top: -6px;
+    bottom: -6px;
+    width: 2px;
+    background: var(--text-primary);
+    opacity: 0.6;
+  }
+  .threshold-bar-threshold::after {
+    content: 'threshold';
+    position: absolute;
+    top: -18px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .threshold-bar-value {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-accent);
+    text-align: right;
+  }
+
+  /* ============================== */
+  /*  METHODOLOGY SECTION           */
+  /* ============================== */
+  .methodology {
+    border-top: 1px solid var(--border);
+  }
+
+  .method-grid {
+    margin-top: 48px;
+  }
+
+  .method-block {
+    border-bottom: 1px solid var(--border);
+    padding: 48px 0;
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 60px;
+  }
+  .method-block:first-child { padding-top: 0; }
+  .method-block:last-child { border-bottom: none; }
+
+  .method-block-header {
+    position: sticky;
+    top: 100px;
+    align-self: start;
+  }
+  .method-block-number {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    margin-bottom: 8px;
+  }
+  .method-block-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 400;
+    line-height: 1.3;
+  }
+  .method-block-icon {
+    width: 32px;
+    height: 32px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+  }
+
+  .method-block-content p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.8;
+  }
+  .method-block-content p + p { margin-top: 16px; }
+
+  .formula-block {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 24px 28px;
+    margin: 20px 0;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1.8;
+    color: var(--cap-code);
+    overflow-x: auto;
+  }
+  .formula-block .comment {
+    color: var(--text-muted);
+  }
+
+  .insight-callout {
+    border-left: 2px solid var(--gold);
+    padding: 16px 24px;
+    margin: 20px 0;
+    background: var(--gold-subtle);
+    border-radius: 0 6px 6px 0;
+  }
+  .insight-callout p {
+    color: var(--text-accent) !important;
+    font-size: 15px !important;
+  }
+  .insight-callout strong {
+    color: var(--gold);
+  }
+
+  .method-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 14px;
+  }
+  .method-table th {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    text-align: left;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .method-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .method-table td:first-child {
+    color: var(--text-primary);
+    font-weight: 500;
+  }
+  .method-table .mono {
+    font-family: var(--font-mono);
+    font-size: 13px;
+  }
+
+  .capability-dots {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+  }
+  .capability-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .capability-dot span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  /* ============================== */
+  /*  POLICY SECTION                */
+  /* ============================== */
+  .policy {
+    border-top: 1px solid var(--border);
+  }
+
+  .policy-channels {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 2px;
+    margin-top: 48px;
+  }
+  .policy-channel {
+    background: var(--bg-surface);
+    padding: 48px 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .policy-channel::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  .policy-channel:hover::after { opacity: 1; }
+  .policy-channel:nth-child(1)::after { background: var(--cap-lang); }
+  .policy-channel:nth-child(2)::after { background: var(--cap-code); }
+  .policy-channel:nth-child(3)::after { background: var(--cap-agent); }
+
+  .channel-percentage {
+    font-family: var(--font-display);
+    font-size: 56px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .policy-channel:nth-child(1) .channel-percentage { color: var(--cap-lang); }
+  .policy-channel:nth-child(2) .channel-percentage { color: var(--cap-code); }
+  .policy-channel:nth-child(3) .channel-percentage { color: var(--cap-agent); }
+
+  .channel-label {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 20px;
+  }
+  .channel-sublabel {
+    font-size: 14px;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+    font-style: italic;
+  }
+  .policy-channel p {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.7;
+  }
+  .policy-lever-list {
+    margin-top: 16px;
+  }
+  .policy-lever-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+  .policy-lever-item:last-child { border-bottom: none; }
+  .policy-lever-item::before {
+    content: '';
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  /* ============================== */
+  /*  DISPLACEMENT-DEMAND FEEDBACK SECTION */
+  /* ============================== */
+  .displacement-demand {
+    border-top: 1px solid var(--border);
+  }
+
+  .displacement-demand-diagram {
+    margin-top: 48px;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    padding: 60px 0;
+  }
+
+  .loop-container {
+    position: relative;
+    width: 560px;
+    height: 560px;
+  }
+
+  .loop-node {
+    position: absolute;
+    width: 160px;
+    text-align: center;
+    padding: 20px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    transition: all 0.3s;
+  }
+  .loop-node:hover {
+    border-color: var(--critical);
+    background: var(--bg-elevated);
+  }
+  .loop-node-number {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .loop-node h4 {
+    font-family: var(--font-display);
+    font-size: 17px;
+    font-weight: 400;
+    margin-bottom: 6px;
+  }
+  .loop-node p {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* Position nodes in a circle */
+  .loop-node:nth-child(1) { top: 0; left: 50%; transform: translateX(-50%); }
+  .loop-node:nth-child(2) { top: 20%; right: 0; }
+  .loop-node:nth-child(3) { bottom: 20%; right: 0; }
+  .loop-node:nth-child(4) { bottom: 0; left: 50%; transform: translateX(-50%); }
+  .loop-node:nth-child(5) { bottom: 20%; left: 0; }
+  .loop-node:nth-child(6) { top: 20%; left: 0; }
+
+  .loop-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(239, 68, 68, 0.15), transparent);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    animation: loop-pulse 3s ease-in-out infinite;
+  }
+  .loop-center span {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--critical);
+  }
+  @keyframes loop-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+    50% { transform: translate(-50%, -50%) scale(1.05); opacity: 1; }
+  }
+
+  /* Arrow ring SVG */
+  .loop-arrows {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 380px;
+    height: 380px;
+    pointer-events: none;
+  }
+
+  .displacement-demand-explanation {
+    margin-top: 48px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 80px;
+  }
+  .displacement-demand-explanation p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.8;
+  }
+  .displacement-demand-explanation p + p { margin-top: 16px; }
+
+  .prevention-callout {
+    margin-top: 60px;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.06), rgba(212, 160, 60, 0.06));
+    border: 1px solid rgba(34, 197, 94, 0.15);
+    border-radius: 8px;
+    padding: 40px 48px;
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 28px;
+    align-items: start;
+  }
+  .prevention-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(34, 197, 94, 0.1);
+    border: 1px solid rgba(34, 197, 94, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    margin-top: 4px;
+    color: var(--growth);
+  }
+  .prevention-callout h4 {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 400;
+    margin-bottom: 12px;
+    color: var(--growth);
+  }
+  .prevention-callout p {
+    font-size: 16px;
+    color: var(--text-secondary);
+    line-height: 1.75;
+  }
+
+  /* ============================== */
+  /*  OPEN SOURCE / CTA SECTION     */
+  /* ============================== */
+  .cta-section {
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+
+  .cta-section .section-label {
+    justify-content: center;
+  }
+  .cta-section .section-label::after { display: none; }
+
+  .cta-section .section-title {
+    margin: 0 auto 24px;
+    max-width: 700px;
+  }
+
+  .cta-description {
+    font-size: 18px;
+    color: var(--text-secondary);
+    max-width: 600px;
+    margin: 0 auto 48px;
+    line-height: 1.75;
+  }
+
+  .cta-actions {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    margin-bottom: 80px;
+  }
+
+  .cta-principles {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+    text-align: left;
+  }
+  .cta-principle {
+    background: var(--bg-surface);
+    padding: 32px 28px;
+  }
+  .cta-principle h4 {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+  }
+  .cta-principle p {
+    font-size: 14px;
+    color: var(--text-muted);
+    line-height: 1.65;
+  }
+
+  /* ============================== */
+  /*  FOOTER                        */
+  /* ============================== */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 48px 0;
+    position: relative;
+    z-index: 2;
+  }
+  .footer-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .footer-left p {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+  .footer-left a { color: var(--text-secondary); }
+  .footer-right {
+    display: flex;
+    gap: 24px;
+  }
+  .footer-right a {
+    font-size: 13px;
+    color: var(--text-muted);
+    transition: color 0.2s;
+  }
+  .footer-right a:hover { color: var(--text-secondary); }
+
+  /* ============================== */
+  /*  SCROLL ANIMATIONS             */
+  /* ============================== */
+  .reveal {
+    opacity: 0;
+    transform: translateY(32px);
+    transition: opacity 0.7s ease-out, transform 0.7s ease-out;
+  }
+  .reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .reveal-delay-1 { transition-delay: 0.1s; }
+  .reveal-delay-2 { transition-delay: 0.2s; }
+  .reveal-delay-3 { transition-delay: 0.3s; }
+  .reveal-delay-4 { transition-delay: 0.4s; }
+
+  /* ============================== */
+  /*  RESPONSIVE                    */
+  /* ============================== */
+  @media (max-width: 1024px) {
+    .stakes-grid { grid-template-columns: 1fr; }
+    .thesis-expansion { grid-template-columns: 1fr; gap: 24px; }
+    .bfcs-layout { grid-template-columns: 1fr; gap: 48px; }
+    .method-block { grid-template-columns: 1fr; gap: 20px; }
+    .method-block-header { position: static; }
+    .policy-channels { grid-template-columns: 1fr; }
+    .displacement-demand-explanation { grid-template-columns: 1fr; gap: 24px; }
+    .cta-principles { grid-template-columns: 1fr 1fr; }
+    .loop-container { width: 100%; max-width: 400px; height: 400px; }
+    .loop-node { width: 120px; padding: 14px; }
+  }
+  @media (max-width: 640px) {
+    .nav-links { display: none; }
+    .bfcs-cards { grid-template-columns: 1fr; }
+    .threshold-bar-row { grid-template-columns: 100px 1fr 50px; gap: 8px; }
+    .cta-principles { grid-template-columns: 1fr; }
+    .cta-actions { flex-direction: column; align-items: center; }
+    .hero-actions { flex-direction: column; align-items: flex-start; }
+    .footer-inner { flex-direction: column; gap: 16px; text-align: center; }
+    .loop-container { height: 360px; }
+    .loop-node { width: 100px; padding: 10px; }
+    .loop-node h4 { font-size: 13px; }
+    .loop-node p { display: none; }
+    .loop-center { width: 80px; height: 80px; }
+    .loop-arrows { width: 260px; height: 260px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============================= -->
+<!--  NAVIGATION                   -->
+<!-- ============================= -->
+<nav id="nav">
+  <div class="container">
+    <div class="nav-logo">ATLAS<span>.</span></div>
+    <ul class="nav-links">
+      <li><a href="#stakes">Why This Matters</a></li>
+      <li><a href="#framework">Framework</a></li>
+      <li><a href="#methodology">Methodology</a></li>
+      <li><a href="#policy">Policy</a></li>
+    </ul>
+    <button class="nav-cta" onclick="document.getElementById('cta').scrollIntoView({behavior:'smooth'})">Launch Simulator</button>
+  </div>
+</nav>
+
+<!-- ============================= -->
+<!--  HERO                         -->
+<!-- ============================= -->
+<section class="hero">
+  <div class="hero-orbits">
+    <div class="hero-orbit"></div>
+    <div class="hero-orbit"></div>
+    <div class="hero-orbit"></div>
+    <div class="hero-orbit"></div>
+    <div class="orbit-dot" style="top:50%;left:50%;--orbit-radius:20%;background:var(--cap-lang);animation-duration:15s;"></div>
+    <div class="orbit-dot" style="top:50%;left:50%;--orbit-radius:30%;background:var(--cap-code);animation-duration:22s;animation-delay:-5s;"></div>
+    <div class="orbit-dot" style="top:50%;left:50%;--orbit-radius:40%;background:var(--cap-robot);animation-duration:30s;animation-delay:-10s;"></div>
+    <div class="orbit-dot" style="top:50%;left:50%;--orbit-radius:50%;background:var(--gold);animation-duration:35s;animation-delay:-15s;"></div>
+  </div>
+
+  <div class="container">
+    <div class="hero-eyebrow">Open Economic Model</div>
+    <h1 class="hero-title">The AI future <em>will be</em> good. This tool helps us <em>make sure.</em></h1>
+    <p class="hero-subtitle">ATLAS is an open, interactive economic model that simulates how artificial intelligence will transform employment, GDP, and consumer welfare across every sector of the economy — and what policy we need to get right.</p>
+    <div class="hero-actions">
+      <button class="btn-primary" onclick="document.getElementById('cta').scrollIntoView({behavior:'smooth'})">
+        Open the Simulator
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn-ghost" onclick="document.getElementById('methodology').scrollIntoView({behavior:'smooth'})">Read the Methodology</button>
+    </div>
+  </div>
+  <div class="hero-scroll-hint">
+    <span>Scroll</span>
+    <div class="scroll-line"></div>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!--  STAKES                       -->
+<!-- ============================= -->
+<section class="stakes" id="stakes">
+  <div class="container">
+    <div class="section-label reveal"><span class="section-number">01</span> Why This Matters</div>
+    <h2 class="section-title reveal reveal-delay-1">We are building the most transformative technology in human history. We should probably do the math.</h2>
+    <p class="section-lead reveal reveal-delay-2">AI will generate extraordinary abundance — lower prices, new discoveries, productivity beyond anything we've seen. But the transition period between "AI augments workers" and "AI replaces entire job categories" contains a set of economic risks that we can only navigate if we see them clearly, early enough to act.</p>
+
+    <div class="stakes-grid reveal reveal-delay-3">
+      <div class="stake-card" style="--accent: var(--cap-lang)">
+        <div class="stake-number">01</div>
+        <h3>The displacement will be uneven</h3>
+        <p>A junior copywriter and a master electrician face wildly different automation timelines. Good policy requires understanding which occupations are affected, when, and why — not treating "AI" as a monolithic force.</p>
+      </div>
+      <div class="stake-card" style="--accent: var(--cap-agent)">
+        <div class="stake-number">02</div>
+        <h3>Speed matters more than scale</h3>
+        <p>The gap between meaningful displacement and full displacement in any sector will be small. Once AI is better, faster, cheaper, and safer than humans at a task, competitive pressure drives near-total adoption within years, not decades.</p>
+      </div>
+      <div class="stake-card" style="--accent: var(--cap-robot)">
+        <div class="stake-number">03</div>
+        <h3>The transition has a tipping point</h3>
+        <p>There is a specific moment where falling wages and employment outpace AI-driven price reductions. Before that point, the economy flourishes. After it, a self-reinforcing contraction begins. We need to find that moment — and act before it arrives.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!--  THESIS                       -->
+<!-- ============================= -->
+<section class="thesis">
+  <div class="container">
+    <div class="thesis-statement reveal">
+      The purpose of ATLAS is not to predict doom. It is to find the <em>precise policy window</em> — the years we have to implement the right mix of wage supports, asset ownership, and transfer payments — so that the extraordinary abundance AI creates is shared widely enough to sustain a thriving economy and <em>a thriving society.</em>
+    </div>
+
+    <div class="thesis-expansion reveal reveal-delay-2">
+      <div>
+        <p>Every major economic transition in history — industrialization, electrification, computerization — created enormous net benefits for humanity. But in every case, the transition period itself caused real suffering for real people. The difference this time is speed. Previous transitions unfolded over generations. This one may unfold over a single decade.</p>
+        <p>That compression means we don't have the luxury of waiting to see what happens. By the time displacement is obvious, the policy window may have closed.</p>
+      </div>
+      <div>
+        <p>ATLAS exists to give policymakers, researchers, and the public a rigorous, transparent tool for testing their assumptions. What happens if autonomous vehicles arrive in 2028? What if robotics lags by five years? How large does a sovereign wealth fund need to be to prevent demand collapse? What transfer payment level stays within the inflation-neutral zone?</p>
+        <p>These aren't rhetorical questions. They have mathematical answers. This tool computes them.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!--  BFCS FRAMEWORK               -->
+<!-- ============================= -->
+<section class="framework" id="framework">
+  <div class="container">
+    <div class="section-label reveal"><span class="section-number">02</span> The BFCS Framework</div>
+    <h2 class="section-title reveal reveal-delay-1">Adoption isn't about capability alone. It's about clearing four thresholds simultaneously.</h2>
+
+    <div class="bfcs-layout">
+      <div class="bfcs-intro reveal reveal-delay-2">
+        <p>Most AI-labor models treat automation as a binary: if AI can do a task, the job disappears. Reality is far more complex. Autonomous vehicles are already ten times safer than human drivers — but that's not enough for regulatory approval, public trust, or fleet deployment at scale.</p>
+        <p>ATLAS uses the BFCS framework: for any occupation, AI must prove it is <strong>Better, Faster, Cheaper,</strong> and <strong>Safer</strong> than the human alternative — and what "enough" means for each dimension varies enormously by sector, role, and seniority level.</p>
+        <p>A junior software developer has a "Safer" threshold of about 0.7 — errors are catchable in code review. A cardiac surgeon's "Safer" threshold is 0.999. This single insight changes automation timeline predictions by decades.</p>
+        <p>Once all four thresholds are met, however, adoption is rapid. The first companies to adopt gain an insurmountable cost advantage, driving competitors to automate or go bankrupt. The gap between "meaningful displacement begins" and "full displacement" is narrow — especially for software-deployed AI.</p>
+      </div>
+
+      <div>
+        <div class="bfcs-cards reveal reveal-delay-3">
+          <div class="bfcs-card">
+            <div class="bfcs-card-letter">B</div>
+            <h4>Better</h4>
+            <p>Does the AI produce higher quality output? A junior vs. senior developer faces different quality bars.</p>
+          </div>
+          <div class="bfcs-card">
+            <div class="bfcs-card-letter">F</div>
+            <h4>Faster</h4>
+            <p>Does the AI complete tasks more quickly? Includes parallelism — can it handle volume humans can't?</p>
+          </div>
+          <div class="bfcs-card">
+            <div class="bfcs-card-letter">C</div>
+            <h4>Cheaper</h4>
+            <p>Is the total cost of AI lower? Includes inference costs, capital costs for robots, and amortization.</p>
+          </div>
+          <div class="bfcs-card">
+            <div class="bfcs-card-letter">S</div>
+            <h4>Safer</h4>
+            <p>Does the AI meet the safety bar for this domain? Ranges from 0.3 for fast food to 0.999 for surgery.</p>
+          </div>
+        </div>
+
+        <div class="bfcs-example reveal reveal-delay-4">
+          <h4>Example: Long-Haul Trucking vs. Fast Food</h4>
+          <div class="threshold-bars">
+            <div style="margin-bottom: 8px;">
+              <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); letter-spacing: 0.08em;">TRUCKING — HIGH SAFETY BAR DELAYS ADOPTION</span>
+            </div>
+            <div class="threshold-bar-row">
+              <span class="threshold-bar-label">Safer</span>
+              <div class="threshold-bar-track">
+                <div class="threshold-bar-fill" style="width:78%;background:var(--cap-auto);"></div>
+                <div class="threshold-bar-threshold" style="left:99%;"></div>
+              </div>
+              <span class="threshold-bar-value">S*=0.99</span>
+            </div>
+            <div class="threshold-bar-row">
+              <span class="threshold-bar-label">Better</span>
+              <div class="threshold-bar-track">
+                <div class="threshold-bar-fill" style="width:72%;background:var(--cap-auto);"></div>
+                <div class="threshold-bar-threshold" style="left:70%;"></div>
+              </div>
+              <span class="threshold-bar-value">S*=0.70</span>
+            </div>
+            <div style="margin-top: 24px; margin-bottom: 8px;">
+              <span style="font-family: var(--font-mono); font-size: 12px; color: var(--text-muted); letter-spacing: 0.08em;">FAST FOOD — LOW SAFETY BAR ACCELERATES ADOPTION</span>
+            </div>
+            <div class="threshold-bar-row">
+              <span class="threshold-bar-label">Safer</span>
+              <div class="threshold-bar-track">
+                <div class="threshold-bar-fill" style="width:65%;background:var(--cap-robot);"></div>
+                <div class="threshold-bar-threshold" style="left:40%;"></div>
+              </div>
+              <span class="threshold-bar-value">S*=0.40</span>
+            </div>
+            <div class="threshold-bar-row">
+              <span class="threshold-bar-label">Cheaper</span>
+              <div class="threshold-bar-track">
+                <div class="threshold-bar-fill" style="width:45%;background:var(--cap-robot);"></div>
+                <div class="threshold-bar-threshold" style="left:25%;"></div>
+              </div>
+              <span class="threshold-bar-value">C*=0.25</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!--  METHODOLOGY                  -->
+<!-- ============================= -->
+<section class="methodology" id="methodology">
+  <div class="container">
+    <div class="section-label reveal"><span class="section-number">03</span> How the Model Works</div>
+    <h2 class="section-title reveal reveal-delay-1">Every assumption is explicit. Every formula is inspectable. Every parameter is adjustable.</h2>
+    <p class="section-lead reveal reveal-delay-2">ATLAS is not a black box. Below is the complete methodology — every equation, every choice, every data source. We publish this so you can challenge our math, adjust our assumptions, and build your own understanding of what's coming.</p>
+
+    <div class="method-grid">
+
+      <!-- METHOD 1: Capability Vectors -->
+      <div class="method-block reveal">
+        <div class="method-block-header">
+          <div class="method-block-number">M-01</div>
+          <h3 class="method-block-title">Eight Capability Vectors</h3>
+        </div>
+        <div class="method-block-content">
+          <p>We decompose "AI" into eight distinct technology vectors, each with its own capability trajectory, deployment constraints, and occupational impact profile. This matters because "AI can do X" means nothing without specifying which kind of AI, deployed how, at what scale.</p>
+
+          <div class="capability-dots">
+            <div class="capability-dot"><span style="background:var(--cap-lang)"></span> Language & Reasoning</div>
+            <div class="capability-dot"><span style="background:var(--cap-code)"></span> Code Generation</div>
+            <div class="capability-dot"><span style="background:var(--cap-agent)"></span> Agentic AI</div>
+            <div class="capability-dot"><span style="background:var(--cap-decide)"></span> Decision-Making</div>
+            <div class="capability-dot"><span style="background:var(--cap-robot)"></span> Robotics</div>
+            <div class="capability-dot"><span style="background:var(--cap-auto)"></span> Autonomous Vehicles</div>
+            <div class="capability-dot"><span style="background:var(--cap-gen)"></span> Generative / Creative</div>
+            <div class="capability-dot"><span style="background:var(--cap-sci)"></span> Scientific Discovery</div>
+          </div>
+
+          <p>Each vector follows a modified sigmoid trajectory over time, parameterized by its current floor, maximum ceiling, improvement steepness, and inflection year. You control all four parameters per vector.</p>
+
+          <div class="formula-block">
+<span class="comment">// Capability score for vector c at year t</span>
+S<sub>c</sub>(t) = S<sub>floor</sub> + (S<sub>ceil</sub> − S<sub>floor</sub>) / (1 + e<sup>−k(t − t<sub>mid</sub>)</sup>)
+
+<span class="comment">// Where:</span>
+<span class="comment">//   S_floor = current capability (today)</span>
+<span class="comment">//   S_ceil  = maximum achievable capability</span>
+<span class="comment">//   k       = steepness of improvement</span>
+<span class="comment">//   t_mid   = year of inflection (fastest improvement)</span>
+          </div>
+
+          <p>For robotics baselines, we anchor to Tesla Optimus production milestones and capability demonstrations. For autonomous vehicles, we use Tesla's Cybercab, Semi, and Full Self-Driving fleet data exclusively — because scale of manufacturing, not lab demos, determines actual deployment timelines. Software-deployed AI (language, code, agentic) has a much steeper trajectory because deployment requires only inference compute, not physical manufacturing.</p>
+        </div>
+      </div>
+
+      <!-- METHOD 2: Occupation Taxonomy -->
+      <div class="method-block reveal">
+        <div class="method-block-header">
+          <div class="method-block-number">M-02</div>
+          <h3 class="method-block-title">38 Occupation Clusters with Role Granularity</h3>
+        </div>
+        <div class="method-block-content">
+          <p>We map the U.S. labor force into 51 occupation clusters spanning 15 industry categories, from software engineering to agriculture. Within each cluster, we differentiate by role and seniority — because a junior software developer and a staff architect face fundamentally different automation timelines.</p>
+
+          <p>Each cluster maps directly to Bureau of Labor Statistics Standard Occupational Classification (SOC) codes, ensuring our employment and wage baselines come from real federal data, not estimates.</p>
+
+          <table class="method-table">
+            <thead>
+              <tr>
+                <th>Category</th>
+                <th>Clusters</th>
+                <th>Key Differentiator</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Technology</td>
+                <td class="mono">4 clusters, 11 roles</td>
+                <td>Junior vs. senior seniority drives massive timeline variation</td>
+              </tr>
+              <tr>
+                <td>Healthcare</td>
+                <td class="mono">5 clusters, 12 roles</td>
+                <td>Clinical vs. administrative separated — admin is a displacement target</td>
+              </tr>
+              <tr>
+                <td>Education</td>
+                <td class="mono">3 clusters, 6 roles</td>
+                <td>Teachers policy-protected; administrators targeted for removal</td>
+              </tr>
+              <tr>
+                <td>Transportation</td>
+                <td class="mono">4 clusters, 7 roles</td>
+                <td>AV deployment type with fleet conversion constraints</td>
+              </tr>
+              <tr>
+                <td>Construction</td>
+                <td class="mono">4 clusters, 9 roles</td>
+                <td>Electricians last automated; laborers among first</td>
+              </tr>
+              <tr>
+                <td>Other</td>
+                <td class="mono">18 clusters, ~40 roles</td>
+                <td>Finance, legal, creative, retail, food, agriculture, government, R&D</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="insight-callout">
+            <p><strong>Why separate education and healthcare administration?</strong> In an AI-enabled future, administrative overhead in education and healthcare represents cost bloat that can and should be eliminated by policy. Teachers and doctors stay; the bureaucratic layer around them goes. The model reflects this by giving administrators a headcount-to-productivity ratio of 1.0 (every automated task removes a person) while teachers get 0.1 (AI tutors augment, not replace).</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- METHOD 3: Adoption Dynamics -->
+      <div class="method-block reveal">
+        <div class="method-block-header">
+          <div class="method-block-number">M-03</div>
+          <h3 class="method-block-title">Adoption S-Curves & Competitive Pressure</h3>
+        </div>
+        <div class="method-block-content">
+          <p>Once all four BFCS thresholds are met for an occupation-role, adoption follows a logistic S-curve — but the shape of that curve varies dramatically by deployment type.</p>
+
+          <p>Software-deployed AI (language models, code agents, decision systems) has a nearly vertical S-curve because deployment requires only spinning up inference. Robotics follows a gradual curve constrained by manufacturing throughput and supply chain capacity. Autonomous vehicles fall in between, gated by regulatory approval timelines and fleet conversion rates.</p>
+
+          <div class="formula-block">
+<span class="comment">// Adoption rate for occupation o, role r, at year t</span>
+α(o,r,t) = 1 / (1 + e<sup>−a(t − t<sub>trigger</sub> − lag)</sup>)
+
+<span class="comment">// a = steepness:</span>
+<span class="comment">//   Software:  2.0–4.0  (near-vertical)</span>
+<span class="comment">//   Robotics:  0.5–1.0  (gradual, manufacturing-constrained)</span>
+<span class="comment">//   AV:        0.3–1.5  (regulatory-gated)</span>
+          </div>
+
+          <p>A critical accelerant: once adoption exceeds 20% in any sector, remaining non-adopters face a mounting cost disadvantage. Early adopters can undercut on price, forcing competitors to automate or face bankruptcy. We model this as a competitive pressure multiplier that steepens the S-curve's tail.</p>
+
+          <div class="formula-block">
+<span class="comment">// Competitive pressure makes the gap between</span>
+<span class="comment">// "meaningful" and "full" displacement narrow</span>
+pressure(o,t) = max(0, α(o,t) − 0.2) × multiplier
+α<sub>adj</sub>(o,t) = α(o,t) × (1 + pressure(o,t))
+          </div>
+
+          <p>For robotics and autonomous vehicles, a geopolitical risk modifier can flatten the curve further. Supply chain disruptions, trade restrictions, or rare earth material shortages would slow physical AI deployment even after capability thresholds are met.</p>
+        </div>
+      </div>
+
+      <!-- METHOD 4: Task Erosion & Displacement -->
+      <div class="method-block reveal">
+        <div class="method-block-header">
+          <div class="method-block-number">M-04</div>
+          <h3 class="method-block-title">Task Erosion to Occupation Displacement</h3>
+        </div>
+        <div class="method-block-content">
+          <p>Automation doesn't eliminate entire occupations overnight. It first erodes individual tasks within a role — we call this task erosion. A junior analyst might lose 60% of their tasks to AI while the remaining 40% (client relationships, ambiguous judgment calls) persists. But task erosion has consequences: fewer tasks per worker means fewer workers needed, and workers with weaker bargaining power earn lower wages.</p>
+
+          <div class="formula-block">
+<span class="comment">// Task erosion — what fraction of work is automated</span>
+τ(o,r,t) = α(o,r,t) × automatable_fraction(o,r)
+
+<span class="comment">// Headcount reduction — firms don't cut 1:1, ratio is ~0.6–0.8</span>
+headcount(o,r,t) = baseline × (1 − τ × productivity_to_headcount_ratio)
+
+<span class="comment">// Wage depression — even survivors earn less</span>
+wage(o,r,t) = baseline_wage × (1 − τ × wage_elasticity)
+          </div>
+
+          <p>Task erosion is an early warning indicator. When you see task erosion rising but headcounts holding steady, that's the "AI augments workers" phase. When headcounts start falling, displacement has begun. The model tracks both, letting you watch the transition unfold.</p>
+        </div>
+      </div>
+
+      <!-- METHOD 5: Macro Feedback Loops -->
+      <div class="method-block reveal">
+        <div class="method-block-header">
+          <div class="method-block-number">M-05</div>
+          <h3 class="method-block-title">The Macro Feedback Loop & Tipping Point</h3>
+        </div>
+        <div class="method-block-content">
+          <p>This is the heart of ATLAS. We track Aggregate Real Purchasing Power (ARPP) — the total spending power of the population after accounting for price changes. ARPP is the single metric that determines whether the economy expands or contracts.</p>
+
+          <div class="formula-block">
+<span class="comment">// Aggregate Real Purchasing Power</span>
+ARPP(t) = [E(t)×W(t) + U(t)×T(t) + N×A(t)] / P(t)
+
+<span class="comment">// E = employed, W = avg wage, U = unemployed</span>
+<span class="comment">// T = transfers, N = population, A = asset income</span>
+<span class="comment">// P = price level (falling due to AI deflation)</span>
+          </div>
+
+          <p>AI simultaneously pushes wages and employment down while also pushing prices down. Before the tipping point, the price decline outpaces the income decline — consumers are actually better off. Fewer people work, but everything is cheaper, and the math still works.</p>
+
+          <p>The tipping point is the exact year when income decline overtakes price decline:</p>
+
+          <div class="formula-block">
+<span class="comment">// The tipping point T* occurs when:</span>
+|d(E×W)/dt| > |d(P)/dt × demand(t−1)|
+
+<span class="comment">// Before T*: economy grows (AI boom)</span>
+<span class="comment">// After T*:  demand contraction begins</span>
+          </div>
+
+          <p>After the tipping point, a self-reinforcing displacement-demand feedback cycle engages: falling demand creates revenue pressure on firms, which accelerates their automation to cut costs, which displaces more workers, which further reduces demand. The model captures this as a feedback term that accelerates adoption rates when ARPP is declining.</p>
+        </div>
+      </div>
+
+      <!-- METHOD 6: New Job Creation -->
+      <div class="method-block reveal">
+        <div class="method-block-header">
+          <div class="method-block-number">M-06</div>
+          <h3 class="method-block-title">New Job Creation vs. Automation Coverage</h3>
+        </div>
+        <div class="method-block-content">
+          <p>The strongest counterargument to labor displacement is: "AI will create new jobs we can't imagine." ATLAS tests this argument mathematically.</p>
+
+          <p>We define automation coverage A(t) — the fraction of all possible human tasks AI can perform. As AI capabilities expand across all eight vectors, A(t) approaches 1.0. Any new job created has a survivability proportional to (1 − A(t)), because as AI capability broadens, newly created roles are increasingly automatable at inception.</p>
+
+          <div class="formula-block">
+<span class="comment">// Durable new jobs = new roles × probability they survive</span>
+durable_new_jobs(t) = J<sub>new</sub>(t) × (1 − A(t))<sup>p</sup>
+
+<span class="comment">// As A(t) → 0.9+, new job survivability → near zero</span>
+<span class="comment">// regardless of how many new roles are created</span>
+          </div>
+
+          <div class="insight-callout">
+            <p><strong>The mathematical insight:</strong> Even if AI-driven R&D creates an explosion of new industries, if automation coverage is 90%+ by the time those industries mature, virtually every job they generate is born automatable. The "new jobs" argument only holds if job creation outpaces capability expansion — and the empirical trend (capabilities expanding exponentially, job categories emerging linearly) suggests it won't. The model lets you see exactly how implausibly large new job creation would need to be to offset displacement.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- METHOD 7: Monetary Model -->
+      <div class="method-block reveal">
+        <div class="method-block-header">
+          <div class="method-block-number">M-07</div>
+          <h3 class="method-block-title">Money Supply, Deflation & the Net Neutral Zone</h3>
+        </div>
+        <div class="method-block-content">
+          <p>Government transfer payments must be funded. Whether through taxation of AI company profits or money creation, funding transfers risks inflation. But AI simultaneously creates deflation through productivity gains and declining inference costs. The interaction between these forces determines how much the government can spend without destabilizing prices.</p>
+
+          <div class="formula-block">
+<span class="comment">// Fisher equation: money supply × velocity = price × output</span>
+M(t) × V(t) = P(t) × Y(t)
+
+<span class="comment">// The "net neutral zone" — max transfers with zero net inflation:</span>
+ΔM<sub>max</sub> = (P<sub>target</sub> × ΔY<sub>ai</sub> − ΔP<sub>ai</sub> × Y) / V
+
+<span class="comment">// If AI deflation > transfer inflation → money is free</span>
+<span class="comment">// If AI deflation < transfer inflation → constraint binds</span>
+          </div>
+
+          <p>This is possibly the most important output of the model: under many scenarios, AI's deflationary effect is so large that substantial transfer payments can be funded without any net inflation. The real economy absorbs the money supply expansion because AI is simultaneously expanding output. ATLAS calculates exactly where that boundary is.</p>
+        </div>
+      </div>
+
+      <!-- METHOD 8: Second-Order Effects -->
+      <div class="method-block reveal">
+        <div class="method-block-header">
+          <div class="method-block-number">M-08</div>
+          <h3 class="method-block-title">Second-Order Employment Multipliers</h3>
+        </div>
+        <div class="method-block-content">
+          <p>When a major employment category is automated, the impact extends far beyond the directly displaced workers. Three million automated truckers means fewer customers at truck stops, diners, motels, and fuel stations along freight corridors. Automated office workers mean fewer lunch orders at downtown restaurants, less demand for dry cleaning, reduced commercial real estate occupancy.</p>
+
+          <p>We use Bureau of Economic Analysis input-output employment multipliers and academic estimates to capture these cascading effects:</p>
+
+          <table class="method-table">
+            <thead>
+              <tr>
+                <th>Sector</th>
+                <th>Multiplier</th>
+                <th>Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Trucking</td>
+                <td class="mono">3.4×</td>
+                <td>American Trucking Associations</td>
+              </tr>
+              <tr>
+                <td>Technology</td>
+                <td class="mono">4.3×</td>
+                <td>BEA / high local spending multiplier</td>
+              </tr>
+              <tr>
+                <td>Construction</td>
+                <td class="mono">2.4×</td>
+                <td>BEA input-output tables</td>
+              </tr>
+              <tr>
+                <td>Healthcare</td>
+                <td class="mono">2.1×</td>
+                <td>BEA / local economic anchor effect</td>
+              </tr>
+              <tr>
+                <td>Manufacturing</td>
+                <td class="mono">1.6×</td>
+                <td>Moretti (2010)</td>
+              </tr>
+              <tr>
+                <td>Retail</td>
+                <td class="mono">1.2×</td>
+                <td>BEA / already local service</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <p>These multipliers mean that the total employment impact of automation is substantially larger than direct displacement alone. When ATLAS shows 3 million trucking jobs lost, the real impact is closer to 10 million when adjacent employment is included.</p>
+        </div>
+      </div>
+
+      <!-- METHOD 9: Data Sources -->
+      <div class="method-block reveal">
+        <div class="method-block-header">
+          <div class="method-block-number">M-09</div>
+          <h3 class="method-block-title">Real Data, No Estimates</h3>
+        </div>
+        <div class="method-block-content">
+          <p>ATLAS uses the Bureau of Labor Statistics Public Data API (v2) for all employment and wage baselines. This includes Occupational Employment and Wage Statistics (OEWS) for ~830 detailed occupations across all 50 states, Current Employment Statistics (CES) for monthly industry-level employment tracking, Local Area Unemployment Statistics (LAUS) for state and metro area unemployment rates, and Consumer Price Index (CPI) for historical price level data.</p>
+
+          <p>The model also integrates Bureau of Economic Analysis data for GDP computations and employment multipliers, and Federal Reserve Economic Data (FRED) for money supply and velocity of money.</p>
+
+          <p>All BLS data is fetched from the live API. No data is prepopulated, estimated, or assumed. If the data hasn't been loaded yet, the model shows empty states — not fake numbers. You bring your own BLS API key (free from the Bureau of Labor Statistics) and the model populates with real, current federal employment data.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!--  POLICY CHANNELS              -->
+<!-- ============================= -->
+<section class="policy" id="policy">
+  <div class="container">
+    <div class="section-label reveal"><span class="section-number">04</span> The Policy Levers</div>
+    <h2 class="section-title reveal reveal-delay-1">Three channels determine whether the future is abundance or collapse.</h2>
+    <p class="section-lead reveal reveal-delay-2">Today, the average American gets 60% of their income from wages, 20% from assets, and 20% from government transfers. As AI displaces labor, the wage channel collapses. The question is whether the other two channels can compensate — and how.</p>
+
+    <div class="policy-channels reveal reveal-delay-3">
+      <div class="policy-channel">
+        <div class="channel-percentage">60%</div>
+        <div class="channel-label">Wages</div>
+        <div class="channel-sublabel">Today's primary income source — declining</div>
+        <p>Minimum wage adjustments, wage subsidies that make hiring cheaper than automating, and work week reduction to distribute available work across more people.</p>
+        <div class="policy-lever-list">
+          <div class="policy-lever-item">Federal & state minimum wage controls</div>
+          <div class="policy-lever-item">Wage subsidies (reduces employer automation incentive)</div>
+          <div class="policy-lever-item">Shortened work week (32hr, 30hr scenarios)</div>
+          <div class="policy-lever-item">Productivity-indexed wage floors</div>
+        </div>
+      </div>
+
+      <div class="policy-channel">
+        <div class="channel-percentage">20%</div>
+        <div class="channel-label">Assets</div>
+        <div class="channel-sublabel">Must grow dramatically — the ownership question</div>
+        <p>If AI companies capture most of the economic value, citizens need ownership stakes in those companies. Sovereign wealth funds, universal equity, and profit-sharing create this ownership.</p>
+        <div class="policy-lever-list">
+          <div class="policy-lever-item">Sovereign wealth fund size & returns</div>
+          <div class="policy-lever-item">Universal equity stakes in AI companies</div>
+          <div class="policy-lever-item">Profit-sharing</div>
+          <div class="policy-lever-item">Required ownership % calculator</div>
+        </div>
+      </div>
+
+      <div class="policy-channel">
+        <div class="channel-percentage">20%</div>
+        <div class="channel-label">Transfers</div>
+        <div class="channel-sublabel">The safety net — needs to scale intelligently</div>
+        <p>Universal basic income, enhanced unemployment insurance, and retraining programs. The model calculates the maximum transfer level that stays within the inflation-neutral zone created by AI deflation.</p>
+        <div class="policy-lever-list">
+          <div class="policy-lever-item">UBI amount, phase-out, and indexing</div>
+          <div class="policy-lever-item">Enhanced unemployment insurance</div>
+          <div class="policy-lever-item">Retraining program effectiveness rates</div>
+          <div class="policy-lever-item">State-level transfer variation</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!--  DISPLACEMENT-DEMAND FEEDBACK DIAGRAM -->
+<!-- ============================= -->
+<section class="displacement-demand" id="displacement-demand">
+  <div class="container">
+    <div class="section-label reveal"><span class="section-number">05</span> Understanding the Risk</div>
+    <h2 class="section-title reveal reveal-delay-1">The displacement-demand feedback cycle is preventable. But only if we see it coming.</h2>
+
+    <div class="displacement-demand-diagram reveal reveal-delay-2">
+      <div class="loop-container">
+        <div class="loop-node">
+          <div class="loop-node-number">01</div>
+          <h4>AI Automation</h4>
+          <p>AI capabilities cross BFCS thresholds</p>
+        </div>
+        <div class="loop-node">
+          <div class="loop-node-number">02</div>
+          <h4>Displacement</h4>
+          <p>Task erosion leads to headcount cuts</p>
+        </div>
+        <div class="loop-node">
+          <div class="loop-node-number">03</div>
+          <h4>Wage Decline</h4>
+          <p>Surviving workers lose bargaining power</p>
+        </div>
+        <div class="loop-node">
+          <div class="loop-node-number">04</div>
+          <h4>Demand Falls</h4>
+          <p>ARPP drops below tipping point</p>
+        </div>
+        <div class="loop-node">
+          <div class="loop-node-number">05</div>
+          <h4>Revenue Pressure</h4>
+          <p>Companies face declining revenue</p>
+        </div>
+        <div class="loop-node">
+          <div class="loop-node-number">06</div>
+          <h4>Accelerated Automation</h4>
+          <p>Cost-cutting drives more AI adoption</p>
+        </div>
+
+        <svg class="loop-arrows" viewBox="0 0 380 380">
+          <defs>
+            <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+              <polygon points="0 0, 8 3, 0 6" fill="rgba(239,68,68,0.4)" />
+            </marker>
+          </defs>
+          <circle cx="190" cy="190" r="155" fill="none" stroke="rgba(239,68,68,0.15)" stroke-width="1.5" stroke-dasharray="8 6" />
+          <path d="M 275 72 A 155 155 0 0 1 345 190" fill="none" stroke="rgba(239,68,68,0.3)" stroke-width="1.5" marker-end="url(#arrowhead)" />
+          <path d="M 345 190 A 155 155 0 0 1 275 308" fill="none" stroke="rgba(239,68,68,0.3)" stroke-width="1.5" marker-end="url(#arrowhead)" />
+          <path d="M 275 308 A 155 155 0 0 1 105 308" fill="none" stroke="rgba(239,68,68,0.3)" stroke-width="1.5" marker-end="url(#arrowhead)" />
+          <path d="M 105 308 A 155 155 0 0 1 35 190" fill="none" stroke="rgba(239,68,68,0.3)" stroke-width="1.5" marker-end="url(#arrowhead)" />
+          <path d="M 35 190 A 155 155 0 0 1 105 72" fill="none" stroke="rgba(239,68,68,0.3)" stroke-width="1.5" marker-end="url(#arrowhead)" />
+          <path d="M 105 72 A 155 155 0 0 1 275 72" fill="none" stroke="rgba(239,68,68,0.3)" stroke-width="1.5" marker-end="url(#arrowhead)" />
+        </svg>
+
+        <div class="loop-center"><span>Feedback Cycle</span></div>
+      </div>
+    </div>
+
+    <div class="displacement-demand-explanation reveal">
+      <div>
+        <p>The displacement-demand feedback cycle is not inevitable. It's a specific failure mode that occurs when the transition from "AI augments workers" to "AI replaces workers" happens faster than policy can respond. The cycle becomes self-reinforcing because falling demand creates revenue pressure, which makes automation more attractive, which displaces more workers.</p>
+        <p>But every link in this chain is breakable. Asset ownership means displaced workers still have income through dividends. Transfer payments maintain demand. Wage subsidies slow the automation incentive. The question isn't whether to intervene — it's how much, when, and through which channel.</p>
+      </div>
+      <div>
+        <p>ATLAS calculates the exact year when each intervention must be in place to prevent the loop from engaging. This "policy window" is the most critical output of the model: it tells policymakers not just what to do, but how much time they have to do it.</p>
+        <p>Under most scenarios, the policy window is measured in years, not decades. But it exists. And if we use it wisely, the outcome isn't doom — it's an economy where AI-generated abundance is distributed widely enough that aggregate demand is sustained, innovation continues, and human welfare improves across the board.</p>
+      </div>
+    </div>
+
+    <div class="prevention-callout reveal reveal-delay-2">
+      <div class="prevention-icon">↑</div>
+      <div>
+        <h4>This is a tool for optimism, not pessimism.</h4>
+        <p>The entire point of modeling the displacement-demand feedback cycle is to prevent it. If we can see the tipping point coming — and ATLAS makes it visible — we can implement the right mix of asset ownership, transfers, and wage policy to ensure that AI's extraordinary productivity gains translate into extraordinary gains for everyone. The math shows it's achievable. We just have to do it on time.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!--  CTA                          -->
+<!-- ============================= -->
+<section class="cta-section" id="cta">
+  <div class="container">
+    <div class="section-label reveal"><span class="section-number">06</span> Open Model</div>
+    <h2 class="section-title reveal reveal-delay-1">Challenge our math. Adjust our assumptions. Build your own understanding.</h2>
+    <p class="cta-description reveal reveal-delay-2">ATLAS is open because the questions it asks are too important for any single team to answer. Every parameter is adjustable. Every formula is inspectable. Every assumption is explicit. If our math is wrong, we want to know.</p>
+
+    <div class="cta-actions reveal reveal-delay-3">
+      <button class="btn-primary">
+        Launch the Simulator
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="btn-ghost">View on GitHub</button>
+    </div>
+
+    <div class="cta-principles reveal reveal-delay-4">
+      <div class="cta-principle">
+        <h4>Transparent</h4>
+        <p>Every equation, data source, and assumption is published and documented. No black boxes.</p>
+      </div>
+      <div class="cta-principle">
+        <h4>Adjustable</h4>
+        <p>Every parameter is a slider. Don't agree with our timeline for robotics? Change it and see what happens.</p>
+      </div>
+      <div class="cta-principle">
+        <h4>Grounded</h4>
+        <p>Real BLS employment data. Real BEA multipliers. Real academic research. No made-up numbers.</p>
+      </div>
+      <div class="cta-principle">
+        <h4>Actionable</h4>
+        <p>The model doesn't just predict — it tells you what policy mix prevents the worst outcomes and when to implement it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================= -->
+<!--  FOOTER                       -->
+<!-- ============================= -->
+<footer>
+  <div class="container">
+    <div class="footer-inner">
+      <div class="footer-left">
+        <p>ATLAS — AI Transformation Labor & Automation Simulator</p>
+        <p>Built to ensure the AI future works for everyone.</p>
+      </div>
+      <div class="footer-right">
+        <a href="#methodology">Methodology</a>
+        <a href="#">GitHub</a>
+        <a href="#">Contact</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<!-- ============================= -->
+<!--  SCRIPTS                      -->
+<!-- ============================= -->
+<script>
+  // Nav scroll effect
+  const nav = document.getElementById('nav');
+  window.addEventListener('scroll', () => {
+    nav.classList.toggle('scrolled', window.scrollY > 60);
+  });
+
+  // Intersection Observer for scroll reveal
+  const revealElements = document.querySelectorAll('.reveal');
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add('visible');
+        observer.unobserve(entry.target);
+      }
+    });
+  }, {
+    threshold: 0.08,
+    rootMargin: '0px 0px -60px 0px'
+  });
+
+  revealElements.forEach(el => observer.observe(el));
+</script>
+</body>
+</html>
