@@ -125,8 +125,8 @@ describe('computeEquityValuation', () => {
       expect(state.peRatio).toBeLessThan(5);
     });
 
-    it('produces large P/E with very low discount rate', () => {
-      // Very low discount rate, moderate growth → very high P/E
+    it('produces the record-valuation-class P/E with very low discount rate (re-specced at the D1 ship stage)', () => {
+      // Very low discount rate, moderate growth → out of the Gordon domain.
       const state = computeEquityValuation(
         0.001,             // very low yield
         0.001,             // very low ERP → discount = 0.002
@@ -137,8 +137,13 @@ describe('computeEquityValuation', () => {
         0,
         1.0,
       );
-      // growth ≈ 3.5%, discount = 0.002 → r < g → denominator = 1e-6 → PE ≈ 1M
-      expect(state.peRatio).toBeGreaterThan(100);
+      // RE-SPECCED (D1 ship stage, attributed): growth ≈ 3.5%, discount 0.002 →
+      // r < g → the CITED domain floor (GORDON_MIN_SPREAD 0.024) is the denominator:
+      // PE = (1+g)/0.024 ≈ 43 — the record-valuation class, REPORTED, never the
+      // retired 1e-6 route's ~1M.
+      expect(state.gordonDomainGuardEngaged).toBe(true);
+      expect(state.peRatio).toBeGreaterThan(40);
+      expect(state.peRatio).toBeLessThan(100);
       expect(Number.isFinite(state.peRatio)).toBe(true);
     });
   });
@@ -259,7 +264,9 @@ describe('computeEquityValuation', () => {
         0,
         1.0,
       );
-      // Growth >> discount → denominator = 1e-6 → very large PE
+      // RE-SPECCED comment (D1 ship stage): growth ≈ 49.5 → PE = (1+g)/0.024 ≈ 2100
+      // — large through the CITED floor, not the retired 1e-6 route.
+      expect(state.gordonDomainGuardEngaged).toBe(true);
       expect(state.peRatio).toBeGreaterThan(1000);
       expect(Number.isFinite(state.peRatio)).toBe(true);
     });
@@ -275,9 +282,11 @@ describe('computeEquityValuation', () => {
         0,
         1.0,
       );
-      // growth = 0.583, discount = 0.02 → denominator = 1e-6
-      // PE = (1 + 0.583) / 1e-6 ≈ 1.58M
-      expect(state.peRatio).toBeGreaterThan(1000);
+      // RE-SPECCED (D1 ship stage, attributed): growth 0.583, discount 0.02 →
+      // out of domain → PE = 1.583/0.024 ≈ 66, flagged — the 1.58M print is dead.
+      expect(state.gordonDomainGuardEngaged).toBe(true);
+      expect(state.peRatio).toBeGreaterThan(50);
+      expect(state.peRatio).toBeLessThan(100);
       expect(Number.isFinite(state.peRatio)).toBe(true);
     });
   });

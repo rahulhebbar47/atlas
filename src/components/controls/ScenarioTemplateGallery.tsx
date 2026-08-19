@@ -1,6 +1,16 @@
 /**
  * ATLAS Phase 8d: Scenario Template Gallery
  *
+ * DEPRECATED (owner order, the pre-flight Scenarios audit, 2026-08-07): UNMOUNTED.
+ * The load path below mutates the USER'S OWN config in place (clear overrides → write
+ * fiscal preset → merge configOverrides → install per-year overrides) with no snapshot
+ * and no inverse — and the mutations then persist in the session store. Nothing in the
+ * UI could undo a load ("stays warped"): worldview bundles only move belief axes, and
+ * the template's writes carry user-override provenance, which SHADOWS composition.
+ * The Templates panel in ScenarioManager now lists the user's own saved scenarios,
+ * loaded via the safe full-replacement path (loadScenario). File kept per the
+ * no-delete rule; do not remount without a snapshot/undo design.
+ *
  * Displays pre-built scenario templates as cards that users can
  * browse and load. Loading a template sets the fiscal profile
  * and applies parameter overrides.

@@ -11,9 +11,11 @@
 import { useMemo } from 'react';
 import { useSimulationStore } from '@/stores/simulationStore';
 import { OCCUPATION_CLUSTERS } from '@/data/occupationClusters';
-import { computeBFCSScores, checkThresholdsMet, findTriggerYear } from '@/models/bfcs';
+import { computeBFCSScores, checkThresholdsMet, findTriggerYear, computeBetterScore } from '@/models/bfcs';
 import { getAllCapabilityScores } from '@/models/capabilities';
-import { useCurrentYearParameters } from '@/hooks/useParameterTimeline';
+// RETIRED (mini-stage 1; Amendment 2): the year-resolved tokens-per-task injection left
+// with the global schedule — the preview prices from the frontier-intensity layer directly.
+// import { useCurrentYearParameters } from '@/hooks/useParameterTimeline';
 import type { BFCSRoleScoreSnapshot } from '@/types';
 
 /**
@@ -31,17 +33,13 @@ export function useBFCSScoresForCluster(clusterId: string): BFCSRoleScoreSnapsho
   const startYear = useSimulationStore((s) => s.config.startYear);
   const endYear = useSimulationStore((s) => s.config.endYear);
   const aiCostParams = useSimulationStore((s) => s.config.aiCostParams);
-  const yearParams = useCurrentYearParameters();
-
-  // Inject the year-resolved tokenUsageMultiplier so the BFCS preview reflects user overrides.
-  const effectiveAiCostParams = useMemo(() => {
-    const resolvedMultiplier = yearParams?.tokenUsageMultiplier.effective
-      ?? aiCostParams?.tokenUsageMultiplier
-      ?? 1.0;
-    return aiCostParams
-      ? { ...aiCostParams, tokenUsageMultiplier: resolvedMultiplier }
-      : undefined;
-  }, [aiCostParams, yearParams]);
+  // Flywheel MS: the preview prices on the RECORD's cost clock (the one producer —
+  // MacroOutput.effectiveCostTime), so the displayed Cheaper matches the engine on
+  // starved paths too. On funded paths τ = calendar and this is an identity.
+  const timeline = useSimulationStore((s) => s.timeline);
+  // Mini-stage 1: the config-level cost params ARE the effective params (the retired
+  // per-year tokens-per-task injection is gone; the frontier dials live in aiCostParams).
+  const effectiveAiCostParams = aiCostParams;
 
   return useMemo(() => {
     const cluster = OCCUPATION_CLUSTERS.find((c) => c.id === clusterId);
@@ -54,7 +52,31 @@ export function useBFCSScoresForCluster(clusterId: string): BFCSRoleScoreSnapsho
       const effectiveThresholds =
         bfcsOverrides[clusterId]?.[role.id] ?? role.bfcsThresholds;
 
-      const scores = computeBFCSScores(capScores, cluster, role, currentYear, effectiveAiCostParams);
+      // Mini-stage 1: the preview replays the loop's Better-arrival latch chronologically
+      // up to the current year, so the displayed Cheaper prices the same frontier/fixed-
+      // capability blend the simulation path does.
+      let arrivalYear: number | null = null;
+      for (let y = startYear; y <= currentYear; y++) {
+        if (computeBetterScore(getScoresForYear(y), cluster, role) >= effectiveThresholds.better) {
+          arrivalYear = y;
+          break;
+        }
+      }
+      const betterNow = computeBetterScore(capScores, cluster, role);
+
+      // The record's τ for the current year and the role's arrival year (calendar
+      // fallback = the funded-path identity, also covering years outside the record).
+      const tauOf = (y: number): number =>
+        timeline.years.find((r) => r.year === y)?.macro.effectiveCostTime ?? Math.max(0, y - startYear);
+      const previewCostClock = {
+        tEff: tauOf(currentYear),
+        tauAtArrival: arrivalYear !== null ? tauOf(arrivalYear) : null,
+      };
+      const scores = computeBFCSScores(
+        capScores, cluster, role, currentYear, effectiveAiCostParams, undefined, 0, undefined, 1.0,
+        arrivalYear, betterNow - effectiveThresholds.better,
+        previewCostClock,
+      );
       const triggered = checkThresholdsMet(scores, effectiveThresholds);
 
       const triggerYear = findTriggerYear(
@@ -75,5 +97,5 @@ export function useBFCSScoresForCluster(clusterId: string): BFCSRoleScoreSnapsho
         isOverridden,
       };
     });
-  }, [clusterId, currentYear, capabilities, bfcsOverrides, startYear, endYear, effectiveAiCostParams]);
+  }, [clusterId, currentYear, capabilities, bfcsOverrides, startYear, endYear, effectiveAiCostParams, timeline]);
 }

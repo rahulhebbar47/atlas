@@ -11,7 +11,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useSimulationStore } from '@/stores/simulationStore';
+import { useSimulationStore, eventOriginAt } from '@/stores/simulationStore';
 import type { ParameterValue } from '@/types';
 import { formatParamValue, isReadOnlyParam, isBooleanParam } from '@/utils/parameterFormatter';
 
@@ -33,11 +33,19 @@ export function ParameterRow({ label, paramKey, value, year }: ParameterRowProps
   const readOnly = isReadOnlyParam(paramKey);
   const isBoolean = isBooleanParam(paramKey);
 
-  // Source-based styling
+  // Source-based styling (R1: the provenance union — the charter invariant).
+  // 'axis-variant' / 'event' / 'imported' become producible at R2; styled now so the
+  // badge system is complete when the manifest compiler lands. 'data-calibration'
+  // (the AEI program) is type-level in v1 — the shipped preset writes no per-year
+  // scalar; styled for the species' structural completeness.
   const sourceConfig = {
-    baseline: { dotColor: 'bg-text-muted', textColor: 'text-text-muted', label: 'baseline' },
-    autopilot: { dotColor: 'bg-blue-400', textColor: 'text-blue-400', label: 'autopilot' },
-    override: { dotColor: 'bg-amber-400', textColor: 'text-amber-400', label: 'override' },
+    'default': { dotColor: 'bg-text-muted', textColor: 'text-text-muted', label: 'default' },
+    'policy': { dotColor: 'bg-blue-400', textColor: 'text-blue-400', label: 'policy' },
+    'axis-variant': { dotColor: 'bg-cyan-400', textColor: 'text-cyan-400', label: 'axis' },
+    'event': { dotColor: 'bg-orange-400', textColor: 'text-orange-400', label: 'event' },
+    'user-override': { dotColor: 'bg-amber-400', textColor: 'text-amber-400', label: 'override' },
+    'imported': { dotColor: 'bg-amber-600', textColor: 'text-amber-600', label: 'imported' },
+    'data-calibration': { dotColor: 'bg-emerald-400', textColor: 'text-emerald-400', label: 'data' },
   }[value.source];
 
   const startEditing = useCallback(() => {
@@ -101,6 +109,16 @@ export function ParameterRow({ label, paramKey, value, year }: ParameterRowProps
           {label}
         </span>
 
+        {/* R3b: the event-origin chip — WHICH event set this key-year (the owner's
+            linkage requirement rendered by provenance; source 'event' is the truth,
+            this names it) */}
+        {value.source === 'event' && (
+          <span className="text-[8px] font-mono text-orange-400 border border-orange-400/30 rounded px-1 truncate max-w-[90px]"
+            title={`set by event: ${eventOriginAt(paramKey, year) ?? 'event'}`}>
+            {eventOriginAt(paramKey, year) ?? 'event'}
+          </span>
+        )}
+
         {/* Value display or edit input */}
         {isEditing ? (
           <input
@@ -128,7 +146,7 @@ export function ParameterRow({ label, paramKey, value, year }: ParameterRowProps
         )}
 
         {/* Reset button (only for overrides) */}
-        {value.source === 'override' && !isEditing && (
+        {(value.source === 'user-override' || value.source === 'imported') && !isEditing && (
           <button
             onClick={handleReset}
             className="opacity-0 group-hover:opacity-100 text-text-muted hover:text-red-400 transition-opacity p-0.5"

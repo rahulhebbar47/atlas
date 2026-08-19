@@ -149,14 +149,15 @@ export const FISCAL_POLICY_PRESETS: Record<string, FiscalPolicyProfile> = {
   },
 
   observed_political_economy: {
-    name: 'Observed Political Economy (R-C default)',
-    description: 'E-8b (ratified, R-C): the DEFAULT — forward-reasoned from the observed record. '
-      + 'Long recognition lag (AI displacement is gradual and deniable; slower political trigger '
+    name: 'Observed Political Economy',
+    description: 'The default forecast, forward-reasoned from the observed record: a long '
+      + 'recognition lag (AI displacement is gradual and deniable — a slower political trigger '
       + 'than a financial crash), transfer-heavy deficit-financed expansion when it bites (the '
-      + 'COVID template — carried by the existing automatic stabilizers and scenario policy), '
-      + 'consolidation ABSENT until bond-market duress, monetization pressure arriving first. '
-      + 'Baseline debt RISES, CBO-like (R-A); sustainability comes from r ≈ g with Laubach-sized '
-      + 'premia, not forced adjustment. STATUTE GUARD: maxObligationCut = 0.',
+      + 'COVID template, carried by the existing automatic stabilizers and scenario policy), '
+      + 'consolidation absent until bond-market duress, monetization pressure arriving first. '
+      + 'Baseline debt rises on a CBO-like path; sustainability comes from growth running near '
+      + 'the interest rate with Laubach-sized premia, not from forced adjustment. '
+      + 'Statute-protected obligations are never cut.',
     maxDiscretionaryCut: 0.10,
     maxObligationCut: 0,           // statute guard (carried from E-8, binding)
     maxRevenueIncrease: 0.04,
@@ -170,13 +171,12 @@ export const FISCAL_POLICY_PRESETS: Record<string, FiscalPolicyProfile> = {
   },
 
   gradual_stabilization: {
-    name: 'Gradual Stabilization (E-8 baseline)',
-    description: 'E-8 (ratified): the OBSERVED-REGIME default — phased primary-balance adjustment '
-      + 'at the 1990s pace (~0.55pp of GDP/yr; 1992-1998: 4.5pp over six years) via discretionary '
-      + 'and revenue levers ONLY. STATUTE GUARD: maxObligationCut = 0 — the Stage-5b/6b '
-      + 'statute-indexed transfer stocks are untouchable in the baseline; COLA dampening stays a '
-      + 'visible, mild lever. Dialing consolidationThreshold to 999 = the never-consolidates world '
-      + '(the E-7 conditional-instability finding as a scenario).',
+    name: 'Gradual Stabilization',
+    description: 'Phased primary-balance adjustment at the 1990s pace (about 0.55 percentage '
+      + 'points of GDP a year; 1992-1998 delivered 4.5 points over six years) through '
+      + 'discretionary and revenue levers only. Statute-protected obligations are never cut; '
+      + 'cost-of-living dampening stays a visible, mild lever. Setting the consolidation '
+      + 'threshold out of reach reproduces the never-consolidates world.',
     maxDiscretionaryCut: 0.12,
     maxObligationCut: 0,          // statute guard (E-8 §2, binding)
     maxRevenueIncrease: 0.05,
@@ -337,10 +337,20 @@ export function resolveCombinedProfile(
   fiscalCustom?: Partial<FiscalPolicyProfile>,
   fedCustom?: Partial<FederalReserveProfile>,
 ): FiscalResponseProfile {
+  const fiscalBase = FISCAL_POLICY_PRESETS[fiscalPresetName] ?? FISCAL_POLICY_PRESETS[DEFAULT_FISCAL_POLICY_PRESET]!;
   const fiscal = {
-    ...(FISCAL_POLICY_PRESETS[fiscalPresetName] ?? FISCAL_POLICY_PRESETS[DEFAULT_FISCAL_POLICY_PRESET]!),
+    ...fiscalBase,
     ...fiscalCustom,
   };
+  // Stage H item 5 (the statute-guard bypass, closed): presets carrying the E-8 §2 statute
+  // guard (maxObligationCut = 0 — statute-indexed transfer stocks are untouchable without new
+  // law) must not have the guard silently raised by the customization overlay (the
+  // Spending-vs-Revenue dimension slider wrote up to 0.10 over it). Cutting obligations is an
+  // explicit statutory choice: pick a non-guarded preset. Enforced HERE so every path (UI
+  // dimension sliders, CSV import, scenario JSON) routes through the guard.
+  if (fiscalBase.maxObligationCut === 0 && fiscal.maxObligationCut !== 0) {
+    fiscal.maxObligationCut = 0;
+  }
   const fed = {
     ...(FEDERAL_RESERVE_PRESETS[fedPresetName] ?? FEDERAL_RESERVE_PRESETS[DEFAULT_FEDERAL_RESERVE_PRESET]!),
     ...fedCustom,

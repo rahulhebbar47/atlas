@@ -33,9 +33,10 @@ export function MonetaryPricesControls() {
   const baseInflation = useSimulationStore((s) => s.config.baseInflationRate);
 
   // AI Cost Structure
-  const inferenceChange = useSimulationStore(
-    (s) => s.config.aiCostParams?.inferenceAnnualChange ?? DEFAULT_INFERENCE_ANNUAL_CHANGE,
-  );
+  // DEPRECATED (Stage H): dead dial — inferenceAnnualChange (Audit B-5); manufacturing/energy sliders below are LIVE (Cheaper score + deflation channel), keep them.
+  // const inferenceChange = useSimulationStore(
+  //   (s) => s.config.aiCostParams?.inferenceAnnualChange ?? DEFAULT_INFERENCE_ANNUAL_CHANGE,
+  // );
   const mfgChange = useSimulationStore(
     (s) => s.config.aiCostParams?.manufacturingAnnualChange ?? DEFAULT_MANUFACTURING_ANNUAL_CHANGE,
   );
@@ -110,7 +111,8 @@ export function MonetaryPricesControls() {
       {/* Subcategory: AI Cost Structure */}
       <div className="space-y-3">
         <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider">AI Cost Structure</p>
-        <Slider label="Inference Cost Change" value={inferenceChange} min={-0.80} max={0.50} step={0.01} color={CONTROL_COLOR} onChange={handleAiCost('inferenceAnnualChange')} formatValue={(v) => `${(v * 100).toFixed(0)}%/yr`} />
+        {/* DEPRECATED (Stage H): dead dial — inferenceAnnualChange (Audit B-5 deprecated inference-cost slider); the manufacturing/energy sliders below are LIVE and stay; config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+        {/* <Slider label="Inference Cost Change" value={inferenceChange} min={-0.80} max={0.50} step={0.01} color={CONTROL_COLOR} onChange={handleAiCost('inferenceAnnualChange')} formatValue={(v) => `${(v * 100).toFixed(0)}%/yr`} /> */}
         <Slider label="Manufacturing Cost Change" value={mfgChange} min={-0.50} max={0.50} step={0.01} color={CONTROL_COLOR} onChange={handleAiCost('manufacturingAnnualChange')} formatValue={(v) => `${(v * 100).toFixed(0)}%/yr`} />
         <Slider label="Energy Cost Change" value={energyChange} min={-0.50} max={0.50} step={0.01} color={CONTROL_COLOR} onChange={handleAiCost('energyAnnualChange')} formatValue={(v) => `${(v * 100).toFixed(0)}%/yr`} />
       </div>

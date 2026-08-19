@@ -26,21 +26,32 @@ const mockCluster: OccupationCluster = {
 };
 
 describe('computeCheaperScore — Phase 10.A wage adjustment feedback', () => {
+  // Mini-stage 1 re-spec: moved 2030 → 2050 — under frontier pricing (arrival=null) the score is
+  // 0-clamped at 2030 (equality was degenerate); at 2050 per-token decay dominates and the
+  // default-vs-explicit-zero equality is tested on an interior value.
   it('wageAdjustment = 0 gives baseline Cheaper', () => {
-    const baseline = computeCheaperScore(2030, mockRole, mockCluster);
-    const explicitZero = computeCheaperScore(2030, mockRole, mockCluster, undefined, undefined, 0);
+    const baseline = computeCheaperScore(2050, mockRole, mockCluster);
+    const explicitZero = computeCheaperScore(2050, mockRole, mockCluster, undefined, undefined, 0);
+    expect(baseline).toBeGreaterThan(0); // interior — the equality is non-degenerate
     expect(explicitZero).toBeCloseTo(baseline, 10);
   });
 
+  // Mini-stage 1 re-spec: frontier pricing 0-clamps Cheaper at 2030 for both wage levels; the wage
+  // feedback is now asserted in the arrival-anchored regime (arrival 2025, surplus 0.5) at 2035
+  // where the score is interior.
   it('positive wageAdjustment raises Cheaper score (scarcity → wages up → AI more attractive)', () => {
-    const baseline = computeCheaperScore(2030, mockRole, mockCluster);
-    const withAdj = computeCheaperScore(2030, mockRole, mockCluster, undefined, undefined, 0.1);
+    const baseline = computeCheaperScore(2035, mockRole, mockCluster, undefined, undefined, 0, undefined, 1.0, 2025, 0.5);
+    const withAdj = computeCheaperScore(2035, mockRole, mockCluster, undefined, undefined, 0.1, undefined, 1.0, 2025, 0.5);
+    expect(baseline).toBeGreaterThan(0); // interior — feedback is observable, not clamped away
     expect(withAdj).toBeGreaterThan(baseline);
   });
 
+  // Mini-stage 1 re-spec: same arrival-anchored interior configuration, so monotonicity in
+  // wageAdjustment is strict rather than the degenerate 0 ≥ 0.
   it('larger wageAdjustment raises Cheaper further', () => {
-    const small = computeCheaperScore(2030, mockRole, mockCluster, undefined, undefined, 0.05);
-    const big = computeCheaperScore(2030, mockRole, mockCluster, undefined, undefined, 0.20);
-    expect(big).toBeGreaterThanOrEqual(small);
+    const small = computeCheaperScore(2035, mockRole, mockCluster, undefined, undefined, 0.05, undefined, 1.0, 2025, 0.5);
+    const big = computeCheaperScore(2035, mockRole, mockCluster, undefined, undefined, 0.20, undefined, 1.0, 2025, 0.5);
+    expect(small).toBeGreaterThan(0);
+    expect(big).toBeGreaterThan(small);
   });
 });

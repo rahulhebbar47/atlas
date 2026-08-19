@@ -50,13 +50,18 @@ describe('csvImport', () => {
   // 1. Minimal CSV produces valid config
   // ----------------------------------------------------------
   it('1. Minimal CSV produces valid config', () => {
+    // RE-SPEC (the Scenarios import-protections audit): the engine is anchored at 2025 and
+    // THROWS on any other start year — the old expectation (startYear 2030 passing through
+    // clean) codified a config the simulation would then crash on. Non-default start years
+    // now degrade to the default WITH a warning, like every other clamped field.
     const input = csv('start_year,2030', 'end_year,2045');
     const { params } = parseParameterCSV(input);
     const { config, warnings } = buildConfigFromCSV(params);
 
-    expect(config.startYear).toBe(2030);
+    expect(config.startYear).toBe(2025);
     expect(config.endYear).toBe(2045);
-    expect(warnings).toHaveLength(0);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('startYear');
 
     // All other fields should match defaults
     const defaults = getDefaultSimulationConfig();
@@ -72,7 +77,7 @@ describe('csvImport', () => {
   // ----------------------------------------------------------
   it('2. All global params parse correctly', () => {
     const input = csv(
-      'start_year,2026',
+      'start_year,2025', // RE-SPEC: the default year — non-2025 now degrades with a warning (see test 1)
       'end_year,2048',
       'base_inflation_rate,0.03',
       'baseline_gdp_growth,0.025',
@@ -87,7 +92,7 @@ describe('csvImport', () => {
     const { config, warnings } = buildConfigFromCSV(params);
 
     expect(warnings).toHaveLength(0);
-    expect(config.startYear).toBe(2026);
+    expect(config.startYear).toBe(2025);
     expect(config.endYear).toBe(2048);
     expect(config.baseInflationRate).toBe(0.03);
     expect(config.baselineGDPGrowth).toBe(0.025);
@@ -532,13 +537,13 @@ describe('csvImport', () => {
   it('17. Header row is skipped', () => {
     const input = csv(
       'parameter_path,value',
-      'start_year,2030',
+      'start_year,2025', // RE-SPEC: the default year — non-2025 now warns (see test 1), which would pollute this test's no-warning subject
     );
     const { params, warnings } = parseParameterCSV(input);
 
     // The header row should not appear as a param
     expect(params.has('parameter_path')).toBe(false);
-    expect(params.get('start_year')).toBe('2030');
+    expect(params.get('start_year')).toBe('2025');
     expect(warnings).toHaveLength(0);
 
     // Also confirm buildConfigFromCSV does not generate a warning for it
@@ -552,14 +557,14 @@ describe('csvImport', () => {
   it('18. Comment lines (starting with #) are skipped', () => {
     const input = csv(
       '# This is a comment',
-      'start_year,2030',
+      'start_year,2025', // RE-SPEC: the default year — non-2025 now warns (see test 1)
     );
     const { params, warnings } = parseParameterCSV(input);
     const { config, warnings: buildWarnings } = buildConfigFromCSV(params);
 
     expect(warnings).toHaveLength(0);
     expect(buildWarnings).toHaveLength(0);
-    expect(config.startYear).toBe(2030);
+    expect(config.startYear).toBe(2025);
   });
 
   // ----------------------------------------------------------
@@ -778,7 +783,9 @@ describe('csvImport', () => {
     // + 3 AI cost + 11 separated credit + 12 fiscal-monetary = ~130+ total (growing with each phase)
     const dataLines = lines.length - 1; // subtract header
     expect(dataLines).toBeGreaterThanOrEqual(140);
-    expect(dataLines).toBeLessThanOrEqual(185);
+    // Mini-stage 3: +4 pool.* duration-dial rows (exit_base, exit_duration_slope,
+    // atrophy_rate, wage_scarring_rate) → ceiling raised 185 → 190.
+    expect(dataLines).toBeLessThanOrEqual(190);
   });
 
   // ----------------------------------------------------------

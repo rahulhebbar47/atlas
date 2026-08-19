@@ -1,0 +1,1275 @@
+{
+ "source": "aei",
+ "sourceName": "Anthropic Economic Index (Hugging Face: Anthropic/EconomicIndex)",
+ "releaseId": "release_2026_06_26",
+ "population": "1p_api",
+ "populationNote": "First-party Anthropic API usage, excluding Claude Code; global grain; shares measure conversations, not hours or economic value.",
+ "windows": [
+  "2026-04",
+  "2026-05"
+ ],
+ "overall": {
+  "automationSharePooled": 0.9394,
+  "byMonth": {
+   "2026-04": {
+    "collaboration_bucket_augmentation_pct": 6.34,
+    "collaboration_bucket_automation_pct": 93.66,
+    "collaboration_directive_pct": 80.88,
+    "collaboration_feedback_loop_pct": 7.41,
+    "collaboration_learning_pct": 1.47,
+    "collaboration_none_pct": 5.73,
+    "collaboration_task_iteration_pct": 2.9,
+    "collaboration_validation_pct": 1.6
+   },
+   "2026-05": {
+    "collaboration_bucket_augmentation_pct": 5.78,
+    "collaboration_bucket_automation_pct": 94.22,
+    "collaboration_directive_pct": 82.75,
+    "collaboration_feedback_loop_pct": 6.28,
+    "collaboration_learning_pct": 1.38,
+    "collaboration_none_pct": 5.51,
+    "collaboration_task_iteration_pct": 2.68,
+    "collaboration_validation_pct": 1.41
+   }
+  }
+ },
+ "clusters": {
+  "creative_design": {
+   "automationShare": 0.9238,
+   "collaborationModesPct": {
+    "directive": 89.88,
+    "feedback_loop": 1.68,
+    "task_iteration": 7.01,
+    "learning": 0.32,
+    "validation": 0.23,
+    "none": 0.89
+   },
+   "usagePctMean": 0.505,
+   "socCodesMatched": [
+    "27-1024",
+    "27-1025"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9268,
+     "usagePct": 0.5
+    },
+    "2026-05": {
+     "automationShare": 0.9209,
+     "usagePct": 0.51
+    }
+   },
+   "weights": {
+    "generative": 0.072458,
+    "agentic": 0.8775419999999999
+   }
+  },
+  "creative_marketing": {
+   "automationShare": 0.9403,
+   "collaborationModesPct": {
+    "directive": 76.74,
+    "feedback_loop": 6.05,
+    "task_iteration": 3.18,
+    "learning": 1.45,
+    "validation": 0.69,
+    "none": 11.9
+   },
+   "usagePctMean": 0.79,
+   "socCodesMatched": [
+    "13-1161",
+    "27-3031"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.937,
+     "usagePct": 0.74
+    },
+    "2026-05": {
+     "automationShare": 0.9433,
+     "usagePct": 0.84
+    }
+   },
+   "weights": {
+    "generative": 0.05736,
+    "agentic": 0.89264
+   }
+  },
+  "creative_media": {
+   "automationShare": 0.9123,
+   "collaborationModesPct": {
+    "directive": 86.91,
+    "feedback_loop": 3.68,
+    "task_iteration": 8.11,
+    "learning": 0.19,
+    "validation": 0.43,
+    "none": 0.7
+   },
+   "usagePctMean": 0.44,
+   "socCodesMatched": [
+    "27-4011",
+    "27-4014",
+    "27-4021",
+    "27-4032"
+   ],
+   "socCodesTotal": 4,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9152,
+     "usagePct": 0.42
+    },
+    "2026-05": {
+     "automationShare": 0.9096,
+     "usagePct": 0.46
+    }
+   },
+   "weights": {
+    "generative": 0.070318,
+    "agentic": 0.729682
+   }
+  },
+  "creative_writing": {
+   "automationShare": 0.9505,
+   "collaborationModesPct": {
+    "directive": 86.53,
+    "feedback_loop": 7.95,
+    "task_iteration": 3.53,
+    "learning": 0.09,
+    "validation": 1.3,
+    "none": 0.6
+   },
+   "usagePctMean": 7.595,
+   "socCodesMatched": [
+    "27-3041",
+    "27-3042",
+    "27-3043"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9486,
+     "usagePct": 7.7
+    },
+    "2026-05": {
+     "automationShare": 0.9524,
+     "usagePct": 7.49
+    }
+   },
+   "weights": {
+    "generative": 0.047022,
+    "agentic": 0.902978
+   }
+  },
+  "edu_admin": {
+   "automationShare": 0.7459,
+   "collaborationModesPct": {
+    "directive": 62.82,
+    "feedback_loop": 7.32,
+    "task_iteration": 3.34,
+    "learning": 15.15,
+    "validation": 5.41,
+    "none": 5.96
+   },
+   "usagePctMean": 0.13,
+   "socCodesMatched": [
+    "11-9032",
+    "11-9033"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.7429,
+     "usagePct": 0.12
+    },
+    "2026-05": {
+     "automationShare": 0.7485,
+     "usagePct": 0.14
+    }
+   },
+   "weights": {
+    "generative": 0.24144,
+    "agentic": 0.70856
+   }
+  },
+  "edu_teachers": {
+   "automationShare": 0.7704,
+   "collaborationModesPct": {
+    "directive": 65.97,
+    "feedback_loop": 8.07,
+    "task_iteration": 3.62,
+    "learning": 13.77,
+    "validation": 4.44,
+    "none": 4.11
+   },
+   "usagePctMean": 0.775,
+   "socCodesMatched": [
+    "25-1011",
+    "25-1022",
+    "25-1032",
+    "25-1042",
+    "25-1043",
+    "25-1051",
+    "25-1061",
+    "25-1062",
+    "25-1064",
+    "25-1066",
+    "25-1081",
+    "25-1082",
+    "25-2021",
+    "25-2051",
+    "25-3011",
+    "25-3021",
+    "25-3031",
+    "25-3041"
+   ],
+   "socCodesTotal": 40,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.7675,
+     "usagePct": 0.81
+    },
+    "2026-05": {
+     "automationShare": 0.7735,
+     "usagePct": 0.74
+    }
+   },
+   "weights": {
+    "generative": 0.159393,
+    "agentic": 0.540607
+   }
+  },
+  "finance_accounting": {
+   "automationShare": 0.9694,
+   "collaborationModesPct": {
+    "directive": 92.51,
+    "feedback_loop": 2.63,
+    "task_iteration": 1.92,
+    "learning": 0.49,
+    "validation": 0.6,
+    "none": 1.86
+   },
+   "usagePctMean": 0.405,
+   "socCodesMatched": [
+    "13-2011",
+    "43-3031"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9686,
+     "usagePct": 0.36
+    },
+    "2026-05": {
+     "automationShare": 0.9701,
+     "usagePct": 0.45
+    }
+   },
+   "weights": {
+    "generative": 0.029134,
+    "agentic": 0.920866
+   }
+  },
+  "finance_banking": {
+   "automationShare": 0.8783,
+   "collaborationModesPct": {
+    "directive": 77.15,
+    "feedback_loop": 7.6,
+    "task_iteration": 3.42,
+    "learning": 6.8,
+    "validation": 1.59,
+    "none": 3.44
+   },
+   "usagePctMean": 0.385,
+   "socCodesMatched": [
+    "13-2071",
+    "13-2072",
+    "43-3071"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.8817,
+     "usagePct": 0.37
+    },
+    "2026-05": {
+     "automationShare": 0.8751,
+     "usagePct": 0.4
+    }
+   },
+   "weights": {
+    "generative": 0.116192,
+    "agentic": 0.833808
+   }
+  },
+  "finance_insurance": {
+   "automationShare": 0.9686,
+   "collaborationModesPct": {
+    "directive": 95.27,
+    "feedback_loop": 0.94,
+    "task_iteration": 0.81,
+    "learning": 0,
+    "validation": 2.31,
+    "none": 0.67
+   },
+   "usagePctMean": 0.05,
+   "socCodesMatched": [
+    "13-2022",
+    "13-2053"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9636,
+     "usagePct": 0.04
+    },
+    "2026-05": {
+     "automationShare": 0.972,
+     "usagePct": 0.06
+    }
+   },
+   "weights": {
+    "generative": 0.02984,
+    "agentic": 0.92016
+   }
+  },
+  "finance_trading": {
+   "automationShare": 0.9753,
+   "collaborationModesPct": {
+    "directive": 93.81,
+    "feedback_loop": 3.45,
+    "task_iteration": 0.96,
+    "learning": 0.56,
+    "validation": 0.93,
+    "none": 0.28
+   },
+   "usagePctMean": 0.76,
+   "socCodesMatched": [
+    "13-2051",
+    "13-2054"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.974,
+     "usagePct": 0.76
+    },
+    "2026-05": {
+     "automationShare": 0.9766,
+     "usagePct": 0.76
+    }
+   },
+   "weights": {
+    "generative": 0.023343,
+    "agentic": 0.926657
+   }
+  },
+  "health_admin": {
+   "automationShare": 0.963,
+   "collaborationModesPct": {
+    "directive": 89.93,
+    "feedback_loop": 4.77,
+    "task_iteration": 3.23,
+    "learning": 0.33,
+    "validation": 0.09,
+    "none": 1.67
+   },
+   "usagePctMean": 0.09,
+   "socCodesMatched": [
+    "11-9111",
+    "43-6013"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9588,
+     "usagePct": 0.08
+    },
+    "2026-05": {
+     "automationShare": 0.9664,
+     "usagePct": 0.1
+    }
+   },
+   "weights": {
+    "generative": 0.035257,
+    "agentic": 0.914743
+   }
+  },
+  "legal_attorneys": {
+   "automationShare": 0.8433,
+   "collaborationModesPct": {
+    "directive": 80.85,
+    "feedback_loop": 2.79,
+    "task_iteration": 4.88,
+    "learning": 4.12,
+    "validation": 6.48,
+    "none": 0.88
+   },
+   "usagePctMean": 0.19,
+   "socCodesMatched": [
+    "23-1011",
+    "23-1021",
+    "23-1022"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.8534,
+     "usagePct": 0.16
+    },
+    "2026-05": {
+     "automationShare": 0.836,
+     "usagePct": 0.22
+    }
+   },
+   "weights": {
+    "generative": 0.148366,
+    "agentic": 0.801634
+   }
+  },
+  "legal_paralegals": {
+   "automationShare": 0.8146,
+   "collaborationModesPct": {
+    "directive": 79.59,
+    "feedback_loop": 1.54,
+    "task_iteration": 9.49,
+    "learning": 1.94,
+    "validation": 7.02,
+    "none": 0.4
+   },
+   "usagePctMean": 0.045,
+   "socCodesMatched": [
+    "23-2011"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.8223,
+     "usagePct": 0.04
+    },
+    "2026-05": {
+     "automationShare": 0.8084,
+     "usagePct": 0.05
+    }
+   },
+   "weights": {
+    "generative": 0.176014,
+    "agentic": 0.773986
+   }
+  },
+  "prof_admin": {
+   "automationShare": 0.9334,
+   "collaborationModesPct": {
+    "directive": 83.41,
+    "feedback_loop": 6.67,
+    "task_iteration": 2.71,
+    "learning": 2.74,
+    "validation": 0.98,
+    "none": 3.48
+   },
+   "usagePctMean": 3.095,
+   "socCodesMatched": [
+    "43-1011",
+    "43-4051",
+    "43-6014",
+    "43-9061"
+   ],
+   "socCodesTotal": 4,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9305,
+     "usagePct": 3.01
+    },
+    "2026-05": {
+     "automationShare": 0.9361,
+     "usagePct": 3.18
+    }
+   },
+   "weights": {
+    "generative": 0.063294,
+    "agentic": 0.886706
+   }
+  },
+  "prof_consulting": {
+   "automationShare": 0.9508,
+   "collaborationModesPct": {
+    "directive": 90.79,
+    "feedback_loop": 3.22,
+    "task_iteration": 3.98,
+    "learning": 0.29,
+    "validation": 0.59,
+    "none": 1.14
+   },
+   "usagePctMean": 0.965,
+   "socCodesMatched": [
+    "13-1111",
+    "13-1199"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9489,
+     "usagePct": 0.9
+    },
+    "2026-05": {
+     "automationShare": 0.9525,
+     "usagePct": 1.03
+    }
+   },
+   "weights": {
+    "generative": 0.046698,
+    "agentic": 0.9033019999999999
+   }
+  },
+  "prof_hr": {
+   "automationShare": 0.9631,
+   "collaborationModesPct": {
+    "directive": 68.51,
+    "feedback_loop": 12.91,
+    "task_iteration": 1.12,
+    "learning": 1.39,
+    "validation": 0.66,
+    "none": 15.41
+   },
+   "usagePctMean": 0.065,
+   "socCodesMatched": [
+    "11-3121",
+    "13-1071"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9671,
+     "usagePct": 0.07
+    },
+    "2026-05": {
+     "automationShare": 0.9584,
+     "usagePct": 0.06
+    }
+   },
+   "weights": {
+    "generative": 0.035601,
+    "agentic": 0.914399
+   }
+  },
+  "prof_real_estate": {
+   "automationShare": 0.9253,
+   "collaborationModesPct": {
+    "directive": 75.88,
+    "feedback_loop": 11.93,
+    "task_iteration": 3.94,
+    "learning": 2.07,
+    "validation": 1.05,
+    "none": 5.12
+   },
+   "usagePctMean": 0.035,
+   "socCodesMatched": [
+    "41-9021",
+    "41-9022"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9184,
+     "usagePct": 0.03
+    },
+    "2026-05": {
+     "automationShare": 0.9304,
+     "usagePct": 0.04
+    }
+   },
+   "weights": {
+    "generative": 0.044651,
+    "agentic": 0.555349
+   }
+  },
+  "retail_ecommerce": {
+   "automationShare": 0.9487,
+   "collaborationModesPct": {
+    "directive": 88.59,
+    "feedback_loop": 4.64,
+    "task_iteration": 1.75,
+    "learning": 1.86,
+    "validation": 1.46,
+    "none": 1.7
+   },
+   "usagePctMean": 0.035,
+   "socCodesMatched": [
+    "43-5011",
+    "53-7065"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9558,
+     "usagePct": 0.05
+    },
+    "2026-05": {
+     "automationShare": 0.9311,
+     "usagePct": 0.02
+    }
+   },
+   "weights": {
+    "generative": 0.020631,
+    "agentic": 0.379369
+   }
+  },
+  "retail_management": {
+   "automationShare": 0.9199,
+   "collaborationModesPct": {
+    "directive": 65.61,
+    "feedback_loop": 11.5,
+    "task_iteration": 2.63,
+    "learning": 3.3,
+    "validation": 0.71,
+    "none": 16.25
+   },
+   "usagePctMean": 0.075,
+   "socCodesMatched": [
+    "41-1011",
+    "41-1012"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9123,
+     "usagePct": 0.07
+    },
+    "2026-05": {
+     "automationShare": 0.9266,
+     "usagePct": 0.08
+    }
+   },
+   "weights": {
+    "generative": 0.059463,
+    "agentic": 0.690537
+   }
+  },
+  "sci_engineering": {
+   "automationShare": 0.917,
+   "collaborationModesPct": {
+    "directive": 85.54,
+    "feedback_loop": 5.28,
+    "task_iteration": 3.12,
+    "learning": 1.94,
+    "validation": 3.14,
+    "none": 0.99
+   },
+   "usagePctMean": 2.46,
+   "socCodesMatched": [
+    "17-2011",
+    "17-2021",
+    "17-2031",
+    "17-2051",
+    "17-2061",
+    "17-2071",
+    "17-2072",
+    "17-2081",
+    "17-2111",
+    "17-2112",
+    "17-2121",
+    "17-2131",
+    "17-2141",
+    "17-2151",
+    "17-2161",
+    "17-2171",
+    "17-2199"
+   ],
+   "socCodesTotal": 19,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9104,
+     "usagePct": 2.42
+    },
+    "2026-05": {
+     "automationShare": 0.9234,
+     "usagePct": 2.5
+    }
+   },
+   "weights": {
+    "generative": 0.07453,
+    "agentic": 0.82547
+   }
+  },
+  "sci_lab_research": {
+   "automationShare": 0.8989,
+   "collaborationModesPct": {
+    "directive": 82.88,
+    "feedback_loop": 6.11,
+    "task_iteration": 6.01,
+    "learning": 2.84,
+    "validation": 1.16,
+    "none": 1.01
+   },
+   "usagePctMean": 1.11,
+   "socCodesMatched": [
+    "19-1029",
+    "19-1031",
+    "19-1041",
+    "19-2011",
+    "19-2012",
+    "19-2021",
+    "19-2031",
+    "19-2032",
+    "19-2041",
+    "19-2099",
+    "19-4099"
+   ],
+   "socCodesTotal": 25,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9016,
+     "usagePct": 1.17
+    },
+    "2026-05": {
+     "automationShare": 0.8958,
+     "usagePct": 1.05
+    }
+   },
+   "weights": {
+    "generative": 0.070778,
+    "agentic": 0.629222
+   }
+  },
+  "tech_data_ml": {
+   "automationShare": 0.9651,
+   "collaborationModesPct": {
+    "directive": 90.73,
+    "feedback_loop": 4.53,
+    "task_iteration": 2.61,
+    "learning": 0.45,
+    "validation": 0.37,
+    "none": 1.29
+   },
+   "usagePctMean": 1.59,
+   "socCodesMatched": [
+    "15-2051"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9627,
+     "usagePct": 1.51
+    },
+    "2026-05": {
+     "automationShare": 0.9673,
+     "usagePct": 1.67
+    }
+   },
+   "weights": {
+    "generative": 0.033018,
+    "agentic": 0.916982
+   }
+  },
+  "tech_it_support": {
+   "automationShare": 0.891,
+   "collaborationModesPct": {
+    "directive": 68.35,
+    "feedback_loop": 16.84,
+    "task_iteration": 1.91,
+    "learning": 6.51,
+    "validation": 1.93,
+    "none": 4.47
+   },
+   "usagePctMean": 0.805,
+   "socCodesMatched": [
+    "15-1231",
+    "15-1232",
+    "15-1244"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.8912,
+     "usagePct": 0.86
+    },
+    "2026-05": {
+     "automationShare": 0.8907,
+     "usagePct": 0.75
+    }
+   },
+   "weights": {
+    "generative": 0.086665,
+    "agentic": 0.713335
+   }
+  },
+  "tech_qa": {
+   "automationShare": 0.9377,
+   "collaborationModesPct": {
+    "directive": 72.18,
+    "feedback_loop": 19.66,
+    "task_iteration": 4.37,
+    "learning": 0.68,
+    "validation": 1.06,
+    "none": 2.05
+   },
+   "usagePctMean": 2.285,
+   "socCodesMatched": [
+    "15-1253"
+   ],
+   "socCodesTotal": 1,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9355,
+     "usagePct": 2.22
+    },
+    "2026-05": {
+     "automationShare": 0.9397,
+     "usagePct": 2.35
+    }
+   },
+   "weights": {
+    "generative": 0.05926,
+    "agentic": 0.89074
+   }
+  },
+  "tech_swe": {
+   "automationShare": 0.8646,
+   "collaborationModesPct": {
+    "directive": 71.7,
+    "feedback_loop": 14.07,
+    "task_iteration": 12.29,
+    "learning": 0.58,
+    "validation": 0.56,
+    "none": 0.81
+   },
+   "usagePctMean": 1.275,
+   "socCodesMatched": [
+    "15-1252",
+    "15-1254"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.8593,
+     "usagePct": 1.28
+    },
+    "2026-05": {
+     "automationShare": 0.87,
+     "usagePct": 1.27
+    }
+   },
+   "weights": {
+    "generative": 0.128614,
+    "agentic": 0.821386
+   }
+  }
+ },
+ "clustersInformational": {
+  "construction_general": {
+   "automationShare": 0.9806,
+   "collaborationModesPct": {
+    "directive": 92.01,
+    "feedback_loop": 4.98,
+    "task_iteration": 1.49,
+    "learning": 0.29,
+    "validation": 0.14,
+    "none": 1.09
+   },
+   "usagePctMean": 0.01,
+   "socCodesMatched": [
+    "47-2031"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9794,
+     "usagePct": 0.01
+    },
+    "2026-05": {
+     "automationShare": 0.9817,
+     "usagePct": 0.01
+    }
+   }
+  },
+  "construction_hvac": {
+   "automationShare": 0.9722,
+   "collaborationModesPct": {
+    "directive": 83.91,
+    "feedback_loop": 9.5,
+    "task_iteration": 0.54,
+    "learning": 0.27,
+    "validation": 1.87,
+    "none": 3.92
+   },
+   "usagePctMean": 0.01,
+   "socCodesMatched": [
+    "49-9021"
+   ],
+   "socCodesTotal": 1,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9691,
+     "usagePct": 0.01
+    },
+    "2026-05": {
+     "automationShare": 0.9752,
+     "usagePct": 0.01
+    }
+   }
+  },
+  "food_fast_food": {
+   "automationShare": 0.9767,
+   "collaborationModesPct": {
+    "directive": 75.42,
+    "feedback_loop": 12.96,
+    "task_iteration": 1.75,
+    "learning": 0.11,
+    "validation": 0.23,
+    "none": 9.53
+   },
+   "usagePctMean": 0.045,
+   "socCodesMatched": [
+    "35-3023"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9753,
+     "usagePct": 0.04
+    },
+    "2026-05": {
+     "automationShare": 0.9779,
+     "usagePct": 0.05
+    }
+   }
+  },
+  "food_restaurant": {
+   "automationShare": 0.9303,
+   "collaborationModesPct": {
+    "directive": 75.62,
+    "feedback_loop": 11.24,
+    "task_iteration": 2.48,
+    "learning": 1.64,
+    "validation": 2.34,
+    "none": 6.69
+   },
+   "usagePctMean": 0.1,
+   "socCodesMatched": [
+    "35-1012",
+    "35-3031"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9344,
+     "usagePct": 0.1
+    },
+    "2026-05": {
+     "automationShare": 0.9261,
+     "usagePct": 0.1
+    }
+   }
+  },
+  "health_home_health": {
+   "automationShare": 0.9095,
+   "collaborationModesPct": {
+    "directive": 74.19,
+    "feedback_loop": 2.52,
+    "task_iteration": 0.78,
+    "learning": 6.09,
+    "validation": 0.74,
+    "none": 15.69
+   },
+   "usagePctMean": 0.215,
+   "socCodesMatched": [
+    "31-1131"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.8943,
+     "usagePct": 0.18
+    },
+    "2026-05": {
+     "automationShare": 0.9204,
+     "usagePct": 0.25
+    }
+   }
+  },
+  "health_nurses": {
+   "automationShare": 0.9305,
+   "collaborationModesPct": {
+    "directive": 83.64,
+    "feedback_loop": 5.57,
+    "task_iteration": 1.1,
+    "learning": 1.72,
+    "validation": 3.97,
+    "none": 4
+   },
+   "usagePctMean": 0.07,
+   "socCodesMatched": [
+    "29-1141",
+    "29-2061"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9186,
+     "usagePct": 0.05
+    },
+    "2026-05": {
+     "automationShare": 0.9371,
+     "usagePct": 0.09
+    }
+   }
+  },
+  "health_physicians": {
+   "automationShare": 0.8246,
+   "collaborationModesPct": {
+    "directive": 70.55,
+    "feedback_loop": 9.06,
+    "task_iteration": 1.82,
+    "learning": 13.15,
+    "validation": 1.68,
+    "none": 3.75
+   },
+   "usagePctMean": 0.11,
+   "socCodesMatched": [
+    "29-1212",
+    "29-1214",
+    "29-1216",
+    "29-1217",
+    "29-1218",
+    "29-1222",
+    "29-1224",
+    "29-1229"
+   ],
+   "socCodesTotal": 18,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.8197,
+     "usagePct": 0.11
+    },
+    "2026-05": {
+     "automationShare": 0.8295,
+     "usagePct": 0.11
+    }
+   }
+  },
+  "health_technicians": {
+   "automationShare": 0.9577,
+   "collaborationModesPct": {
+    "directive": 84.79,
+    "feedback_loop": 6.59,
+    "task_iteration": 1.7,
+    "learning": 1.71,
+    "validation": 0.67,
+    "none": 4.57
+   },
+   "usagePctMean": 0.04,
+   "socCodesMatched": [
+    "29-2011",
+    "29-2012",
+    "29-2031",
+    "29-2034",
+    "29-2061",
+    "29-2099"
+   ],
+   "socCodesTotal": 16,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9384,
+     "usagePct": 0.02
+    },
+    "2026-05": {
+     "automationShare": 0.9642,
+     "usagePct": 0.06
+    }
+   }
+  },
+  "mfg_assembly": {
+   "automationShare": 0.8149,
+   "collaborationModesPct": {
+    "directive": 80.32,
+    "feedback_loop": 1.17,
+    "task_iteration": 0.25,
+    "learning": 0.17,
+    "validation": 18.09,
+    "none": 0
+   },
+   "usagePctMean": 0.04,
+   "socCodesMatched": [
+    "51-2092"
+   ],
+   "socCodesTotal": 15,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.8149,
+     "usagePct": 0.04
+    }
+   }
+  },
+  "mfg_qc": {
+   "automationShare": 0.9516,
+   "collaborationModesPct": {
+    "directive": 93.55,
+    "feedback_loop": 1.12,
+    "task_iteration": 1.26,
+    "learning": 0.64,
+    "validation": 2.92,
+    "none": 0.52
+   },
+   "usagePctMean": 0.155,
+   "socCodesMatched": [
+    "51-9061"
+   ],
+   "socCodesTotal": 1,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9484,
+     "usagePct": 0.15
+    },
+    "2026-05": {
+     "automationShare": 0.9546,
+     "usagePct": 0.16
+    }
+   }
+  },
+  "retail_cashiers": {
+   "automationShare": 0.8103,
+   "collaborationModesPct": {
+    "directive": 61.17,
+    "feedback_loop": 7.56,
+    "task_iteration": 2.24,
+    "learning": 12.77,
+    "validation": 1.21,
+    "none": 15.05
+   },
+   "usagePctMean": 0.365,
+   "socCodesMatched": [
+    "41-2011",
+    "41-2031"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.8005,
+     "usagePct": 0.34
+    },
+    "2026-05": {
+     "automationShare": 0.8188,
+     "usagePct": 0.39
+    }
+   }
+  },
+  "transport_delivery": {
+   "automationShare": 0.9923,
+   "collaborationModesPct": {
+    "directive": 85.48,
+    "feedback_loop": 2.77,
+    "task_iteration": 0.57,
+    "learning": 0.13,
+    "validation": 0,
+    "none": 11.04
+   },
+   "usagePctMean": 0.025,
+   "socCodesMatched": [
+    "43-5021",
+    "53-3031"
+   ],
+   "socCodesTotal": 2,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9978,
+     "usagePct": 0.02
+    },
+    "2026-05": {
+     "automationShare": 0.9886,
+     "usagePct": 0.03
+    }
+   }
+  },
+  "transport_trucking": {
+   "automationShare": 0.9803,
+   "collaborationModesPct": {
+    "directive": 93.6,
+    "feedback_loop": 3.26,
+    "task_iteration": 0.08,
+    "learning": 0,
+    "validation": 1.86,
+    "none": 1.19
+   },
+   "usagePctMean": 0.015,
+   "socCodesMatched": [
+    "53-3032"
+   ],
+   "socCodesTotal": 1,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9806,
+     "usagePct": 0.01
+    },
+    "2026-05": {
+     "automationShare": 0.9802,
+     "usagePct": 0.02
+    }
+   }
+  },
+  "transport_warehouse": {
+   "automationShare": 0.9808,
+   "collaborationModesPct": {
+    "directive": 72.93,
+    "feedback_loop": 6.98,
+    "task_iteration": 1.33,
+    "learning": 0,
+    "validation": 0.28,
+    "none": 18.48
+   },
+   "usagePctMean": 0.01,
+   "socCodesMatched": [
+    "53-7062"
+   ],
+   "socCodesTotal": 3,
+   "byMonth": {
+    "2026-04": {
+     "automationShare": 0.9948,
+     "usagePct": 0.01
+    },
+    "2026-05": {
+     "automationShare": 0.9667,
+     "usagePct": 0.01
+    }
+   }
+  }
+ },
+ "coverage": {
+  "clustersWithData": 39,
+  "clustersApplied": 25,
+  "clustersInformationalCount": 14,
+  "clustersMissing": [
+   "ag_equipment",
+   "ag_farm_labor",
+   "construction_electricians",
+   "construction_plumbers",
+   "edu_support",
+   "food_industrial",
+   "gov_federal",
+   "gov_postal",
+   "gov_state_local",
+   "mfg_machinists",
+   "other_uncategorized",
+   "transport_taxi"
+  ],
+  "socUniverseMatchedUsagePct": {
+   "2026-04": 26.78,
+   "2026-05": 27.5
+  },
+  "missingCellPolicy": "absent cells stay absent — never zero, never estimated"
+ },
+ "diagnostics": {
+  "nodeMonthsTotal": 1344,
+  "nodeMonthsMissingCollaboration": 5,
+  "zeroWeightNodeMonths": 392,
+  "bucketIdentityChecked": 1341,
+  "bucketIdentityMaxAbsErrorPp": 0.018572449526530477
+ },
+ "validation": {
+  "observedExposureSource": "labor_market_impacts/job_exposure.csv",
+  "anchors": {
+   "29-2072": 0.6674,
+   "43-4051": 0.7011,
+   "43-9021": 0.6707
+  }
+ }
+}

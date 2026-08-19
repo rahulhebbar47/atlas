@@ -94,8 +94,12 @@ export function computeFiscalRiskPremium(
   // and sustainability components are damped by (1 − adjustmentExpectation); the LEVEL component
   // is untouched (the stock exists regardless of the expected path). 0 = current-law-forever.
   adjustmentExpectation: number = 0,
-  // E-8b (ratified): evidence-based linear premium replaces the logistic extrapolation.
-  useLegacyLogistic: boolean = false,
+  // RETIRED (the successor program close-out; Amendment 2 — no legacy toggles): the E-8b
+  // isolation toggle is INERT — the parameter slot survives only for positional-call
+  // stability; the ratified Laubach path is the ONLY path. The legacy logistic's behavior
+  // is preserved as a RECORDED POLE (~/.atlas-referents/e8b-legacy-pole/) and as the
+  // commented arithmetic below. Inertness is enforced by bondMarket.test.ts retirement guards.
+  _retiredLegacyLogistic: boolean = false,
   debtGDPAnchor: number = 1.2,      // the 2025 state — premium ≡ 0 there (the observed 4.3% 10Y already embeds it)
   deficitGDPAnchor: number = 0.06,  // the 2025 deficit/GDP
   laubachLevelBeta: number = 0.035,
@@ -111,8 +115,8 @@ export function computeFiscalRiskPremium(
   sustainabilityRisk: number;
   levelRisk: number;
 } {
-  if (!useLegacyLogistic) {
-    // ═══ E-8b (ratified): the Laubach/Engen-Hubbard linear evidence premium ═══
+  {
+    // ═══ E-8b (ratified): the Laubach/Engen-Hubbard linear evidence premium — the only path ═══
     // fiscalRiskPremium = β_level × max(0, b − b₀) + β_deficit × max(0, d − d₀), zero-anchored at
     // the 2025 state. No cap: the linear evidence slope is bounded by the path itself (maxPremium
     // retires). The deficit ratio is recovered from the debt identity:
@@ -133,53 +137,55 @@ export function computeFiscalRiskPremium(
       levelRisk,
     };
   }
-  // ═══ LEGACY logistic path (pre-E-8b; isolation toggle config.legacyFiscalPremium) ═══
-  // === Component 1: Trajectory Risk ===
-  // How fast is debt/GDP changing? Markets panic when the ratio accelerates.
-  // Phase 8 Fix 5: Center moved from 0.10 to configurable (default 0.15) to match
-  // empirical evidence — US has sustained +6pp/year for a decade with ~0bp trajectory premium.
-  // At midpoint 0.15: +6pp/year → ~2% of max (~0.7bp), +15pp/year → 50%, +20pp/year → ~89%.
-  const debtGDPChange = debtGDPRatio - prevDebtGDPRatio;
-  // Steepness of ~42 ensures sharp transition around midpoint.
-  // Derivation: solve 0.05 = 1/(1+exp(-s*0.07)) → s = ln(19)/0.07 ≈ 42
-  const TRAJECTORY_STEEPNESS = Math.log(19) / 0.07; // ≈ 42.06
-  const trajectoryRaw = 1.0 / (1.0 + Math.exp(-TRAJECTORY_STEEPNESS * (debtGDPChange - trajectoryMidpoint)));
-  const trajectoryRisk = trajectoryRaw * maxPremium * (1 - adjustmentExpectation);  // E-8
-
-  // === Component 2: Sustainability Risk (r - g) ===
-  // When interest rate on debt exceeds nominal GDP growth, debt compounds faster
-  // than the economy grows — mathematically unsustainable without primary surpluses.
-  // r - g > 0: unsustainable -> risk rises
-  // r - g < 0: sustainable -> risk near zero (the government is "growing out" of debt)
-  // US post-war: g > r for most of the period -> zero sustainability premium
-  const rMinusG = weightedAvgDebtRate - nominalGDPGrowthRate;
-  // Ramp from 0 at r=g to full at r-g = 0.05 (500bp unsustainability gap)
-  const sustainabilityRaw = rMinusG > 0
-    ? Math.min(1.0, rMinusG / 0.05)
-    : 0;
-  const sustainabilityRisk = sustainabilityRaw * maxPremium * (1 - adjustmentExpectation);  // E-8
-
-  // === Component 3: Level Risk (background) ===
-  // Sigmoid on absolute level, but with HIGH midpoint (2.0 = 200%) and LOW weight.
-  // This only bites at extreme levels — not relevant for US at 114%.
-  // Even Japan at 250% has barely triggered this in practice.
-  const levelSteepness = Math.log(9) / 0.30; // 10%-90% transition over 60pp centered on midpoint
-  const levelRaw = 1.0 / (1.0 + Math.exp(-levelSteepness * (debtGDPRatio - levelMidpoint)));
-  const levelRisk = levelRaw * maxPremium;
-
-  // === Composite premium ===
-  const fiscalRiskPremium = Math.max(0,
-    trajectoryWeight * trajectoryRisk +
-    sustainabilityWeight * sustainabilityRisk +
-    levelWeight * levelRisk
-  );
-
-  return {
-    fiscalRiskPremium,
-    trajectoryRisk,
-    sustainabilityRisk,
-    levelRisk,
-  };
+  // RETIRED (close-out; Amendment 2): the pre-E-8b LEGACY logistic path — comment-and-record.
+  // Recorded pole: ~/.atlas-referents/e8b-legacy-pole/ (E7LIKE/UNITS variants at commit dca51d6).
+  //   // ═══ LEGACY logistic path (pre-E-8b; isolation toggle config.legacyFiscalPremium) ═══
+  //   // === Component 1: Trajectory Risk ===
+  //   // How fast is debt/GDP changing? Markets panic when the ratio accelerates.
+  //   // Phase 8 Fix 5: Center moved from 0.10 to configurable (default 0.15) to match
+  //   // empirical evidence — US has sustained +6pp/year for a decade with ~0bp trajectory premium.
+  //   // At midpoint 0.15: +6pp/year → ~2% of max (~0.7bp), +15pp/year → 50%, +20pp/year → ~89%.
+  //   const debtGDPChange = debtGDPRatio - prevDebtGDPRatio;
+  //   // Steepness of ~42 ensures sharp transition around midpoint.
+  //   // Derivation: solve 0.05 = 1/(1+exp(-s*0.07)) → s = ln(19)/0.07 ≈ 42
+  //   const TRAJECTORY_STEEPNESS = Math.log(19) / 0.07; // ≈ 42.06
+  //   const trajectoryRaw = 1.0 / (1.0 + Math.exp(-TRAJECTORY_STEEPNESS * (debtGDPChange - trajectoryMidpoint)));
+  //   const trajectoryRisk = trajectoryRaw * maxPremium * (1 - adjustmentExpectation);  // E-8
+  //
+  //   // === Component 2: Sustainability Risk (r - g) ===
+  //   // When interest rate on debt exceeds nominal GDP growth, debt compounds faster
+  //   // than the economy grows — mathematically unsustainable without primary surpluses.
+  //   // r - g > 0: unsustainable -> risk rises
+  //   // r - g < 0: sustainable -> risk near zero (the government is "growing out" of debt)
+  //   // US post-war: g > r for most of the period -> zero sustainability premium
+  //   const rMinusG = weightedAvgDebtRate - nominalGDPGrowthRate;
+  //   // Ramp from 0 at r=g to full at r-g = 0.05 (500bp unsustainability gap)
+  //   const sustainabilityRaw = rMinusG > 0
+  //     ? Math.min(1.0, rMinusG / 0.05)
+  //     : 0;
+  //   const sustainabilityRisk = sustainabilityRaw * maxPremium * (1 - adjustmentExpectation);  // E-8
+  //
+  //   // === Component 3: Level Risk (background) ===
+  //   // Sigmoid on absolute level, but with HIGH midpoint (2.0 = 200%) and LOW weight.
+  //   // This only bites at extreme levels — not relevant for US at 114%.
+  //   // Even Japan at 250% has barely triggered this in practice.
+  //   const levelSteepness = Math.log(9) / 0.30; // 10%-90% transition over 60pp centered on midpoint
+  //   const levelRaw = 1.0 / (1.0 + Math.exp(-levelSteepness * (debtGDPRatio - levelMidpoint)));
+  //   const levelRisk = levelRaw * maxPremium;
+  //
+  //   // === Composite premium ===
+  //   const fiscalRiskPremium = Math.max(0,
+  //     trajectoryWeight * trajectoryRisk +
+  //     sustainabilityWeight * sustainabilityRisk +
+  //     levelWeight * levelRisk
+  //   );
+  //
+  //   return {
+  //     fiscalRiskPremium,
+  //     trajectoryRisk,
+  //     sustainabilityRisk,
+  //     levelRisk,
+  //   };
 }
 
 // ============================================================
@@ -444,7 +450,9 @@ export function computeAbsorptionCapacity(
  *
  * @param policyRate - Current Fed policy rate (retained in signature for rate transmission; NOT used as floor)
  * @param expectedAvgPolicyRate - Expected average rate over next 10 years
- * @param termPremium - Duration compensation (TERM_PREMIUM, 0.005)
+ * @param termPremium - Duration compensation (default TERM_PREMIUM = 0.007, NY Fed ACM per
+ *   E-8c F-C; the "0.005" previously cited here was a stale pre-E-8c copy — the constant in
+ *   constants.ts is the single source of truth; audit H679)
  * @param fiscalRiskPremium - Debt-driven risk premium (from computeFiscalRiskPremium)
  * @param bondFinancedDeficit - Deficit amount financed by bond issuance (already net of monetization)
  * @param foreignDemandRatio - Foreign share of Treasury purchases

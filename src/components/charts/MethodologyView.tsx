@@ -43,16 +43,29 @@ import {
   DEFAULT_COGNITIVE_ALPHA,
   DEFAULT_ALPHA_DRIVER_PARAMS,
   DEFAULT_TOKEN_COST_CURVE,
-  DEFAULT_TOKEN_USAGE_SCHEDULE,
+  // DEFAULT_TOKEN_USAGE_SCHEDULE, — RETIRED (mini-stage 1): the global schedule left with Eq 4.2's rewrite
+  DEFAULT_FRONTIER_INTENSITY_LEVEL,
+  DEFAULT_FRONTIER_INTENSITY_GROWTH,
+  DEFAULT_SIGMA_MIGRATION,
   DEFAULT_AUGMENTATION_ADOPTION_STEEPNESS,
+  // Adoption state machine + displaced-worker pool (cards 1.11, 2.7)
+  ADOPTION_DECLINE_RATE_COGNITIVE,
+  ADOPTION_DECLINE_RATE_EMBODIED,
+  DEFAULT_RE_ADOPTION_RATE_FRACTION,
+  DEFAULT_POOL_EXIT_BASE,
+  DEFAULT_POOL_EXIT_DURATION_SLOPE,
+  DEFAULT_POOL_ATROPHY_RATE,
+  DEFAULT_POOL_WAGE_SCARRING_RATE,
   // DEFAULT_SCARCITY_INTENSITY, — FS-6f: displayed by the retired card 4.3 only
   ALPHA_BASELINE_CORPORATE_MARGIN,
-  DEFAULT_REPLACEMENT_MULTIPLIER,
+  // DEPRECATED (Production Program Stage 2): DEFAULT_REPLACEMENT_MULTIPLIER — Eq 1.9
+  // rewrote to the market-anchored form; import retained commented per the no-delete rule.
+  // DEFAULT_REPLACEMENT_MULTIPLIER,
   // MPC & Consumption
   MPC_WAGE,
   MPC_ASSET,
   MPC_TRANSFER,
-  DEFAULT_AI_PROFIT_GROWTH_RATE,
+  // DEFAULT_AI_PROFIT_GROWTH_RATE, // DEPRECATED (H3 rider F7): Eq 7.7 now documents the live Stage-7 residual model — the bottom-up margin chip retired with it
   BASELINE_WAGE_SHARE,
   BASELINE_ASSET_SHARE,
   BASELINE_TRANSFER_SHARE,
@@ -474,20 +487,20 @@ augAdoptionRate = 1 / (1 + exp(-steepness × yearsSinceTrigger))`}</Eq>
           <CodeRef>alphaDrivers.ts → computeEffectiveAlpha(), computePeerAlpha()</CodeRef>
         </EquationCard>
 
-        <EquationCard number="1.9" title="AI Replacement Productivity">
-          <Eq>{`effectiveProductivity = 1 + weightedCapability × betterScore
-                      × replacementMultiplier × (1 + cheaperScore)`}</Eq>
+        <EquationCard number="1.9" title="AI Production Value (Market-Anchored)">
+          <Eq>{`potentialCeiling_c = VA_c × clearedShare_c × embodimentGate_c
+production_c = max(0, VA_c × embodimentGate_c − wageMass_c) × automatedShare_c`}</Eq>
           <Prose>
-            When AI replaces a worker, it doesn&apos;t produce 1× their output — it produces more.
-            Productivity scales with how capable AI is, how much better it is than the human,
-            and how much cheaper it is (because cheaper AI can be deployed more aggressively).
-            Feeds AI production expansion (Eq 5.5): displaced workers × wage ×
-            (effectiveProductivity − 1) = additional output.
+            When AI takes over a cluster&apos;s work, the value of that work is what the market
+            pays for its output — the cluster&apos;s measured value added (BEA industry accounts,
+            attributed by employment) — not a multiple of the wages it displaced. Production
+            counts only the excess of the work&apos;s market value over the labor cost it
+            replaced, engaged as automation actually proceeds; the ceiling tracks the share
+            of the cluster&apos;s output whose roles clear all four adoption thresholds, and
+            physically embodied work is additionally gated by the robot/vehicle fleet
+            actually built.
           </Prose>
-          <div className="flex flex-wrap gap-x-1 mt-2">
-            <Param name="replacementMultiplier" value={DEFAULT_REPLACEMENT_MULTIPLIER} />
-          </div>
-          <Source>Phase 10.A Part 8 (productivity decomposition); McKinsey (2023); BCG (2024)</Source>
+          <Source>BEA GDP-by-Industry value added 2025 × BLS National Employment Matrix (cluster anchors); IFR World Robotics (fleet scale)</Source>
           <CodeRef>simulation.ts → computeAIProductionExpansion()</CodeRef>
         </EquationCard>
 
@@ -495,9 +508,13 @@ augAdoptionRate = 1 / (1 + exp(-steepness × yearsSinceTrigger))`}</Eq>
           <Eq>{`7 constraints ∈ [0,200]: aiChips, energyPrice, energyCapacity,
   trainingDC, inferenceDC, roboticsHardware, softwareEfficiency
 
-// Training channel — delays capability S-curves:
-capabilityDelay(t) = Σ propagationLag × resilience × deficit(constraint, t-lag)
-cumulativeCapabilityDelay(t) = cumulativeCapabilityDelay(t-1) + capabilityDelay(t)
+// Training channel — the frontier stock (famines compound, recovery rebuilds):
+u(t) = clamp(1 − Σ propagationLag × deliveredResilience × deficit, 0, 1)
+frontierStock(t) = stock(t-1) × max(0, 1 − (1−u)·(G−1)/G·drainScale)
+                   + (1/rebuildYears) × max(0, u − drained)        // G = training scale growth
+rate(t) = frontierStock(t) ^ rateElasticity
+cumulativeCapabilityDelay(t) = cumulativeCapabilityDelay(t-1) + (1 − rate(t))
+newJobCreation ×= frontierStock(t) ^ innovationElasticity
 
 // Deployment channel — raises costs, slows adoption, dampens BFCS F/S:
 deploymentCostMultiplier = f(inferenceDC, energyPrice, roboticsHardware)
@@ -506,15 +523,52 @@ adoptionDragMultiplier    = f(aggregate deficit, hysteresis band)
 effectiveComputeDecline   = baselineDecline × (1 - cascadePremium × backlog)`}</Eq>
           <Prose>
             Models chip shortages, energy constraints, and datacentre bottlenecks as an
-            exogenous shock envelope on AI. Two channels: <em>training</em> delays push
-            capability midpoints later (cumulative, monotonic); <em>deployment</em> raises
+            exogenous shock envelope on AI. Two channels: <em>training</em> runs the
+            capability clock at the frontier stock's speed — accumulated training capacity
+            relative to its planned path, which famines drain (compounding with duration,
+            since the planned path grows exponentially) and recovery rebuilds at
+            fab-construction speed, so crises are followed by a rebuild period rather than
+            an instant resume, and reactive supply security only delivers after an onset
+            dead time; <em>deployment</em> raises
             inference/manufacturing costs, slows adoption, and attenuates BFCS Faster/Safer
-            improvements. Hysteresis band prevents constant flicker between adoption and
+            improvements. Capability ceilings are never touched — a shocked world reaches
+            the same ceiling later. Hysteresis band prevents constant flicker between adoption and
             de-adoption when conditions hover near the threshold. Default inputs of 100 are
-            a no-op (baseline); {'<100'} is surplus, {'>100'} is deficit.
+            a no-op (baseline). For the capacity and availability inputs (chips, energy
+            capacity, datacenters, robotics hardware), {'<100'} is a SHORTAGE and 100 is
+            unconstrained; the price inputs (chip price, energy price) run the other way —
+            {'>100'} is a price spike. Timed shocks
+            resolve per-year: a per-year override sets the shocked level, and an explicit
+            recovery override restores the baseline in the recovery year.
           </Prose>
           <Source>Phase 9 (docs/PHASES.md §9); SEMI chip-cycle data; IEA energy forecasts; BLS capital-goods lead times</Source>
           <CodeRef>supplyChain.ts → computeSupplyChainEffects(); simulation.ts (~line 843)</CodeRef>
+        </EquationCard>
+
+        <EquationCard number="1.11" title="Adoption State Machine (Grow / Freeze / Reverse)">
+          <Eq>{`all BFCS gates hold                    → GROW along the S-curve (Eq 1.4)
+scores dip inside the hysteresis band  → FREEZE (switching costs hold the position)
+capability / availability regresses    → DECLINE at the de-adoption speed (unthrottled)
+re-hiring beats AI cost beyond band    → DECLINE throttled by pool fill capacity
+gates recover after a decline          → RE-ENGAGE capped at reAdoptionRate per year`}</Eq>
+          <Prose>
+            Adoption is not a one-way latch. While a role&apos;s economics hold, adoption grows
+            along the standard S-curve; when its scores dip inside the switching-cost band it
+            freezes; and it reverses when capability or input availability genuinely regresses,
+            or when re-hiring from the displaced-worker pool (Eq 2.7) beats continuing
+            automation by more than the band. Cost-triggered reversal is priced at the
+            pool&apos;s composition-weighted re-entry wage and throttled by how fast the pool
+            can actually restaff. Dismantling is fast; re-engagement after a decline is slow —
+            the standard hiring asymmetry. In a no-shock scenario the machine never leaves the
+            growing state and reproduces the plain S-curve exactly.
+          </Prose>
+          <div className="flex flex-wrap gap-x-1 mt-2">
+            <Param name="deAdoptionCognitive" value={ADOPTION_DECLINE_RATE_COGNITIVE} unit="/yr" />
+            <Param name="deAdoptionEmbodied" value={ADOPTION_DECLINE_RATE_EMBODIED} unit="/yr" />
+            <Param name="reAdoptionFraction" value={DEFAULT_RE_ADOPTION_RATE_FRACTION} unit="× de-adoption speed" />
+          </div>
+          <Source>2021–22 chip-shortage production cuts (reversal benchmark); labor-economics hiring asymmetry — the speed dials are uncited and user-adjustable</Source>
+          <CodeRef>adoption.ts → computeUnifiedAdoptionState(); uiIncidence.ts → poolFillBudget(), poolRehireWage()</CodeRef>
         </EquationCard>
 
         {/* ================================================================
@@ -615,6 +669,34 @@ scarcityInflation = Σ(laborScarcity × employmentShare × passThrough)`}</Eq>
             <Param name="passThrough" value={DEFAULT_SCARCITY_PASS_THROUGH} />
           </div>
           <CodeRef>simulation.ts → main loop (~line 760)</CodeRef>
+        </EquationCard>
+
+        <EquationCard number="2.7" title="Displaced-Worker Pool & the Two Jobless Measures">
+          <Eq>{`pool cohorts indexed by d = years since displacement (0…10+)
+exitHazard(d)    = exitBase × (1 + slope × d)      → exited stock (stops searching)
+employability(d) = (1 − atrophyRate)^d             re-hiring draws recent-first
+reEntryWage(d)   = wageAtDisplacement × (1 − min(0.25, scarring × d))
+
+headline UE = (laborForce − employment) / laborForce            (broad measure)
+U-3 UE      = (unemployed − exited) / (laborForce − exited)     (searchers only)`}</Eq>
+          <Prose>
+            Displaced workers are tracked as annual duration cohorts, because time out of work
+            changes behavior: each year some searchers give up and leave the measured labor
+            force, employability decays, and re-entry wages fall below the pre-displacement
+            wage. The headline unemployment rate is the broad measure — it includes
+            discouraged workers who have left the measured labor force. The U-3-consistent
+            rate counts active searchers only. In deep-displacement scenarios the two diverge
+            widely (tens of percentage points); comparisons against the published Bureau of
+            Labor Statistics U-3 statistic must use the U-3-consistent series.
+          </Prose>
+          <div className="flex flex-wrap gap-x-1 mt-2">
+            <Param name="exitBase" value={DEFAULT_POOL_EXIT_BASE} unit="/yr" />
+            <Param name="exitSlope" value={DEFAULT_POOL_EXIT_DURATION_SLOPE} />
+            <Param name="atrophyRate" value={DEFAULT_POOL_ATROPHY_RATE} unit="/yr" />
+            <Param name="wageScarring" value={DEFAULT_POOL_WAGE_SCARRING_RATE} unit="/yr" />
+          </div>
+          <Source>CPS unemployed→not-in-labor-force flows (exit hazard); Kroft, Lange & Notowidigdo (callback decay); Jacobson, LaLonde & Sullivan; Davis & von Wachter (displaced-worker earnings losses)</Source>
+          <CodeRef>uiIncidence.ts → advanceDisplacedPool(); simulation.ts → year loop (u3UnemploymentRate, laborForceExitedStock)</CodeRef>
         </EquationCard>
 
         {/* ================================================================
@@ -747,33 +829,37 @@ netInflation = aiExposedInflation      (back-compatibility alias: the goods buck
           <CodeRef>macro.ts → computeMacro() (~line 1079)</CodeRef>
         </EquationCard>
 
-        <EquationCard number="4.2" title="Sector-Weighted AI Deflation (Inference Cost = Token Cost × Tokens per Task)">
+        <EquationCard number="4.2" title="Sector-Weighted AI Deflation (Realized Cost: Frontier Intensity + Fixed-Capability Pricing)">
           <Eq>{`tokenCostFactor(t) = floor + (1 - floor) × exp(-k × t^decayExponent)
-inferenceCostFactor(t) = tokenCostFactor(t) × tokenUsageMultiplier(year)
-inferenceCostSavings = 1 - inferenceCostFactor(yearsSinceStart)
-sectorDeflation = autoCoverage × deflationIntensity × inferenceCostSavings
+frontierCost(t) = tokenCostFactor(t) × M_f(t)          M_f = intensity level × (1+growth)^(t−1)
+fixedCapCost(role, t) = frontierCost(t*) × tokenCostFactor(t − t*)     t* = Better-arrival year
+realizedCost(role, t) = fixedCap + w(s) × (frontier − fixedCap)        w(s) = 2^(−s/σ)
+sectorDeflation = autoCoverage × deflationIntensity × max(0, 1 − clusterRealizedCostIndex)
 totalDeflation = Σ(cpiWeight × sectorDeflation)`}</Eq>
           <Prose>
-            Total inference cost is decomposed into cost-per-token (a smooth, floored decay
-            curve representing compute hardware progress) and tokens-per-task (a year-by-year
-            multiplier representing how many tokens a single task consumes — chain-of-thought,
-            agent loops, deeper context). Token cost is a baseline; tokens-per-task is a
-            year-overridable parameter set in the Year Parameters section, because its
-            trajectory depends on business decisions and doesn't follow a smooth curve.
-            The default trajectory is a spike-and-recover curve — a near-term jump as
-            reasoning/agentic models explode token usage (peaking at 25× in 2027), then a
-            decline back to the 2025 baseline by 2030 as algorithmic breakthroughs restore
-            efficiency. CPI-weighted across 51 clusters; deflation intensity varies by
-            sector — tech and finance high, healthcare and education low.
+            AI work has two cost regimes. Work at the capability frontier pays a persistent
+            token-intensity premium — reasoning chains, agentic retries, long context consume
+            many times the single-shot baseline, and the observed record shows no recovery to
+            single-shot intensity. Once the frontier passes a role's requirement (its arrival
+            year), that role's work migrates onto the fixed-capability curve: the price of the
+            capability level it actually needs, which collapses along the same cited decay
+            curve re-anchored at arrival. A role's realized cost blends the two by its
+            capability surplus — the migration weight halves every σ of surplus. The
+            economy-wide tokens-per-task path is an emergent output of this role mix (reported
+            as a diagnostic), not an input. Consumer-price deflation prices each cluster's
+            realized cost index — the same object the adoption decision prices — through
+            sector pass-throughs; deflation intensity varies by sector.
           </Prose>
           <div className="flex flex-wrap gap-x-1 mt-2">
             <Param name="floor" value={DEFAULT_TOKEN_COST_CURVE.floor} />
             <Param name="k" value={DEFAULT_TOKEN_COST_CURVE.k} />
             <Param name="decayExponent" value={DEFAULT_TOKEN_COST_CURVE.decayExponent} />
-            <Param name="tokensPerTask (2025→2030)" value={DEFAULT_TOKEN_USAGE_SCHEDULE.join('× → ') + '×'} />
+            <Param name="intensityLevel (2026)" value={DEFAULT_FRONTIER_INTENSITY_LEVEL + '×'} />
+            <Param name="intensityGrowth" value={(DEFAULT_FRONTIER_INTENSITY_GROWTH * 100).toFixed(0) + '%/yr'} />
+            <Param name="σ (halving surplus)" value={DEFAULT_SIGMA_MIGRATION} />
           </div>
-          <Source>BEA GDP-by-Industry Table 7 (deflation intensity); BLS CPI weights; Epoch AI (inference costs)</Source>
-          <CodeRef>bfcs.ts → computeTokenCostFactor(), computeInferenceCostFactor(); macro.ts → computeSectorWeightedDeflation()</CodeRef>
+          <Source>BEA GDP-by-Industry Table 7 (deflation intensity); BLS CPI weights; Epoch AI (per-token costs); the 2023-26 reasoning-class intensity record (frontier premium)</Source>
+          <CodeRef>aiCost.ts → computeAiCostFraction() (the one assembly); bfcs.ts → computeCheaperScore(); macro.ts → computeSectorWeightedDeflation()</CodeRef>
         </EquationCard>
 
         <EquationCard number="4.3" title="Nominal Wage Growth (One-Sided Phillips Curve with Downward Rigidity)">
@@ -1215,7 +1301,8 @@ Asset Channel:
 
 Transfer Channel:
   UBI → monthlyAmount × 12 × eligibleAdults
-  enhancedUI → incrementalBenefit × totalUnemployment
+  enhancedUI → Σ cohorts: payableWeeks(entitlement, yearsJobless) × weeklyIncrement
+               (displaced pool at pool wages; short-spell frictional at the average wage)
   retraining → stipend × displacedWorkers × participationRate`}</Eq>
           <Prose>
             Nine policy instruments across three channels. Each channel adds to the corresponding
@@ -1228,27 +1315,34 @@ Transfer Channel:
         </EquationCard>
 
         <EquationCard number="7.6" title="Capacity Utilization">
-          <Eq>{`potentialGDP = GDP_nominal + aiConsumerGoodsPotential
-capacityUtilization = min(1.0, GDP_nominal / potentialGDP)`}</Eq>
+          <Eq>{`potentialGDP = GDP_real + aiConsumerGoodsPotential
+capacityUtilization = min(1.0, GDP_real / potentialGDP)`}</Eq>
           <Prose>
             Measures what fraction of potential output (including AI consumer goods that could
-            be produced) is actually realized. Low utilization means demand is insufficient
-            to absorb AI output — this constrains profit realization in the next period.
+            be produced) is actually realized, in real 2025 dollars on both sides. Low
+            utilization means demand is insufficient to absorb AI output. Separately, the
+            consumer-goods slice is absorbed against the consumption path a zero-AI economy
+            would have taken (the same simulation re-run with AI capabilities set to zero);
+            the unabsorbed remainder is reported as unrealized output.
           </Prose>
-          <CodeRef>macro.ts → computeMacro() (~line 1314)</CodeRef>
+          <CodeRef>macro.ts → computeMacro() capacity + absorption section</CodeRef>
         </EquationCard>
 
         <EquationCard number="7.7" title="Corporate Profits">
-          <Eq>{`aiProfits = aiGDPContribution × aiMargin
-tradProfits = (GDP - aiGDP) × tradMargin
-totalProfits = min(aiProfits + tradProfits, GDP - totalWageBill)`}</Eq>
+          <Eq>{`totalProfits = GDP - totalWageBill - nonCorporateIncome - otherCosts
+aiProfits = aiRevenueBasis × (1 - aiSectorLaborShare) × (1 - otherCostsShare)
+tradProfits = totalProfits - aiProfits   (signed - may go negative)`}</Eq>
           <Prose>
-            Bottom-up profit computation with a soft cap: profits cannot exceed GDP minus
-            the total wage bill. AI profit growth rate multiplier creates
-            super-normal returns during the transition, constrained by demand realization.
+            Profits are the residual national-accounting identity: what remains of GDP after
+            the wage bill, non-corporate income, and other costs. Margins are outputs, not
+            inputs — productivity gains flow to companies first, and the wage equation
+            determines labor&apos;s claw-back. The AI slice applies the AI sector&apos;s labor
+            share and proportionate other costs to the AI revenue basis (the raw production
+            legs plus demand-absorbed consumer goods); the traditional slice is the signed
+            remainder — it may go negative in a collapse and is reported, not clamped.
           </Prose>
           <div className="flex flex-wrap gap-x-1 mt-2">
-            <Param name="aiProfitGrowthRate" value={DEFAULT_AI_PROFIT_GROWTH_RATE} unit="multiplier" />
+            <Param name="otherCostsShare" value={DEFAULT_OTHER_COSTS_SHARE} />
           </div>
           <CodeRef>macro.ts → computeMacro() profit section</CodeRef>
         </EquationCard>

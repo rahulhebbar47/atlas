@@ -24,7 +24,7 @@ export interface DecouplingPoint {
   year: number;
   gdpIndex: number;        // real GDP indexed to 100 at baseline
   employmentIndex: number;  // total employment indexed to 100 at baseline
-  aiGDPContributionPct: number;
+  aiRealizedShareOfGDP: number;  // H3 ruling 1: the realized metric (the retired pct was basis-mixed)
 }
 
 export function useDecouplingData(): DecouplingPoint[] {
@@ -37,7 +37,7 @@ export function useDecouplingData(): DecouplingPoint[] {
       year: y.year,
       gdpIndex: baseGDP > 0 ? (y.macro.gdpReal / baseGDP) * 100 : 100,
       employmentIndex: baseEmp > 0 ? (y.macro.totalEmployment / baseEmp) * 100 : 100,
-      aiGDPContributionPct: y.macro.aiGDPContributionPct,
+      aiRealizedShareOfGDP: y.macro.aiRealizedShareOfGDP,
     }));
   }, [years]);
 }
@@ -79,7 +79,8 @@ export function useConsumptionDecomposition(): ConsumptionDecompositionPoint[] {
 
 export interface AIProductionPoint {
   year: number;
-  aiAdditionalOutput: number;
+  aiAdditionalOutput: number;        // the TOTAL production expansion (F7: the bar's true total)
+  aiConsumerGoodsPotential: number;  // the consumer slice (the absorbed/unrealized base)
   aiGoodsAbsorbed: number;
   unrealizedAIOutput: number;
   capacityUtilization: number;
@@ -91,7 +92,10 @@ export function useAIProductionData(): AIProductionPoint[] {
   return useMemo(() =>
     years.map((y) => ({
       year: y.year,
-      aiAdditionalOutput: y.macro.aiConsumerGoodsPotential ?? 0,
+      // H3 rider F7: the bar labeled "AI Output Potential" renders the TOTAL it names —
+      // macro.aiAdditionalOutput — not the 60% consumer slice it silently rendered before.
+      aiAdditionalOutput: y.macro.aiAdditionalOutput,
+      aiConsumerGoodsPotential: y.macro.aiConsumerGoodsPotential,
       aiGoodsAbsorbed: y.macro.aiGoodsAbsorbed,
       unrealizedAIOutput: y.macro.unrealizedAIOutput,
       capacityUtilization: y.macro.capacityUtilization,

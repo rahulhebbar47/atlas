@@ -38,7 +38,12 @@ import {
   DEFAULT_INFERENCE_ANNUAL_CHANGE,
   DEFAULT_MANUFACTURING_ANNUAL_CHANGE,
   DEFAULT_ENERGY_ANNUAL_CHANGE,
-  FALLBACK_CORPORATE_RETENTION_RATE,
+  DEFAULT_FRONTIER_INTENSITY_LEVEL,
+  DEFAULT_FRONTIER_INTENSITY_GROWTH,
+  DEFAULT_SIGMA_MIGRATION,
+  DEFAULT_W_MIN_FRONTIER_FLOOR,
+  // FALLBACK_CORPORATE_RETENTION_RATE, // DEPRECATED (audit H679): export fallback now reads the live BEA-derived BASELINE_CORPORATE_RETENTION_RATE
+  BASELINE_CORPORATE_RETENTION_RATE,
   DEFAULT_AI_PROFIT_GROWTH_RATE,
   DEFAULT_TRANSFER_RELIABILITY_WEIGHT,
   DEFAULT_INCOME_ADEQUACY_SENSITIVITY,
@@ -51,7 +56,39 @@ import {
   DEFAULT_GROWTH_TRAJECTORY_SENSITIVITY,
   DEFAULT_MAX_BUSINESS_TIGHTENING,
   DEFAULT_BUSINESS_INVESTMENT_IMPACT,
+  // audit H679 (by-reference rule — the stale-fallback-family finding): every export fallback
+  // below references the live default constant; no literal copies of a default survive here.
+  TERM_PREMIUM,
+  DEFAULT_FISCAL_RISK_PREMIUM_MAX,
+  DEFAULT_INFLATION_CONVERGENCE_YEARS,
+  DEFAULT_INSTITUTIONAL_BUYER_RATE,
+  TRADITIONAL_INVESTMENT_GDP_FRACTION,
+  DEFAULT_POPULATION_GROWTH_RATE,
+  DEMAND_FEEDBACK_SENSITIVITY,
+  CREDIT_UE_SENSITIVITY,
+  DEFAULT_VELOCITY_SENSITIVITY,
+  DEFAULT_AI_PRODUCTION_INVESTMENT_FRACTION,
+  DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION,
+  DEFAULT_NEW_JOB_WAGE_FRACTION,
+  REVENUE_PRESSURE_SENSITIVITY_DEFAULT,
+  REVENUE_PRESSURE_CAP,
+  REVENUE_PRESSURE_DECAY,
+  AI_WAGE_PRODUCTIVITY_MULTIPLIER,
+  DEFAULT_CREDIT_DEFLATION_SENSITIVITY,
+  PHILLIPS_CURVE_SENSITIVITY,
+  MAX_CREDIT_TIGHTENING,
+  // Mini-stage 3: the displaced-pool duration dials' live defaults
+  DEFAULT_POOL_EXIT_BASE,
+  DEFAULT_POOL_EXIT_DURATION_SLOPE,
+  DEFAULT_POOL_ATROPHY_RATE,
+  DEFAULT_POOL_WAGE_SCARRING_RATE,
 } from '@/models/constants';
+// audit H679: the preset-name fallbacks reference the live defaults (the 'balanced_reduction'
+// five-site stale family; live default is 'observed_political_economy').
+import {
+  DEFAULT_FISCAL_POLICY_PRESET,
+  DEFAULT_FEDERAL_RESERVE_PRESET,
+} from '@/models/fiscalResponseProfiles';
 
 // ============================================================
 // Constants
@@ -528,6 +565,11 @@ function applyParameter(
     return applyAdoptionParam(config, path, rawValue, warnings);
   }
 
+  // --- Displaced-Pool Duration Dials (mini-stage 3; top-level config fields) ---
+  if (path.startsWith('pool.')) {
+    return applyPoolParam(config, path, rawValue, warnings);
+  }
+
   // --- Capability Trajectories ---
   if (path.startsWith('capability.')) {
     return applyCapabilityParam(config, path, rawValue, warnings);
@@ -620,6 +662,44 @@ function applyAdoptionParam(
   }
   if (parts[1] === 'geopolitical_risk_factor') {
     return applyFloat(config.adoptionParams as unknown as Record<string, unknown>, 'geopoliticalRiskFactor', rawValue, path, warnings);
+  }
+  // Mini-stage 2: the reverse gear's speed dials (top-level config fields)
+  if (parts[1] === 'de_adoption_rate_cognitive') {
+    return applyFloat(config as unknown as Record<string, unknown>, 'deAdoptionRateCognitive', rawValue, path, warnings);
+  }
+  if (parts[1] === 'de_adoption_rate_embodied') {
+    return applyFloat(config as unknown as Record<string, unknown>, 'deAdoptionRateEmbodied', rawValue, path, warnings);
+  }
+  if (parts[1] === 're_adoption_rate') {
+    return applyFloat(config as unknown as Record<string, unknown>, 'reAdoptionRate', rawValue, path, warnings);
+  }
+
+  return false;
+}
+
+// Mini-stage 3: the displaced-pool duration dials (top-level config fields; the
+// adoption.* dial pattern from mini-stage 2). No UI controls yet — CSV + scenario-JSON
+// are the reachability surface (see docs/Reference/USER_PARAMETERS.md, Reachability Register).
+function applyPoolParam(
+  config: SimulationConfig,
+  path: string,
+  rawValue: string,
+  warnings: string[],
+): boolean {
+  const parts = path.split('.');
+  if (parts.length < 2) return false;
+
+  if (parts[1] === 'exit_base') {
+    return applyFloat(config as unknown as Record<string, unknown>, 'exitBase', rawValue, path, warnings);
+  }
+  if (parts[1] === 'exit_duration_slope') {
+    return applyFloat(config as unknown as Record<string, unknown>, 'exitDurationSlope', rawValue, path, warnings);
+  }
+  if (parts[1] === 'atrophy_rate') {
+    return applyFloat(config as unknown as Record<string, unknown>, 'atrophyRate', rawValue, path, warnings);
+  }
+  if (parts[1] === 'wage_scarring_rate') {
+    return applyFloat(config as unknown as Record<string, unknown>, 'wageScarringRate', rawValue, path, warnings);
   }
 
   return false;
@@ -894,6 +974,17 @@ function applyAICostParam(
   if (field === 'inference_annual_change') return applyFloat(ac, 'inferenceAnnualChange', rawValue, path, warnings);
   if (field === 'manufacturing_annual_change') return applyFloat(ac, 'manufacturingAnnualChange', rawValue, path, warnings);
   if (field === 'energy_annual_change') return applyFloat(ac, 'energyAnnualChange', rawValue, path, warnings);
+  // Mini-stage 1 (frontier-intensity cost layer): the four frontier dials.
+  // Clamped to their documented ranges by validateConfig after import.
+  if (field === 'frontier_intensity_level') return applyFloat(ac, 'frontierIntensityLevel', rawValue, path, warnings);
+  if (field === 'frontier_intensity_growth') return applyFloat(ac, 'frontierIntensityGrowth', rawValue, path, warnings);
+  if (field === 'sigma_migration') return applyFloat(ac, 'sigmaMigration', rawValue, path, warnings);
+  if (field === 'w_min_frontier_floor') return applyFloat(ac, 'wMinFrontierFloor', rawValue, path, warnings);
+  // RETIRED (Amendment 2 — no legacy toggles): the tokens-per-task multiplier
+  // (aiCostParams.tokenUsageMultiplier) never had an ai_cost.* CSV mapping here, and gets
+  // none now — the aggregate tokens-per-task path is an emergent OUTPUT (the timeline CSV's
+  // implied_aggregate_tokens_per_task / aggregate_frontier_weight diagnostics), not an
+  // importable input.
   return false;
 }
 
@@ -913,6 +1004,7 @@ function applySupplyChainParam(
 
   // --- Supply inputs ---
   if (field === 'ai_chips') { const v = parseNumber(rawValue); if (v !== null) sc.inputs.aiChips = v; return true; }
+  if (field === 'chip_price') { const v = parseNumber(rawValue); if (v !== null) sc.inputs.chipPrice = v; return true; }
   if (field === 'energy_price') { const v = parseNumber(rawValue); if (v !== null) sc.inputs.energyPrice = v; return true; }
   if (field === 'energy_capacity') { const v = parseNumber(rawValue); if (v !== null) sc.inputs.energyCapacity = v; return true; }
   if (field === 'training_dc_capacity') { const v = parseNumber(rawValue); if (v !== null) sc.inputs.trainingDCCapacity = v; return true; }
@@ -1257,7 +1349,7 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   // --- Population ---
   lines.push(`total_population,${config.totalPopulation}`);
   lines.push(`labor_force,${config.laborForce}`);
-  lines.push(`population_growth_rate,${config.populationGrowthRate ?? 0.004}`);
+  lines.push(`population_growth_rate,${config.populationGrowthRate ?? DEFAULT_POPULATION_GROWTH_RATE}`);
 
   // --- New Job Creation ---
   lines.push(`innovation_rate,${config.innovationRate}`);
@@ -1269,8 +1361,18 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
     lines.push(`adoption.steepness.${dt},${config.adoptionParams.steepnessByDeployment[dt]}`);
   }
   lines.push(`adoption.competitive_pressure_multiplier,${config.adoptionParams.competitivePressureMultiplier}`);
+  // Mini-stage 2: the reverse gear's speed dials
+  lines.push(`adoption.de_adoption_rate_cognitive,${config.deAdoptionRateCognitive ?? 0.10}`);
+  lines.push(`adoption.de_adoption_rate_embodied,${config.deAdoptionRateEmbodied ?? 0.05}`);
+  lines.push(`adoption.re_adoption_rate,${config.reAdoptionRate ?? 0.5}`);
   lines.push(`adoption.competitive_pressure_threshold,${config.adoptionParams.competitivePressureThreshold}`);
   lines.push(`adoption.geopolitical_risk_factor,${config.adoptionParams.geopoliticalRiskFactor}`);
+
+  // --- Displaced-Pool Duration Dials (mini-stage 3) ---
+  lines.push(`pool.exit_base,${config.exitBase ?? DEFAULT_POOL_EXIT_BASE}`);
+  lines.push(`pool.exit_duration_slope,${config.exitDurationSlope ?? DEFAULT_POOL_EXIT_DURATION_SLOPE}`);
+  lines.push(`pool.atrophy_rate,${config.atrophyRate ?? DEFAULT_POOL_ATROPHY_RATE}`);
+  lines.push(`pool.wage_scarring_rate,${config.wageScarringRate ?? DEFAULT_POOL_WAGE_SCARRING_RATE}`);
 
   // --- Capability Trajectories ---
   for (const vecId of CAPABILITY_VECTOR_IDS) {
@@ -1356,8 +1458,8 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   lines.push(`policy.retraining.target_clusters,${rt.targetClusters.join(',')}`);
 
   // --- Second-Order Effect Parameters ---
-  lines.push(`demand_feedback_sensitivity,${config.demandFeedbackSensitivity ?? 1.5}`);
-  lines.push(`credit_ue_sensitivity,${config.creditUESensitivity ?? 8.0}`);
+  lines.push(`demand_feedback_sensitivity,${config.demandFeedbackSensitivity ?? DEMAND_FEEDBACK_SENSITIVITY}`);
+  lines.push(`credit_ue_sensitivity,${config.creditUESensitivity ?? CREDIT_UE_SENSITIVITY}`);
   lines.push(`credit_investment_sensitivity,${config.creditInvestmentSensitivity ?? 0.35}`);
   lines.push(`credit_consumption_sensitivity,${config.creditConsumptionSensitivity ?? 0.06}`);
 
@@ -1366,22 +1468,22 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   lines.push(`participation_threshold,${config.participationThreshold ?? 0.60}`);
 
   // --- Dynamic Money Velocity Parameters (Phase 5g) ---
-  lines.push(`velocity_sensitivity,${config.velocitySensitivity ?? 0.03}`);
+  lines.push(`velocity_sensitivity,${config.velocitySensitivity ?? DEFAULT_VELOCITY_SENSITIVITY}`);
 
   // --- Phase 5h: other_uncategorized multiplier override ---
   // NOTE: undefined = auto mode (employment-weighted average). Only exported when explicitly set.
   if (config.otherUncategorizedMultiplierOverride !== undefined) lines.push(`other_uncategorized_multiplier_override,${config.otherUncategorizedMultiplierOverride}`);
 
   // --- AI Production Parameters (Phase 2) ---
-  lines.push(`ai_production_investment_fraction,${config.aiProductionInvestmentFraction ?? 0.30}`);
-  lines.push(`ai_production_onshoring_fraction,${config.aiProductionOnshoringFraction ?? 0.10}`);
-  lines.push(`new_job_wage_fraction,${config.newJobWageFraction ?? 0.70}`);
+  lines.push(`ai_production_investment_fraction,${config.aiProductionInvestmentFraction ?? DEFAULT_AI_PRODUCTION_INVESTMENT_FRACTION}`);
+  lines.push(`ai_production_onshoring_fraction,${config.aiProductionOnshoringFraction ?? DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION}`);
+  lines.push(`new_job_wage_fraction,${config.newJobWageFraction ?? DEFAULT_NEW_JOB_WAGE_FRACTION}`);
 
   // --- Feedback Loop Parameters (Phase 1 overhaul) ---
-  lines.push(`revenue_pressure_sensitivity,${config.revenuePressureSensitivity ?? 1.5}`);
-  lines.push(`revenue_pressure_cap,${config.revenuePressureCap ?? 0.30}`);
-  lines.push(`revenue_pressure_decay,${config.revenuePressureDecay ?? 0.50}`);
-  lines.push(`ai_wage_productivity_multiplier,${config.aiWageProductivityMultiplier ?? 0.50}`);
+  lines.push(`revenue_pressure_sensitivity,${config.revenuePressureSensitivity ?? REVENUE_PRESSURE_SENSITIVITY_DEFAULT}`);
+  lines.push(`revenue_pressure_cap,${config.revenuePressureCap ?? REVENUE_PRESSURE_CAP}`);
+  lines.push(`revenue_pressure_decay,${config.revenuePressureDecay ?? REVENUE_PRESSURE_DECAY}`);
+  lines.push(`ai_wage_productivity_multiplier,${config.aiWageProductivityMultiplier ?? AI_WAGE_PRODUCTIVITY_MULTIPLIER}`);
 
   // --- Phase 5g Corporate Profits & Financial Markets ---
   lines.push(`ai_profit_margin,${config.aiProfitMargin ?? 0.25}`);
@@ -1395,7 +1497,7 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   lines.push(`wage_automation_sensitivity,${config.wageAutomationSensitivity ?? 0.50}`);
 
   // --- Phase 5g Credit Deflation ---
-  lines.push(`credit_deflation_sensitivity,${config.creditDeflationSensitivity ?? 0.04}`);
+  lines.push(`credit_deflation_sensitivity,${config.creditDeflationSensitivity ?? DEFAULT_CREDIT_DEFLATION_SENSITIVITY}`);
 
   // --- Demand Spillover ---
   lines.push(`demand_spillover_tolerance,${config.demandSpilloverTolerance ?? 0.03}`);
@@ -1415,7 +1517,7 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   lines.push(`mpc_wage_ue_sensitivity,${config.mpcWageUESensitivity ?? 0.005}`);
   lines.push(`credit_adoption_sensitivity,${config.creditAdoptionSensitivity ?? 0.15}`);
   // Housing Market Stabilization
-  lines.push(`institutional_buyer_rate,${config.institutionalBuyerRate ?? 0.40}`);
+  lines.push(`institutional_buyer_rate,${config.institutionalBuyerRate ?? DEFAULT_INSTITUTIONAL_BUYER_RATE}`);
   lines.push(`rental_demand_sensitivity,${config.rentalDemandSensitivity ?? 0.50}`);
   lines.push(`shelter_inflation_floor,${config.shelterInflationFloor ?? -0.05}`);
 
@@ -1425,8 +1527,8 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   lines.push(`bottom_80_asset_share,${config.bottom80AssetShare ?? 0.12}`);
 
   // --- Phase 4 Quality Pass Parameters ---
-  lines.push(`phillips_curve_sensitivity,${config.phillipsCurveSensitivity ?? 2.5}`);
-  lines.push(`max_credit_tightening,${config.maxCreditTightening ?? 0.70}`);
+  lines.push(`phillips_curve_sensitivity,${config.phillipsCurveSensitivity ?? PHILLIPS_CURVE_SENSITIVITY}`);
+  lines.push(`max_credit_tightening,${config.maxCreditTightening ?? MAX_CREDIT_TIGHTENING}`);
   lines.push(`deferrable_consumption_share,${config.deferrableConsumptionShare ?? 0.30}`);
   lines.push(`deflation_midpoint,${config.deflationMidpoint ?? 0.05}`);
   lines.push(`deflation_steepness,${config.deflationSteepness ?? 40}`);
@@ -1436,10 +1538,12 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   lines.push(`consumer_demand_investment_sensitivity,${config.consumerDemandInvestmentSensitivity ?? 50}`);
   lines.push(`credit_investment_response_sensitivity,${config.creditInvestmentResponseSensitivity ?? 50}`);
   lines.push(`traditional_investment_demand_sensitivity,${config.traditionalInvestmentDemandSensitivity ?? 30}`);
-  lines.push(`traditional_investment_gdp_fraction,${config.traditionalInvestmentGDPFraction ?? 0.175}`);
+  // audit H679: 0.175 was a frozen approximation of the BEA-derived live value (≈0.17525)
+  lines.push(`traditional_investment_gdp_fraction,${config.traditionalInvestmentGDPFraction ?? TRADITIONAL_INVESTMENT_GDP_FRACTION}`);
 
   // --- Tax & Economic Pipeline (Phase 5-tax) ---
-  lines.push(`corporate_retention_rate,${config.corporateRetentionRate ?? FALLBACK_CORPORATE_RETENTION_RATE}`);
+  // audit H679: the static FALLBACK_ (0.40) family retired here — the live default is BEA-derived
+  lines.push(`corporate_retention_rate,${config.corporateRetentionRate ?? BASELINE_CORPORATE_RETENTION_RATE}`);
   lines.push(`ai_profit_growth_rate,${config.aiProfitGrowthRate ?? DEFAULT_AI_PROFIT_GROWTH_RATE}`);
 
   // --- Tax Config sub-fields ---
@@ -1457,12 +1561,20 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   lines.push(`ai_cost.inference_annual_change,${config.aiCostParams?.inferenceAnnualChange ?? DEFAULT_INFERENCE_ANNUAL_CHANGE}`);
   lines.push(`ai_cost.manufacturing_annual_change,${config.aiCostParams?.manufacturingAnnualChange ?? DEFAULT_MANUFACTURING_ANNUAL_CHANGE}`);
   lines.push(`ai_cost.energy_annual_change,${config.aiCostParams?.energyAnnualChange ?? DEFAULT_ENERGY_ANNUAL_CHANGE}`);
+  // Mini-stage 1 (frontier-intensity cost layer): the four frontier dials, fallbacks by
+  // reference (the H679 rule). The retired tokenUsageMultiplier is never exported
+  // (Amendment 2 — no legacy toggles; it never had an export line to comment out).
+  lines.push(`ai_cost.frontier_intensity_level,${config.aiCostParams?.frontierIntensityLevel ?? DEFAULT_FRONTIER_INTENSITY_LEVEL}`);
+  lines.push(`ai_cost.frontier_intensity_growth,${config.aiCostParams?.frontierIntensityGrowth ?? DEFAULT_FRONTIER_INTENSITY_GROWTH}`);
+  lines.push(`ai_cost.sigma_migration,${config.aiCostParams?.sigmaMigration ?? DEFAULT_SIGMA_MIGRATION}`);
+  lines.push(`ai_cost.w_min_frontier_floor,${config.aiCostParams?.wMinFrontierFloor ?? DEFAULT_W_MIN_FRONTIER_FLOOR}`);
 
   // --- Phase 9: Supply Chain Config ---
   if (config.supplyChainConfig) {
     const sc = config.supplyChainConfig;
     // Supply inputs
     lines.push(`supply_chain.ai_chips,${sc.inputs.aiChips}`);
+    lines.push(`supply_chain.chip_price,${sc.inputs.chipPrice}`);
     lines.push(`supply_chain.energy_price,${sc.inputs.energyPrice}`);
     lines.push(`supply_chain.energy_capacity,${sc.inputs.energyCapacity}`);
     lines.push(`supply_chain.training_dc_capacity,${sc.inputs.trainingDCCapacity}`);
@@ -1519,11 +1631,12 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   lines.push(`fiscal_dominance_dampening,${config.fiscalDominanceDampening ?? 0.5}`);
   // DEPRECATED Phase 8 Fix 4: fiscalRiskPremiumMidpoint replaced by fiscalRiskLevelMidpoint
   // lines.push(`fiscal_risk_premium_midpoint,${config.fiscalRiskPremiumMidpoint ?? 1.20}`);
-  lines.push(`fiscal_risk_premium_max,${config.fiscalRiskPremiumMax ?? 0.06}`);
+  lines.push(`fiscal_risk_premium_max,${config.fiscalRiskPremiumMax ?? DEFAULT_FISCAL_RISK_PREMIUM_MAX}`);
   // Phase 8 Fix 4: Yield calibration
   lines.push(`neutral_real_rate,${config.neutralRealRate ?? 0.007}`);
-  lines.push(`term_premium,${config.termPremium ?? 0.003}`);
-  lines.push(`inflation_convergence_years,${config.inflationConvergenceYears ?? 5}`);
+  // audit H679: `?? 0.003` was the third stale copy of the recalibrated TERM_PREMIUM (0.007)
+  lines.push(`term_premium,${config.termPremium ?? TERM_PREMIUM}`);
+  lines.push(`inflation_convergence_years,${config.inflationConvergenceYears ?? DEFAULT_INFLATION_CONVERGENCE_YEARS}`);
   // Phase 8 Fix 4: Fiscal risk premium weights
   lines.push(`fiscal_risk_trajectory_weight,${config.fiscalRiskTrajectoryWeight ?? 0.50}`);
   lines.push(`fiscal_risk_sustainability_weight,${config.fiscalRiskSustainabilityWeight ?? 0.35}`);
@@ -1540,7 +1653,12 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   lines.push(`corporate_tax_effectiveness,${config.corporateTaxEffectiveness ?? 0.65}`);
   lines.push(`foreign_treasury_demand,${config.foreignTreasuryDemand ?? 0.30}`);
   lines.push(`ai_pe_multiplier,${config.aiPEMultiplier ?? 1.0}`);
-  lines.push(`qe_monetization_rate,${config.qeMonetizationRate ?? 0.40}`);
+  // RETIRED (Stage H addendum, item 2): the qe_monetization_rate column exported the DEAD
+  // config field (0.40) while the live QE rate is the Federal Reserve profile's (0.15 at the
+  // balanced_mandate default) — the §4.3 wrong-producer. Retired rather than laundered; the
+  // live value's export home is the preset program's round-trip rebuild. Import still accepts
+  // and applies the key to the (dead) config field — no inbound file breaks.
+  // lines.push(`qe_monetization_rate,${config.qeMonetizationRate ?? 0.40}`);
   lines.push(`consolidation_credit_max,${config.consolidationCreditMax ?? 0.40}`);
   // Phase 8 Fix 3: Bond market absorption capacity
   lines.push(`supply_pressure_sensitivity,${config.supplyPressureSensitivity ?? 1.0}`);
@@ -1563,8 +1681,10 @@ export function exportConfigToParameterCSV(config: SimulationConfig): string {
   // DEPRECATED Phase 8 Fix 4: fiscal_response_profile replaced by split presets
   // lines.push(`fiscal_response_profile,${config.fiscalResponseProfile ?? 'balanced_pragmatism'}`);
   // Phase 8 Fix 4: Independent fiscal + Fed presets
-  lines.push(`fiscal_policy_preset,${config.fiscalPolicyPreset ?? 'balanced_reduction'}`);
-  lines.push(`federal_reserve_preset,${config.federalReservePreset ?? 'balanced_mandate'}`);
+  // audit H679: 'balanced_reduction' was a stale copy — the live default preset is
+  // 'observed_political_economy' (DEFAULT_FISCAL_POLICY_PRESET, single source of truth)
+  lines.push(`fiscal_policy_preset,${config.fiscalPolicyPreset ?? DEFAULT_FISCAL_POLICY_PRESET}`);
+  lines.push(`federal_reserve_preset,${config.federalReservePreset ?? DEFAULT_FEDERAL_RESERVE_PRESET}`);
   if (config.fiscalPolicyCustom) {
     const CAMEL_TO_SNAKE: Record<string, string> = {
       maxDiscretionaryCut: 'max_discretionary_cut',

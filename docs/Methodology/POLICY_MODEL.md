@@ -137,12 +137,15 @@ interface MinimumWagePolicy {
 }
 ```
 
-Effect on model:
-```
-effectiveWage(o, r, t) = max(marketWage(o, r, t), minimumWage(t))
-```
+**What it does, plainly.** A statutory minimum wage enters the model through three channels: it puts a floor under how far aggregate wages can fall in a downturn, it makes automation more attractive in occupations whose market wage sits below the statutory floor, and — when the floor actually binds — it pushes production costs into prices.
 
-Note: Higher minimum wages may accelerate automation for low-wage roles (makes C* easier to meet).
+Effect on model (three channels, all at the aggregate/cluster level rather than per role):
+
+1. **Wage floor.** The Phillips-curve wage-pressure factor cannot fall below `annualMinimumWage / baselineAverageWage`, so the economy-wide wage level is floored at the statutory wage's share of the baseline average. When inflation indexing is on, the statutory wage rides a price-only cost-of-living index: it compounds the prior year's composite inflation (floored at zero — indexed minimums are not cut in deflations, the prevailing state-statute practice), with the fiscal-response profile's cost-of-living dampening applied — the same dampening the budget applies to its own obligations. A wage-linked index is deliberately not used: feeding wage growth back into a wage floor is self-referential.
+2. **Automation acceleration.** For any occupation cluster whose average wage is below the statutory annual minimum, adoption pressure gains a bonus proportional to the shortfall (`wageAutomationSensitivity × (annualMinWage − clusterWage) / clusterWage`) — raising the wage of low-wage work makes automating it more attractive.
+3. **Cost push.** Where the floor binds, the wage overshoot (weighted by the affected employment share and a pass-through rate) enters price inflation.
+
+A per-role wage override (`max(marketWage, minimumWage)` role by role) is **not** modeled; the floor operates on the aggregate wage level. Implementation: `src/models/simulation.ts` (the floor and the adoption bonus at the top of the year loop) and `src/models/macro.ts` (`computeWagePressure`).
 
 ### 2.2 Wage Subsidies
 Government pays portion of wages to keep people employed:
@@ -156,13 +159,15 @@ interface WageSubsidyPolicy {
 }
 ```
 
+**What it does, plainly.** The wage subsidy is an income-channel instrument: the government pays part of every employed worker's wage, and that payment lands in household wage income (raising consumption through the wage-income propensity to spend) while its full cost lands in the government budget (deficit, debt, and yields respond).
+
 Effect on model:
 ```
-effectiveWageForWorker(o, r, t) = marketWage(o, r, t) + subsidyPerWorker(o, r, t)
-costToEmployer(o, r, t) = marketWage(o, r, t) - subsidyPerWorker(o, r, t)
+wageChannelAddition(t) = min(averageWage(t) × subsidyPercentage(t), maxSubsidyPerWorker) × totalEmployment(t)
 ```
+The addition flows into aggregate wage income and the identical amount is booked as fiscal cost. Implementation: `src/models/policy.ts` (`computeWagePolicyEffect`) → `src/models/macro.ts` (wage income) and the fiscal spending path.
 
-This lowers the effective cost to employers, which RAISES the C* threshold (makes automation less attractive) — a deliberate brake on displacement.
+**Not modeled:** an employer-cost channel. The subsidy does not enter any employer's automate-or-hire comparison — it does not change the Cheaper threshold, adoption rates, or displacement directly (displacement responds only through the economy-wide demand feedback). A subsidy designed as an automation brake would need the employer's side of the transaction wired into the adoption economics; that is a documented extension, not current behavior.
 
 ### 2.3 Work Week Reduction
 
@@ -209,39 +214,32 @@ assetIncome_addition(t) = dividendPerCapita(t)
 ```
 
 ### 3.2 Universal Equity Stakes / AI Ownership
-Every citizen receives equity in AI companies:
-```typescript
-interface EquityStakePolicy {
-  enabled: boolean;
-  ownershipFraction: number;       // % of AI company equity held by public
-  totalAICompanyProfits: number;   // user-adjustable projection (billions/year)
-  profitGrowthRate: number;        // annual profit growth rate
-  distributionMethod: 'equal' | 'progressive';
-}
-```
+
+**What it does, plainly.** The public holds an ownership fraction of the AI sector through the sovereign wealth fund, and households receive that fraction of the AI sector's profits as asset income. The payout base is the model's own AI-sector profits — realized earnings the simulation computed, not an authored projection — lagged one year, because this year's distributions come from last year's realized earnings.
 
 Effect on model:
 ```
-equityIncomePerCapita(t) = ownershipFraction × totalProfits(t) / population(t)
-totalProfits(t) = baseProfits × (1 + profitGrowthRate)^(t - t_start)
+equityStakeIncome(t) = ownershipFraction(t) × aiCorporateProfits(t−1)
 ```
+`aiCorporateProfits` is the endogenous AI-sector profit series (realized revenue net of labor, non-labor costs, and energy operating costs — see DATA_MODEL.md). The stake requires the fund to exist (it activates at the fund's creation year). An earlier design that priced payouts off a user-projected profit path (`totalAICompanyProfits × (1 + profitGrowthRate)^t`) is retired: it paid dividends on profits the model never recorded. Implementation: `src/models/policy.ts` (`computeAssetPolicyEffect`).
 
 **Key user question the model answers**: "How much of the AI economy does the average person need to own to maintain current living standards?"
 
 ```
-requiredOwnership(t) = (targetIncome - wageIncome(t) - transferIncome(t)) / (totalProfits(t) / population(t))
+requiredOwnership(t) = (targetIncome − wageIncome(t) − transferIncome(t)) / (totalAIProfits(t) / population(t))
 ```
 
 ### 3.3 Profit-Sharing Mandates
-Require companies above a certain size to share profits with workers and communities:
+
+**What it does, plainly.** A mandated share of AI-sector profits is distributed to households. Arithmetically this is the same instrument as the equity stake — `mandatorySharePercentage × aiCorporateProfits(t−1)` on the same lagged endogenous base — differing only in framing (a legal mandate rather than fund-held ownership). Enabling both at equal rates doubles the same flow.
+
 ```typescript
 interface ProfitSharingPolicy {
   enabled: boolean;
-  mandatorySharePercentage: number;  // % of profits distributed
-  companyThreshold: number;          // minimum revenue to trigger mandate
-  distributionScope: 'employees_only' | 'community' | 'national';
+  mandatorySharePercentage: PolicySchedule;  // share of AI-sector profits distributed
 }
 ```
+Implementation: `src/models/policy.ts` (`computeAssetPolicyEffect`).
 
 ---
 
@@ -270,7 +268,38 @@ transferIncome_UBI(t) = monthlyAmount(t) × 12
 transferIncome_UBI(t) = max(0, monthlyAmount×12 - phaseOutRate × max(0, otherIncome - threshold))
 ```
 
+**The indexed mode.** In `mode: 'indexed'`, the monthly amount scales with the
+growth of realized AI revenue measured in real terms (the sector's actual
+sold output, deflated by the price level) from the index start year, raised to
+the productivity-index exponent and never below the base amount. The real,
+realized basis is deliberate: a nominal basis would ride inflation back into
+the transfer, and an accrual basis would index to output that was never sold.
+
+**Inflation indexing.** When `indexedToInflation` is on (the shipped card's
+default), the monthly amount rides a price-only cost-of-living index: it
+compounds the prior year's composite inflation (floored at zero — the benefit
+is never cut nominally in a deflation, the cost-of-living-adjustment practice),
+with the fiscal-response profile's cost-of-living dampening applied — the same
+machinery the budget applies to its own obligations. A wage-or-price
+benefit-adequacy index (the larger of wage growth and inflation) is a possible
+future mode, not currently offered. One honest consequence the model reports
+rather than hides: a large, fully-indexed, debt-financed transfer composed with
+heavy monetization and no fiscal response can spiral — in extreme
+configurations the model declares monetary collapse (see DATA_MODEL.md, the
+cycle phases) and says so on the interface. Implementation:
+`src/models/policy.ts` (`computeTransferPolicyEffect`) with the indexation
+factor threaded from the simulation loop.
+
 ### 4.2 Enhanced Unemployment Insurance
+
+Enhanced unemployment insurance (UI) raises the generosity of jobless benefits above
+current law: a larger fraction of the lost wage, paid for more weeks. Current-law
+unemployment insurance is already part of the model's baseline transfer support, so this
+lever pays (and costs) only the increment above the current-law statutory benefit — at the
+current-law settings it adds exactly zero. Benefits are also finite: a jobless person
+draws down a fixed entitlement of weeks, so people jobless longer than their entitlement
+receive no ongoing enhanced-UI income.
+
 ```typescript
 interface EnhancedUIPolicy {
   enabled: boolean;
@@ -280,6 +309,40 @@ interface EnhancedUIPolicy {
   stateOverrides: Map<StateCode, Partial<EnhancedUIPolicy>>;
 }
 ```
+
+Effect on model (entitlement weeks):
+```
+payableWeeks(durationWeeks, d) = min(52, max(0, durationWeeks − 52 × d))
+
+perPersonIncrement = max(0, (w / 52) × replacementRate × E
+                          − (w / 52) × 0.45 × CL)
+```
+
+where `d` is a duration cohort's years since displacement; `w` is the annual wage the
+benefit replaces (dollars); `E` and `CL` are the expected payable weeks under the program
+and under current law respectively; and 0.45 / 26 weeks are the current-law statutory
+parameters (`CURRENT_LAW_UI_REPLACEMENT_RATE`, `CURRENT_LAW_UI_DURATION_WEEKS` in
+`src/models/constants.ts`; source: Department of Labor — average replacement ≈45% of
+prior wage, standard state duration 26 weeks; not user-adjustable).
+
+Each duration cohort of the displaced-worker pool has consumed 52 weeks of entitlement per
+jobless year, so a 26-week program pays only the newly displaced (cohort 0), while a
+78-week program pays 52 weeks in the first jobless year, then 26, then nothing.
+Long-duration jobless therefore carry no ongoing enhanced-UI income, and total transfer
+cost in deep-displacement scenarios is correspondingly lower than a naive
+benefit-per-unemployed-person reading would suggest. New cohorts enter with the program's
+`durationWeeks` as their entitlement (the current-law 26 weeks when the program is off).
+
+Pricing: for the AI-displaced pool, `E` and `CL` are averaged over the pool's duration
+mix, and `w` is the pool's employment-weighted wage at displacement; the remaining
+(frictional, short-spell) unemployed are treated as cohort 0 at the economy-average wage.
+When no displacement exists the pool is empty and pricing reduces to the economy average.
+The `retrainingBonus` is paid per unemployed person and is always incremental — it has no
+current-law counterpart to net against.
+
+Implementation: `computeTransferPolicyEffect` in `src/models/policy.ts`; the duration
+shares come from `poolDurationShares` in `src/models/uiIncidence.ts`, advanced each year
+by the simulation loop (`src/models/simulation.ts`).
 
 ### 4.3 Retraining Programs
 ```typescript
@@ -292,12 +355,15 @@ interface RetrainingPolicy {
 }
 ```
 
+**What it does, plainly.** Retraining is modeled as income support during retraining: displaced workers who participate receive a monthly stipend, and that stipend flows into household transfer income (and into the government budget as cost).
+
 Effect on model:
 ```
-retrained_reemployed(o, t) = displaced(o, t) × retrainingCoverage × effectivenessRate
+stipendIncome(t) = stipendMonthly(t) × min(12, durationMonths) × displacedWorkers(t) × participationRate
 ```
+Implementation: `src/models/policy.ts` (`computeTransferPolicyEffect`).
 
-This feeds back into E(t) — some displaced workers return to employment through retraining. But as A(t) increases, `effectivenessRate` should decrease (fewer occupations to retrain INTO).
+**Not modeled:** a re-employment channel. Retraining does not return anyone to employment, does not target particular occupation clusters, and does not interact with the physical-capital gating of embodied occupations — displaced workers' re-employment runs entirely through the model's separate rehiring machinery (the displaced-worker pool with duration-dependent employability), which retraining does not currently modify. The `effectivenessRate` and `targetClusters` fields exist in the configuration type for structural compatibility but have no effect; their interface controls are hidden. A genuine retraining-to-re-employment mechanism (with effectiveness declining as automation coverage rises, since there are fewer occupations to retrain into) is a documented extension, not current behavior.
 
 ---
 

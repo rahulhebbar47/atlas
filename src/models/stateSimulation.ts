@@ -48,6 +48,8 @@ export function computeStateOutputs(
   policyEffects: PolicyEffects,
   stateOverrides: Record<StateCode, Partial<StatePolicyOverride>>,
   config: SimulationConfig,
+  /** Mini-stage 3: the derived retention factor (see computeStateUnemploymentRate). */
+  laborForceRetentionFactor: number = DISPLACEMENT_TO_UNEMPLOYMENT_FACTOR,
 ): StateOutput[] {
   const outputs: StateOutput[] = [];
 
@@ -78,6 +80,7 @@ export function computeStateOutputs(
     const unemploymentRate = computeStateUnemploymentRate(
       stateData.baselineUnemploymentRate,
       displacement,
+      laborForceRetentionFactor,
     );
 
     // 4. State CWI (Consumer Welfare Index) — scaled from national CWI
@@ -210,8 +213,15 @@ export function computeStateCWI(
 export function computeStateUnemploymentRate(
   baselineRate: number,
   displacement: number,
+  /** Mini-stage 3: the DERIVED measured-labor-force retention of the displaced —
+   *  searchingPool / displacedStock from the national duration pool (1 at year 0, falling
+   *  as discouragement exits accumulate). Replaces the retired 0.7 constant (an implicit
+   *  instant-30%-exit assumption that contradicted the national no-exit model — the
+   *  audit's state-layer split, reconciled by derivation). Default keeps unit fixtures
+   *  meaningful; the simulation always passes the derived value. */
+  laborForceRetentionFactor: number = DISPLACEMENT_TO_UNEMPLOYMENT_FACTOR,
 ): number {
-  const rate = baselineRate + displacement * DISPLACEMENT_TO_UNEMPLOYMENT_FACTOR;
+  const rate = baselineRate + displacement * laborForceRetentionFactor;
   return Math.max(0, Math.min(0.80, rate)); // Cap at 80% — allows extreme displacement scenarios
 }
 

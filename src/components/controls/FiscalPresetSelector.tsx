@@ -8,13 +8,19 @@
 import { useCallback } from 'react';
 import { useSimulationStore } from '@/stores/simulationStore';
 import { FISCAL_POLICY_PRESETS, FEDERAL_RESERVE_PRESETS } from '@/models/fiscalResponseProfiles';
+import { ComposedNotice } from '@/components/shared/ComposedNotice';
 import { useFiscalDimensions, useFedDimensions, useOverrideCount } from '@/hooks/useParameterTimeline';
 
 // ============================================================
 // Fiscal Policy Preset Selector
 // ============================================================
 
-const FISCAL_PRESET_ORDER: string[] = [
+// R3c (P0-4): ALL presets list — the two prior omissions (observed_political_economy,
+// gradual_stabilization) end; the sidebar's Washington chips and this selector expose
+// the same set (asserted in R3C-B4). Default-first order.
+export const FISCAL_PRESET_ORDER: string[] = [
+  'observed_political_economy',
+  'gradual_stabilization',
   'austerity',
   'tax_the_winners',
   'balanced_reduction',
@@ -70,6 +76,7 @@ export function FiscalPresetSelector() {
       }`}>
         {description}
       </p>
+      <ComposedNotice dialKey="fiscalPolicyPreset" what="this preset" />
     </div>
   );
 }
@@ -120,6 +127,7 @@ export function FedPresetSelector() {
       <p className="text-[10px] leading-relaxed text-text-muted">
         {description}
       </p>
+      <ComposedNotice dialKey="federalReservePreset" what="this preset" />
     </div>
   );
 }

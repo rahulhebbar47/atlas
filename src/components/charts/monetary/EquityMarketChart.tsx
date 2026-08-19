@@ -27,7 +27,8 @@ import { formatCurrency } from '@/utils/format';
 interface EquityDataPoint {
   year: number;
   aggregateMarketCap: number;
-  peRatio: number;
+  /** Display-hygiene rider: null = not-meaningful point (near-zero earnings base) — rendered as a gap. */
+  peRatio: number | null;
 }
 
 interface EquityMarketChartProps {

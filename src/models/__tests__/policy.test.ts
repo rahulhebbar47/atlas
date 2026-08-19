@@ -209,45 +209,52 @@ describe('computeAssetPolicyEffect', () => {
     expect(assetAddition).toBeGreaterThan(0);
   });
 
-  it('produces income from ownership fraction when SWF equity stake is enabled', () => {
+  // Stage H addendum (A-6): the payout base is the ENDOGENOUS prior-year AI corporate profit
+  // series passed in as laggedAiProfits (dollars) — the retired exogenous fields
+  // (totalAICompanyProfits × (1+profitGrowthRate)^t) are unread (probe-guarded in
+  // stageH-honesty.test.ts). These unit tests assert the new basis directly.
+  it('produces income from ownership fraction when SWF equity stake is enabled (endogenous t−1 base)', () => {
     const config = createDisabledConfig();
     config.sovereignWealthFund.enabled = true;
     config.sovereignWealthFund.ownershipFraction = sched(0.05); // 5% ownership
-    config.sovereignWealthFund.totalAICompanyProfits = 500; // $500B baseline
-    config.sovereignWealthFund.profitGrowthRate = 0.15;
+    config.sovereignWealthFund.totalAICompanyProfits = 500; // retired field — must be ignored
+    config.sovereignWealthFund.profitGrowthRate = 0.15;      // retired field — must be ignored
 
+    // year 0: the anchor's zero-automation initialization → no payout base → no equity income
+    const { assetAddition: year0Addition } = computeAssetPolicyEffect(
+      config, YEAR, 0, POPULATION, 0,
+    );
+    expect(year0Addition).toBe(0);
+
+    // with $500B of realized prior-year endogenous profits: 0.05 × 500e9 = $25B
     const { assetAddition } = computeAssetPolicyEffect(
-      config, YEAR, 0, POPULATION,
+      config, YEAR + 1, 0, POPULATION, 500e9,
     );
-
-    // yearsSinceStart = 0, so totalProfits = 500 * (1.15)^0 = 500
-    // equityIncome = 0.05 * 500 * 1e9 = 25_000_000_000
     expect(assetAddition).toBeCloseTo(25_000_000_000, -3);
-    expect(assetAddition).toBeGreaterThan(0);
-
-    // In year DEFAULT_START_YEAR + 1, profits grow by 15%
-    const { assetAddition: year2Addition } = computeAssetPolicyEffect(
-      config, YEAR + 1, 0, POPULATION,
+    // and the payout scales with the endogenous base, not with calendar time
+    const { assetAddition: biggerBase } = computeAssetPolicyEffect(
+      config, YEAR + 1, 0, POPULATION, 1000e9,
     );
-    expect(year2Addition).toBeGreaterThan(assetAddition);
+    expect(biggerBase).toBeCloseTo(50_000_000_000, -3);
   });
 
-  it('produces income from profit sharing when profit sharing is enabled', () => {
+  it('produces income from profit sharing when profit sharing is enabled (endogenous t−1 base)', () => {
     const config = createDisabledConfig();
     config.profitSharing.enabled = true;
     config.profitSharing.mandatorySharePercentage = sched(0.10); // 10% mandatory share
-    // Profit sharing references sovereignWealthFund.totalAICompanyProfits
-    config.sovereignWealthFund.totalAICompanyProfits = 500;
-    config.sovereignWealthFund.profitGrowthRate = 0.15;
+    config.sovereignWealthFund.totalAICompanyProfits = 500; // retired field — must be ignored
+    config.sovereignWealthFund.profitGrowthRate = 0.15;      // retired field — must be ignored
 
+    // sharedProfits = 0.10 × laggedAiProfits ($500B realized) = $50B
     const { assetAddition } = computeAssetPolicyEffect(
-      config, YEAR, 0, POPULATION,
+      config, YEAR, 0, POPULATION, 500e9,
     );
-
-    // yearsSinceStart = 0, aiProfits = 500
-    // sharedProfits = 500 * 0.10 * 1e9 = 50_000_000_000
     expect(assetAddition).toBeCloseTo(50_000_000_000, -3);
-    expect(assetAddition).toBeGreaterThan(0);
+    // zero realized profits → zero shared (no dollars from nowhere)
+    const { assetAddition: zeroBase } = computeAssetPolicyEffect(
+      config, YEAR, 0, POPULATION, 0,
+    );
+    expect(zeroBase).toBe(0);
   });
 });
 

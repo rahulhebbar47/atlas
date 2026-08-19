@@ -1,10 +1,803 @@
 {
-  "isFallback": true,
-  "fallbackReason": "Run: npx tsx scripts/fetch-bea-data.ts --key YOUR_BEA_API_KEY",
-  "source": "Fallback — no industry breakdown available",
-  "fetchedAt": "2026-02-15T20:16:50.903Z",
+  "source": "BEA GDP by Industry — Value Added (Table 1) + Gross Output (Table 15)",
+  "seriesOrTable": "GDPbyIndustry TableID 1 & 15, Frequency A, Industry ALL",
+  "fetchedAt": "2026-08-17T18:17:38.033Z",
   "dataYear": 2025,
-  "totalGDPBillions": 29000,
-  "industries": {},
-  "notes": "FALLBACK DATA. Industry breakdown requires real BEA API data."
+  "notes": "Billions of current dollars, annual 2025. valueAdded is the Channel-2 anchor (ratification A1); grossOutput retained for reference. Keys are BEA industry codes (NAICS-based).",
+  "valueAdded": {
+    "6": {
+      "description": "Educational services, health care, and social assistance",
+      "valueBillions": 2718.2
+    },
+    "7": {
+      "description": "Arts, entertainment, recreation, accommodation, and food services",
+      "valueBillions": 1332.3
+    },
+    "11": {
+      "description": "Agriculture, forestry, fishing, and hunting",
+      "valueBillions": 272
+    },
+    "21": {
+      "description": "Mining",
+      "valueBillions": 384.3
+    },
+    "22": {
+      "description": "Utilities",
+      "valueBillions": 471.2
+    },
+    "23": {
+      "description": "Construction",
+      "valueBillions": 1341.3
+    },
+    "42": {
+      "description": "Wholesale trade",
+      "valueBillions": 1905.4
+    },
+    "51": {
+      "description": "Information",
+      "valueBillions": 1695
+    },
+    "52": {
+      "description": "Finance and insurance",
+      "valueBillions": 2441.8
+    },
+    "53": {
+      "description": "Real estate and rental and leasing",
+      "valueBillions": 4238.6
+    },
+    "54": {
+      "description": "Professional, scientific, and technical services",
+      "valueBillions": 2494.2
+    },
+    "55": {
+      "description": "Management of companies and enterprises",
+      "valueBillions": 576.8
+    },
+    "56": {
+      "description": "Administrative and waste management services",
+      "valueBillions": 952.4
+    },
+    "61": {
+      "description": "Educational services",
+      "valueBillions": 347.2
+    },
+    "62": {
+      "description": "Health care and social assistance",
+      "valueBillions": 2371
+    },
+    "71": {
+      "description": "Arts, entertainment, and recreation",
+      "valueBillions": 355.8
+    },
+    "72": {
+      "description": "Accommodation and food services",
+      "valueBillions": 976.5
+    },
+    "81": {
+      "description": "Other services, except government",
+      "valueBillions": 649.4
+    },
+    "211": {
+      "description": "Oil and gas extraction",
+      "valueBillions": 231.4
+    },
+    "212": {
+      "description": "Mining, except oil and gas",
+      "valueBillions": 86.7
+    },
+    "213": {
+      "description": "Support activities for mining",
+      "valueBillions": 66.1
+    },
+    "321": {
+      "description": "Wood products",
+      "valueBillions": 58.6
+    },
+    "322": {
+      "description": "Paper products",
+      "valueBillions": 75.2
+    },
+    "323": {
+      "description": "Printing and related support activities",
+      "valueBillions": 41.5
+    },
+    "324": {
+      "description": "Petroleum and coal products",
+      "valueBillions": 161
+    },
+    "325": {
+      "description": "Chemical products",
+      "valueBillions": 577.7
+    },
+    "326": {
+      "description": "Plastics and rubber products",
+      "valueBillions": 101.4
+    },
+    "327": {
+      "description": "Nonmetallic mineral products",
+      "valueBillions": 76.3
+    },
+    "331": {
+      "description": "Primary metals",
+      "valueBillions": 77.7
+    },
+    "332": {
+      "description": "Fabricated metal products",
+      "valueBillions": 192.9
+    },
+    "333": {
+      "description": "Machinery",
+      "valueBillions": 205.1
+    },
+    "334": {
+      "description": "Computer and electronic products",
+      "valueBillions": 318
+    },
+    "335": {
+      "description": "Electrical equipment, appliances, and components",
+      "valueBillions": 82.5
+    },
+    "337": {
+      "description": "Furniture and related products",
+      "valueBillions": 34.6
+    },
+    "339": {
+      "description": "Miscellaneous manufacturing",
+      "valueBillions": 116.5
+    },
+    "441": {
+      "description": "Motor vehicle and parts dealers",
+      "valueBillions": 371.7
+    },
+    "445": {
+      "description": "Food and beverage stores",
+      "valueBillions": 241.3
+    },
+    "452": {
+      "description": "General merchandise stores",
+      "valueBillions": 231.2
+    },
+    "481": {
+      "description": "Air transportation",
+      "valueBillions": 185
+    },
+    "482": {
+      "description": "Rail transportation",
+      "valueBillions": 50.9
+    },
+    "483": {
+      "description": "Water transportation",
+      "valueBillions": 24
+    },
+    "484": {
+      "description": "Truck transportation",
+      "valueBillions": 262.5
+    },
+    "485": {
+      "description": "Transit and ground passenger transportation",
+      "valueBillions": 91.3
+    },
+    "486": {
+      "description": "Pipeline transportation",
+      "valueBillions": 51.2
+    },
+    "493": {
+      "description": "Warehousing and storage",
+      "valueBillions": 133
+    },
+    "511": {
+      "description": "Publishing industries, except internet (includes software)",
+      "valueBillions": 479.1
+    },
+    "512": {
+      "description": "Motion picture and sound recording industries",
+      "valueBillions": 119
+    },
+    "513": {
+      "description": "Broadcasting and telecommunications",
+      "valueBillions": 506.4
+    },
+    "514": {
+      "description": "Data processing, internet publishing, and other information services",
+      "valueBillions": 590.5
+    },
+    "523": {
+      "description": "Securities, commodity contracts, and investments",
+      "valueBillions": 466.6
+    },
+    "524": {
+      "description": "Insurance carriers and related activities",
+      "valueBillions": 842.8
+    },
+    "525": {
+      "description": "Funds, trusts, and other financial vehicles",
+      "valueBillions": 39.2
+    },
+    "531": {
+      "description": "Real estate",
+      "valueBillions": 3854.2
+    },
+    "561": {
+      "description": "Administrative and support services",
+      "valueBillions": 860.3
+    },
+    "562": {
+      "description": "Waste management and remediation services",
+      "valueBillions": 92.1
+    },
+    "621": {
+      "description": "Ambulatory health care services",
+      "valueBillions": 1153
+    },
+    "622": {
+      "description": "Hospitals",
+      "valueBillions": 741.2
+    },
+    "623": {
+      "description": "Nursing and residential care facilities",
+      "valueBillions": 227.4
+    },
+    "624": {
+      "description": "Social assistance",
+      "valueBillions": 249.5
+    },
+    "713": {
+      "description": "Amusements, gambling, and recreation industries",
+      "valueBillions": 144.4
+    },
+    "721": {
+      "description": "Accommodation",
+      "valueBillions": 269.5
+    },
+    "722": {
+      "description": "Food services and drinking places",
+      "valueBillions": 706.9
+    },
+    "5411": {
+      "description": "Legal services",
+      "valueBillions": 421.9
+    },
+    "5415": {
+      "description": "Computer systems design and related services",
+      "valueBillions": 553.8
+    },
+    "111CA": {
+      "description": "Farms",
+      "valueBillions": 220.7
+    },
+    "113FF": {
+      "description": "Forestry, fishing, and related activities",
+      "valueBillions": 51.3
+    },
+    "311FT": {
+      "description": "Food and beverage and tobacco products",
+      "valueBillions": 354.5
+    },
+    "313TT": {
+      "description": "Textile mills and textile product mills",
+      "valueBillions": 16.6
+    },
+    "315AL": {
+      "description": "Apparel and leather and allied products",
+      "valueBillions": 12.3
+    },
+    "31G": {
+      "description": "Manufacturing",
+      "valueBillions": 2896.5
+    },
+    "31ND": {
+      "description": "Nondurable goods",
+      "valueBillions": 1340.1
+    },
+    "3361MV": {
+      "description": "Motor vehicles, bodies and trailers, and parts",
+      "valueBillions": 184
+    },
+    "3364OT": {
+      "description": "Other transportation equipment",
+      "valueBillions": 210.3
+    },
+    "33DG": {
+      "description": "Durable goods",
+      "valueBillions": 1556.3
+    },
+    "44RT": {
+      "description": "Retail trade",
+      "valueBillions": 1921.8
+    },
+    "487OS": {
+      "description": "Other transportation and support activities",
+      "valueBillions": 226
+    },
+    "48TW": {
+      "description": "Transportation and warehousing",
+      "valueBillions": 1023.9
+    },
+    "4A0": {
+      "description": "Other retail",
+      "valueBillions": 1077.6
+    },
+    "521CI": {
+      "description": "Federal Reserve banks, credit intermediation, and related activities",
+      "valueBillions": 1093.3
+    },
+    "532RL": {
+      "description": "Rental and leasing services and lessors of intangible assets",
+      "valueBillions": 384.3
+    },
+    "5412OP": {
+      "description": "Miscellaneous professional, scientific, and technical services",
+      "valueBillions": 1518.5
+    },
+    "711AS": {
+      "description": "Performing arts, spectator sports, museums, and related activities",
+      "valueBillions": 211.5
+    },
+    "FIRE": {
+      "description": "Finance, insurance, real estate, rental, and leasing",
+      "valueBillions": 6680.4
+    },
+    "G": {
+      "description": "Government",
+      "valueBillions": 3447
+    },
+    "GDP": {
+      "description": "Gross domestic product",
+      "valueBillions": 30762.1
+    },
+    "GF": {
+      "description": "Federal",
+      "valueBillions": 1107.6
+    },
+    "GFE": {
+      "description": "Government enterprises",
+      "valueBillions": 78.4
+    },
+    "GFG": {
+      "description": "General government",
+      "valueBillions": 1029.2
+    },
+    "GFGD": {
+      "description": "National defense",
+      "valueBillions": 569.7
+    },
+    "GFGN": {
+      "description": "Nondefense",
+      "valueBillions": 459.5
+    },
+    "GSL": {
+      "description": "State and local",
+      "valueBillions": 2339.5
+    },
+    "GSLE": {
+      "description": "Government enterprises",
+      "valueBillions": 168.2
+    },
+    "GSLG": {
+      "description": "General government",
+      "valueBillions": 2171.2
+    },
+    "HS": {
+      "description": "Housing",
+      "valueBillions": 3005.3
+    },
+    "ORE": {
+      "description": "Other real estate",
+      "valueBillions": 848.9
+    },
+    "PGOOD": {
+      "description": "Private goods-producing industries<sup>1</sup>",
+      "valueBillions": 4894.1
+    },
+    "PROF": {
+      "description": "Professional and business services",
+      "valueBillions": 4023.4
+    },
+    "PSERV": {
+      "description": "Private services-producing industries<sup>2</sup>",
+      "valueBillions": 22421
+    },
+    "PVT": {
+      "description": "Private industries",
+      "valueBillions": 27315.1
+    }
+  },
+  "grossOutput": {
+    "6": {
+      "description": "Educational services, health care, and social assistance",
+      "valueBillions": 4363.8
+    },
+    "7": {
+      "description": "Arts, entertainment, recreation, accommodation, and food services",
+      "valueBillions": 2437.1
+    },
+    "11": {
+      "description": "Agriculture, forestry, fishing, and hunting",
+      "valueBillions": 642.9
+    },
+    "21": {
+      "description": "Mining",
+      "valueBillions": 704.2
+    },
+    "22": {
+      "description": "Utilities",
+      "valueBillions": 691
+    },
+    "23": {
+      "description": "Construction",
+      "valueBillions": 2534.7
+    },
+    "42": {
+      "description": "Wholesale trade",
+      "valueBillions": 3136.2
+    },
+    "51": {
+      "description": "Information",
+      "valueBillions": 2858.1
+    },
+    "52": {
+      "description": "Finance and insurance",
+      "valueBillions": 4433
+    },
+    "53": {
+      "description": "Real estate and rental and leasing",
+      "valueBillions": 6118.3
+    },
+    "54": {
+      "description": "Professional, scientific, and technical services",
+      "valueBillions": 3689.8
+    },
+    "55": {
+      "description": "Management of companies and enterprises",
+      "valueBillions": 928
+    },
+    "56": {
+      "description": "Administrative and waste management services",
+      "valueBillions": 1572.5
+    },
+    "61": {
+      "description": "Educational services",
+      "valueBillions": 519.9
+    },
+    "62": {
+      "description": "Health care and social assistance",
+      "valueBillions": 3843.9
+    },
+    "71": {
+      "description": "Arts, entertainment, and recreation",
+      "valueBillions": 611.4
+    },
+    "72": {
+      "description": "Accommodation and food services",
+      "valueBillions": 1825.7
+    },
+    "81": {
+      "description": "Other services, except government",
+      "valueBillions": 1119.3
+    },
+    "211": {
+      "description": "Oil and gas extraction",
+      "valueBillions": 454.6
+    },
+    "212": {
+      "description": "Mining, except oil and gas",
+      "valueBillions": 152.1
+    },
+    "213": {
+      "description": "Support activities for mining",
+      "valueBillions": 97.6
+    },
+    "321": {
+      "description": "Wood products",
+      "valueBillions": 169.9
+    },
+    "322": {
+      "description": "Paper products",
+      "valueBillions": 221
+    },
+    "323": {
+      "description": "Printing and related support activities",
+      "valueBillions": 85
+    },
+    "324": {
+      "description": "Petroleum and coal products",
+      "valueBillions": 589.7
+    },
+    "325": {
+      "description": "Chemical products",
+      "valueBillions": 1028.9
+    },
+    "326": {
+      "description": "Plastics and rubber products",
+      "valueBillions": 299.2
+    },
+    "327": {
+      "description": "Nonmetallic mineral products",
+      "valueBillions": 175.5
+    },
+    "331": {
+      "description": "Primary metals",
+      "valueBillions": 310.9
+    },
+    "332": {
+      "description": "Fabricated metal products",
+      "valueBillions": 467.5
+    },
+    "333": {
+      "description": "Machinery",
+      "valueBillions": 448.3
+    },
+    "334": {
+      "description": "Computer and electronic products",
+      "valueBillions": 433.9
+    },
+    "335": {
+      "description": "Electrical equipment, appliances, and components",
+      "valueBillions": 202.1
+    },
+    "337": {
+      "description": "Furniture and related products",
+      "valueBillions": 85.8
+    },
+    "339": {
+      "description": "Miscellaneous manufacturing",
+      "valueBillions": 182.7
+    },
+    "441": {
+      "description": "Motor vehicle and parts dealers",
+      "valueBillions": 573.3
+    },
+    "445": {
+      "description": "Food and beverage stores",
+      "valueBillions": 360.9
+    },
+    "452": {
+      "description": "General merchandise stores",
+      "valueBillions": 315.5
+    },
+    "481": {
+      "description": "Air transportation",
+      "valueBillions": 341.5
+    },
+    "482": {
+      "description": "Rail transportation",
+      "valueBillions": 92.5
+    },
+    "483": {
+      "description": "Water transportation",
+      "valueBillions": 79.5
+    },
+    "484": {
+      "description": "Truck transportation",
+      "valueBillions": 541.4
+    },
+    "485": {
+      "description": "Transit and ground passenger transportation",
+      "valueBillions": 197.5
+    },
+    "486": {
+      "description": "Pipeline transportation",
+      "valueBillions": 77.8
+    },
+    "493": {
+      "description": "Warehousing and storage",
+      "valueBillions": 200
+    },
+    "511": {
+      "description": "Publishing industries, except internet (includes software)",
+      "valueBillions": 723.1
+    },
+    "512": {
+      "description": "Motion picture and sound recording industries",
+      "valueBillions": 209
+    },
+    "513": {
+      "description": "Broadcasting and telecommunications",
+      "valueBillions": 939.4
+    },
+    "514": {
+      "description": "Data processing, internet publishing, and other information services",
+      "valueBillions": 986.6
+    },
+    "523": {
+      "description": "Securities, commodity contracts, and investments",
+      "valueBillions": 1054.8
+    },
+    "524": {
+      "description": "Insurance carriers and related activities",
+      "valueBillions": 1592.1
+    },
+    "525": {
+      "description": "Funds, trusts, and other financial vehicles",
+      "valueBillions": 283
+    },
+    "531": {
+      "description": "Real estate",
+      "valueBillions": 5418.5
+    },
+    "561": {
+      "description": "Administrative and support services",
+      "valueBillions": 1385.8
+    },
+    "562": {
+      "description": "Waste management and remediation services",
+      "valueBillions": 186.7
+    },
+    "621": {
+      "description": "Ambulatory health care services",
+      "valueBillions": 1743.9
+    },
+    "622": {
+      "description": "Hospitals",
+      "valueBillions": 1351.7
+    },
+    "623": {
+      "description": "Nursing and residential care facilities",
+      "valueBillions": 374.9
+    },
+    "624": {
+      "description": "Social assistance",
+      "valueBillions": 373.4
+    },
+    "713": {
+      "description": "Amusements, gambling, and recreation industries",
+      "valueBillions": 264.8
+    },
+    "721": {
+      "description": "Accommodation",
+      "valueBillions": 385.3
+    },
+    "722": {
+      "description": "Food services and drinking places",
+      "valueBillions": 1440.4
+    },
+    "5411": {
+      "description": "Legal services",
+      "valueBillions": 525.3
+    },
+    "5415": {
+      "description": "Computer systems design and related services",
+      "valueBillions": 779.5
+    },
+    "111CA": {
+      "description": "Farms",
+      "valueBillions": 575.2
+    },
+    "113FF": {
+      "description": "Forestry, fishing, and related activities",
+      "valueBillions": 67.7
+    },
+    "311FT": {
+      "description": "Food and beverage and tobacco products",
+      "valueBillions": 1272.8
+    },
+    "313TT": {
+      "description": "Textile mills and textile product mills",
+      "valueBillions": 47.1
+    },
+    "315AL": {
+      "description": "Apparel and leather and allied products",
+      "valueBillions": 21.7
+    },
+    "31G": {
+      "description": "Manufacturing",
+      "valueBillions": 7254.8
+    },
+    "31ND": {
+      "description": "Nondurable goods",
+      "valueBillions": 3565.4
+    },
+    "3361MV": {
+      "description": "Motor vehicles, bodies and trailers, and parts",
+      "valueBillions": 774.7
+    },
+    "3364OT": {
+      "description": "Other transportation equipment",
+      "valueBillions": 438.1
+    },
+    "33DG": {
+      "description": "Durable goods",
+      "valueBillions": 3689.4
+    },
+    "44RT": {
+      "description": "Retail trade",
+      "valueBillions": 2955.7
+    },
+    "487OS": {
+      "description": "Other transportation and support activities",
+      "valueBillions": 365.8
+    },
+    "48TW": {
+      "description": "Transportation and warehousing",
+      "valueBillions": 1896
+    },
+    "4A0": {
+      "description": "Other retail",
+      "valueBillions": 1705.9
+    },
+    "521CI": {
+      "description": "Federal Reserve banks, credit intermediation, and related activities",
+      "valueBillions": 1503.1
+    },
+    "532RL": {
+      "description": "Rental and leasing services and lessors of intangible assets",
+      "valueBillions": 699.9
+    },
+    "5412OP": {
+      "description": "Miscellaneous professional, scientific, and technical services",
+      "valueBillions": 2385
+    },
+    "711AS": {
+      "description": "Performing arts, spectator sports, museums, and related activities",
+      "valueBillions": 346.6
+    },
+    "FIRE": {
+      "description": "Finance, insurance, real estate, rental, and leasing",
+      "valueBillions": 10551.3
+    },
+    "G": {
+      "description": "Government",
+      "valueBillions": 5668.5
+    },
+    "GF": {
+      "description": "Federal",
+      "valueBillions": 1690.1
+    },
+    "GFE": {
+      "description": "Government enterprises",
+      "valueBillions": 112.2
+    },
+    "GFG": {
+      "description": "General government",
+      "valueBillions": 1577.9
+    },
+    "GFGD": {
+      "description": "National defense",
+      "valueBillions": 934.9
+    },
+    "GFGN": {
+      "description": "Nondefense",
+      "valueBillions": 643.1
+    },
+    "GSL": {
+      "description": "State and local",
+      "valueBillions": 3978.4
+    },
+    "GSLE": {
+      "description": "Government enterprises",
+      "valueBillions": 535.9
+    },
+    "GSLG": {
+      "description": "General government",
+      "valueBillions": 3442.5
+    },
+    "HS": {
+      "description": "Housing",
+      "valueBillions": 3325
+    },
+    "II": {
+      "description": "All industries",
+      "valueBillions": 53003.9
+    },
+    "ORE": {
+      "description": "Other real estate",
+      "valueBillions": 2093.5
+    },
+    "PGOOD": {
+      "description": "Private goods-producing industries<sup>1</sup>",
+      "valueBillions": 11136.5
+    },
+    "PROF": {
+      "description": "Professional and business services",
+      "valueBillions": 6190.3
+    },
+    "PSERV": {
+      "description": "Private services-producing industries<sup>2</sup>",
+      "valueBillions": 36198.8
+    },
+    "PVT": {
+      "description": "Private industries",
+      "valueBillions": 47335.4
+    }
+  }
 }

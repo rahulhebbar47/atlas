@@ -19,7 +19,42 @@ import {
   EQUITY_RISK_PREMIUM,
   BASELINE_SP500_LEVEL,
   BASELINE_CORPORATE_PROFITS,
+  GORDON_MIN_SPREAD,
 } from './constants';
+
+// ============================================================
+// 0. Crisis-Adjusted Equity Risk Premium (D1 fix, F1a)
+// ============================================================
+
+/**
+ * Compute the crisis-adjusted equity risk premium.
+ *
+ * The implied ERP is countercyclical: the Damodaran series rose from 4.37%
+ * (Jan-2008) to 6.43% (Jan-2009) across the Great Recession while the risk-free
+ * rate collapsed. A static calm-period ERP therefore UNDERSTATES the equity
+ * discount rate through a credit crisis — the under-anchoring that let the Gordon
+ * denominator go negative on the default path. The crisis signal is consumer
+ * credit tightening at t-1, band-passed above the measured noise floor (the same
+ * band the credit-deflation channel uses; below the floor the ERP is EXACTLY the
+ * base, which preserves the zero-AI reference path byte-for-byte).
+ *
+ * @param baseERP - Calm-state implied ERP (EQUITY_RISK_PREMIUM, 0.045)
+ * @param prevConsumerTightening - Consumer credit tightening at t-1 [0, max]
+ * @param crisisSensitivity - ERP points per unit of above-floor tightening
+ *                            (DEFAULT_ERP_CRISIS_SENSITIVITY 0.046, GFC-derived)
+ * @param noiseFloor - The measured tightening noise floor (creditDeflationNoiseFloor)
+ * @returns { equityRiskPremium, erpCrisisComponent }
+ */
+export function computeCrisisAdjustedERP(
+  baseERP: number,
+  prevConsumerTightening: number,
+  crisisSensitivity: number,
+  noiseFloor: number,
+): { equityRiskPremium: number; erpCrisisComponent: number } {
+  const signal = Math.max(0, prevConsumerTightening - noiseFloor);
+  const erpCrisisComponent = crisisSensitivity * signal;
+  return { equityRiskPremium: baseERP + erpCrisisComponent, erpCrisisComponent };
+}
 
 // ============================================================
 // 1. Growth Momentum
@@ -113,7 +148,10 @@ export function computeGrowthMomentum(
  * @param previousMarketCap - Previous year's aggregate market capitalization
  * @param growthMomentum - AI capability growth momentum [0, 1] (from computeGrowthMomentum)
  * @param aiPEMultiplier - User-configurable AI hype multiplier (config, 1.0 = rational)
- * @returns EquityMarketState with market cap, P/E, return, etc.
+ * @param erpCrisisComponent - The crisis component already inside equityRiskPremium
+ *                             (from computeCrisisAdjustedERP; recorded on the state
+ *                             so the trace reports the re-anchor's engagement)
+ * @returns EquityMarketState with market cap, P/E, return, domain-guard flag, etc.
  */
 export function computeEquityValuation(
   tenYearYield: number,
@@ -124,6 +162,7 @@ export function computeEquityValuation(
   previousMarketCap: number,
   growthMomentum: number,
   aiPEMultiplier: number,
+  erpCrisisComponent: number = 0,
 ): EquityMarketState {
   // Discount rate = 10Y yield + equity risk premium
   const equityDiscountRate = tenYearYield + equityRiskPremium;
@@ -141,9 +180,18 @@ export function computeEquityValuation(
   }
 
   // Gordon Growth: P/E = (1 + g) / (r - g)
-  // Singularity guard: when r ≤ g, denominator is zero or negative.
-  // Use minimum denominator gap (1e-6) to prevent IEEE 754 division-by-zero/infinity.
-  const denominator = Math.max(1e-6, equityDiscountRate - expectedGrowth);
+  // D1 fix (F1b, re-ruled 2026-08-14) — THE VALIDITY-DOMAIN GUARD: the Gordon form
+  // is defined only for r > g (its own citation). When crisis dynamics push the
+  // spread below GORDON_MIN_SPREAD (the Shiller-CAPE-record bound, [e]-derived),
+  // the form declares itself out of domain and the valuation caps at the cited
+  // record-valuation class — REPORTED via gordonDomainGuardEngaged, never silent.
+  // THE LAW (recorded): numerical guards protect arithmetic and never supply
+  // economics. The retired 1e-6 IEEE guard, kept per the no-delete rule — it served
+  // as the LIVE denominator for seven consecutive crisis years (P/E ~10^6):
+  //   const denominator = Math.max(1e-6, equityDiscountRate - expectedGrowth);
+  const rawSpread = equityDiscountRate - expectedGrowth;
+  const gordonDomainGuardEngaged = rawSpread < GORDON_MIN_SPREAD;
+  const denominator = Math.max(GORDON_MIN_SPREAD, rawSpread);
   const basePE = (1 + expectedGrowth) / denominator;
 
   // AI P/E premium: scales with growth momentum
@@ -168,6 +216,8 @@ export function computeEquityValuation(
     growthMomentum,
     equityDiscountRate,
     marketReturn,
+    gordonDomainGuardEngaged,
+    erpCrisisComponent,
   };
 }
 
@@ -200,5 +250,7 @@ export function getBaselineEquityMarketState(): EquityMarketState {
     growthMomentum: 0,
     equityDiscountRate: EQUITY_RISK_PREMIUM + 0.043, // Baseline: ERP + initial 10Y
     marketReturn: 0,
+    gordonDomainGuardEngaged: false,
+    erpCrisisComponent: 0,
   };
 }

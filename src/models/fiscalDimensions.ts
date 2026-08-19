@@ -35,7 +35,10 @@ export const FISCAL_DIMENSIONS: DimensionConfig[] = [
   {
     key: 'spendingRevenue',
     label: 'Spending vs Revenue',
-    description: 'How is fiscal adjustment split between spending cuts and revenue increases?',
+    description: 'How is fiscal adjustment split between spending cuts and revenue increases? '
+      + 'Note: under presets carrying the statute guard (Observed Political Economy, Gradual '
+      + 'Stabilization), the obligation-cut component stays 0 regardless of this slider — '
+      + 'cutting statute-indexed obligations requires choosing a preset that models new law.',
     color: '#F97316', // orange-500
     options: [
       {

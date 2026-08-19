@@ -69,7 +69,9 @@ export function TippingPointIndicator() {
 
   // Fiscal window open (both-open or fiscal-only)
   if (status === 'both-open' || status === 'fiscal-only') {
-    const aiGDPB = macro ? macro.aiGDPContribution / 1e9 : 0;
+    // H3 ruling 1: the copy says AI is GENERATING revenue at scale — the realized
+    // dollars (the ones actually entering GDP, hence taxable) are the honest figure.
+    const aiGDPB = macro ? macro.aiRealizedGDPContribution / 1e9 : 0;
     const yearsUntilClose = fiscalWindowClose !== null ? fiscalWindowClose - currentYear : null;
     return (
       <div className="border border-growth/20 bg-growth/[0.04] rounded-[12px] px-4 py-3">
@@ -120,7 +122,7 @@ export function TippingPointIndicator() {
   }
 
   // Recovery
-  const aiGDPPct = macro ? macro.aiGDPContributionPct : 0;
+  const aiGDPPct = macro ? macro.aiRealizedShareOfGDP : 0; // H3: the realized share
   return (
     <div className="border border-growth/20 bg-growth/[0.04] rounded-[12px] px-4 py-3">
       <div className="font-mono text-[10px] font-medium uppercase tracking-[0.1em] text-growth/70 mb-1">
@@ -130,7 +132,7 @@ export function TippingPointIndicator() {
         CWI Rising
       </div>
       <p className="text-text-muted text-[10px] mt-1 leading-relaxed">
-        AI share of GDP: {formatPercent(aiGDPPct)}. Continue monitoring policy effectiveness.
+        Realized AI share of GDP: {formatPercent(aiGDPPct)}. Continue monitoring policy effectiveness.
       </p>
     </div>
   );

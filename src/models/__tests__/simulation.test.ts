@@ -171,18 +171,23 @@ describe('runSimulation — timeline structure', () => {
 // ============================================================
 
 describe('runSimulation — employment dynamics', () => {
+  // Mini-stage 1 re-spec: window extended 2035 → 2050 — under the frontier-intensity cost basis
+  // the Cheaper score stays 0-clamped until per-token decay overtakes the intensity premium
+  // (first triggers in this subset land ~2041), so displacement arrives too late to pull the
+  // ratio down by 2035; the decrease-vs-growing-baseline property holds over the full horizon.
   it('total employment should decrease relative to growing baseline with default params', () => {
-    const config = shortConfig();
+    const config = shortConfig({ endYear: 2050 });
     const timeline = runSimulation(config, SMALL_CLUSTER_SUBSET);
 
     const firstYear = timeline.years[0]!;
     const lastYear = timeline.years[timeline.years.length - 1]!;
 
-    // Over 2025-2035 with default AI capability trajectories, AI displacement should pull
-    // the employment-to-population ratio below its starting level. With the generative
-    // (midpoint 2029) and agentic (midpoint 2031) S-curves both past their midpoints by
-    // 2035, capabilities are high enough to displace meaningfully within the window, so the
-    // ratio declines rather than tracking the growing baseline.
+    // Over 2025-2050 with default AI capability trajectories, AI displacement should pull
+    // the employment-to-population ratio below its starting level. Adoption triggers are
+    // delayed by the frontier token-intensity premium (frontier-priced AI work is dearer
+    // than the 2025 anchor early on), but once role costs ride the arrival-anchored
+    // fixed-capability curve the displacement cascade runs and the ratio declines rather
+    // than tracking the growing baseline.
     const firstRatio = firstYear.macro.totalEmployment / firstYear.macro.dynamicPopulation;
     const lastRatio = lastYear.macro.totalEmployment / lastYear.macro.dynamicPopulation;
     expect(lastRatio).toBeLessThan(firstRatio);

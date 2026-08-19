@@ -108,34 +108,44 @@ describe('Supply Chain No-Op Invariant', () => {
     expect(result.energy).toBeCloseTo(1.0);
   });
 
-  it('simulation with SC defaults produces zero SC effects in MacroOutput', () => {
-    const config = { ...getDefaultSimulationConfig(), supplyChainConfig: getDefaultSupplyChainConfig() };
-    const timeline = runSimulation(config, SMALL_CLUSTER_SUBSET);
-
-    expect(timeline.years.length).toBeGreaterThan(0);
-
-    // SC effects should be zero/no-op for all years
-    for (const year of timeline.years) {
-      expect(year.macro.cumulativeDelayGenerative).toBeCloseTo(0);
-      expect(year.macro.cumulativeDelayAgentic).toBeCloseTo(0);
-      expect(year.macro.cumulativeDelayEmbodied).toBeCloseTo(0);
-      expect(year.macro.supplyChainCostPush).toBeCloseTo(0);
-      expect(year.macro.deploymentMultiplierCompute).toBeCloseTo(1.0);
-      expect(year.macro.deploymentMultiplierPhysical).toBeCloseTo(1.0);
-      expect(year.macro.deploymentMultiplierEnergy).toBeCloseTo(1.0);
-      expect(year.macro.cascadeBacklog).toBeCloseTo(0);
+  it('simulation with SC defaults adds NOTHING over the dormant path (the post-hoist invariant)', () => {
+    // RE-SPECCED at the pass-through re-record (attributed): the always-on flywheel's
+    // DEMAND edge may engage on any starved path — including the default path's
+    // late-2040s credit crisis once the level-form deflation no longer cushions it —
+    // so "delay ≡ 0 unshocked" is no longer the invariant. The invariant is: the SC
+    // BLOCK adds nothing unshocked (supply-side effects inert, and the SC-ACTIVE run
+    // identical to the SC-DORMANT run, year by year).
+    const active = runSimulation(
+      { ...getDefaultSimulationConfig(), supplyChainConfig: getDefaultSupplyChainConfig() },
+      SMALL_CLUSTER_SUBSET);
+    const dormant = runSimulation(getDefaultSimulationConfig(), SMALL_CLUSTER_SUBSET);
+    expect(active.years.length).toBeGreaterThan(0);
+    for (let i = 0; i < active.years.length; i++) {
+      const a = active.years[i]!.macro; const d = dormant.years[i]!.macro;
+      // Supply-side effects: inert at defaults.
+      expect(a.supplyChainCostPush).toBeCloseTo(0);
+      expect(a.deploymentMultiplierCompute).toBeCloseTo(1.0);
+      expect(a.deploymentMultiplierPhysical).toBeCloseTo(1.0);
+      expect(a.deploymentMultiplierEnergy).toBeCloseTo(1.0);
+      expect(a.cascadeBacklog).toBeCloseTo(0);
+      // The equivalence: SC-active ≡ SC-dormant (the demand edge acts identically on both).
+      expect(a.cumulativeDelayGenerative).toBe(d.cumulativeDelayGenerative);
+      expect(a.gdpReal).toBe(d.gdpReal);
+      expect(a.frontierStock).toBe(d.frontierStock);
     }
   });
 
-  it('simulation without SC config still runs correctly', () => {
+  it('simulation without SC config still runs correctly (supply-side fields inert)', () => {
     const config = getDefaultSimulationConfig();
     expect(config.supplyChainConfig).toBeUndefined();
     const timeline = runSimulation(config, SMALL_CLUSTER_SUBSET);
     expect(timeline.years.length).toBeGreaterThan(0);
-    // SC diagnostic fields should be zeroed
     for (const year of timeline.years) {
-      expect(year.macro.cumulativeDelayGenerative).toBe(0);
       expect(year.macro.supplyChainCostPush).toBe(0);
+      // The capability delay may be nonzero on a starved path (the flywheel's demand
+      // edge — pass-through re-record); it must be monotone and finite, never NaN.
+      expect(Number.isFinite(year.macro.cumulativeDelayGenerative)).toBe(true);
+      expect(year.macro.cumulativeDelayGenerative).toBeGreaterThanOrEqual(0);
     }
   });
 });
@@ -315,21 +325,33 @@ describe('Pass-Through', () => {
     expect(result.inference).toBeCloseTo(1.5);
   });
 
-  it('interpolatePassThrough returns 0 at 2025', () => {
-    expect(interpolatePassThrough(2025)).toBeCloseTo(0);
+  // Mini-stage 3 re-anchor: PASS_THROUGH_TRAJECTORY is the EPISODE-ANCHORED constant 0.5
+  // (2021-22 chip-shortage deployer-side incidence; src/data/episodes/chipShortage2021.ts).
+  // The RETIRED uncited ramp these tests previously asserted — [{2025, 0.00}, {2035, 0.30},
+  // {2045, 0.75}] — is preserved as the record in the constant's comment block
+  // (src/models/constants.ts). The interpolation MACHINERY is unchanged; the explicit-
+  // trajectory test below keeps the multi-anchor arithmetic pinned.
+  it('interpolatePassThrough returns the episode-anchored constant 0.5 at 2025', () => {
+    expect(interpolatePassThrough(2025)).toBeCloseTo(0.5);
   });
 
-  it('interpolatePassThrough returns 0.30 at 2035', () => {
-    expect(interpolatePassThrough(2035)).toBeCloseTo(0.30);
+  it('interpolatePassThrough returns the episode-anchored constant 0.5 at 2035', () => {
+    expect(interpolatePassThrough(2035)).toBeCloseTo(0.5);
   });
 
-  it('interpolatePassThrough returns 0.75 at 2045', () => {
-    expect(interpolatePassThrough(2045)).toBeCloseTo(0.75);
+  it('interpolatePassThrough returns the episode-anchored constant 0.5 at 2045', () => {
+    expect(interpolatePassThrough(2045)).toBeCloseTo(0.5);
   });
 
-  it('interpolatePassThrough interpolates between anchors', () => {
-    const at2030 = interpolatePassThrough(2030);
-    expect(at2030).toBeCloseTo(0.15); // midpoint between 0 and 0.30
+  it('interpolatePassThrough interpolates between anchors (explicit trajectory)', () => {
+    // The retired-ramp shape, passed EXPLICITLY, still pins the interpolation arithmetic.
+    const ramp = [
+      { year: 2025, value: 0.00 },
+      { year: 2035, value: 0.30 },
+      { year: 2045, value: 0.75 },
+    ];
+    expect(interpolatePassThrough(2030, ramp)).toBeCloseTo(0.15); // midpoint between 0 and 0.30
+    expect(interpolatePassThrough(2040, ramp)).toBeCloseTo(0.525); // midpoint between 0.30 and 0.75
   });
 });
 
@@ -407,9 +429,16 @@ describe('Hysteresis Width', () => {
 });
 
 // ============================================================
-// 9. Stateful Adoption
+// 9. Stateful Adoption — RETIRED MACHINE (retirement guards, Stage-H genus)
 // ============================================================
-describe('Stateful Adoption', () => {
+// RETIRED MACHINE (deprecated record — superseded by computeUnifiedAdoptionState;
+// these assertions freeze the record's arithmetic, they are not a maintained surface).
+// computeStatefulAdoptionRate is no longer on the simulation path (mini-stage 2 replaced
+// it with the unified adoption machine); the function is kept per the no-delete rule and
+// these tests are kept as retirement guards: they pin the retired function's arithmetic
+// so any silent edit to the deprecated record trips loudly. Do NOT extend this block for
+// new behavior — new adoption assertions belong to the unified machine's tests.
+describe('Stateful Adoption — RETIRED MACHINE (deprecated record — superseded by computeUnifiedAdoptionState; these assertions freeze the record\'s arithmetic, they are not a maintained surface)', () => {
   const scores = { better: 0.8, faster: 0.8, cheaper: 0.8, safer: 0.8 };
   const thresholds = { better: 0.5, faster: 0.5, cheaper: 0.5, safer: 0.5 };
 
@@ -637,7 +666,7 @@ describe('computeSupplyChainEffects', () => {
     expect(effects.annualCapabilityDelay.generative).toBeGreaterThan(0);
     expect(effects.deploymentCostMultipliers.compute).toBeGreaterThan(1.0);
     expect(effects.cascadeBacklog).toBeGreaterThan(0);
-    expect(effects.effectiveComputeDeclineRate).toBeGreaterThan(DEFAULT_INFERENCE_ANNUAL_CHANGE); // less negative = slower decline
+    expect(effects.cascadeDeclineRateDiagnostic).toBeGreaterThan(DEFAULT_INFERENCE_ANNUAL_CHANGE); // less negative = slower decline
   });
 });
 

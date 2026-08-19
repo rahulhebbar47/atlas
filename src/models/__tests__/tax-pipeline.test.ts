@@ -67,6 +67,7 @@ function zeroPolicyEffects(): PolicyEffects {
     swfAnnualContribution: 0,
     requiredAssetOwnership: 0,
     requiredTransferLevel: 0,
+    aiProfitPayoutBase: 0, // Stage H addendum (A-6): fixture default — no payout base in these unit fixtures
   };
 }
 
@@ -79,6 +80,11 @@ function buildDefaultMacroInputs(overrides?: Partial<MacroInputs>): MacroInputs 
     automationCoverage: 0,
     policyEffects: zeroPolicyEffects(),
     previousMacro: null,
+    // H3 rider F6b: the dead profit-growth-proxy arm was retired LOUD — computeMacro now
+    // requires the equity-module return (the simulation loop always passes it). Neutral 0
+    // here; tests that exercised the dead arm ride the same neutral basis (previousMacro is
+    // null in this helper, so the retired arm evaluated to 0 as well — bit-identical).
+    marketReturn: 0,
     ...overrides,
   };
 }
@@ -223,39 +229,71 @@ describe('AI Cost 3-Component (bfcs.ts)', () => {
     deploymentType: 'robotics' as const,
   } as OccupationCluster;
 
-  it('software AI gets cheaper faster than robotics at t=5', () => {
-    const softwareScore = computeCheaperScore(DEFAULT_START_YEAR + 5, testRole, softwareCluster);
-    const roboticsScore = computeCheaperScore(DEFAULT_START_YEAR + 5, testRole, roboticsCluster);
+  // Mini-stage 1 re-spec: at t=5 under frontier pricing both scores 0-clamp (the intensity
+  // premium M_f makes frontier AI dearer than 2025); tested at t=10 in the arrival-anchored
+  // regime (arrival 2025, surplus 0.5) where both are interior and software's
+  // inference-dominated cost falls faster than robotics' manufacturing/energy-dominated cost.
+  it('software AI gets cheaper faster than robotics at t=10 (arrival-anchored)', () => {
+    const softwareScore = computeCheaperScore(
+      DEFAULT_START_YEAR + 10, testRole, softwareCluster,
+      undefined, undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 0.5,
+    );
+    const roboticsScore = computeCheaperScore(
+      DEFAULT_START_YEAR + 10, testRole, roboticsCluster,
+      undefined, undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 0.5,
+    );
 
+    expect(roboticsScore).toBeGreaterThan(0); // both interior — not a 0-vs-0 comparison
     expect(softwareScore).toBeGreaterThan(roboticsScore);
   });
 
+  // Mini-stage 1 re-spec: the curve now feeds BOTH blend legs (frontier and arrival-anchored
+  // fixed-capability); tested arrival-anchored (arrival 2025, surplus 1.0) at t=5 so both scores
+  // are interior — the old floor=0.5 curve clamped Cheaper to 0 at every year (floor alone
+  // exceeds the human-cost factor), which would have made the comparison degenerate.
   it('custom tokenCostCurve override produces different Cheaper scores', () => {
-    // A slower-decay curve (higher floor or lower k) keeps AI more expensive longer → lower Cheaper score.
+    // A slower-decay curve (higher floor, lower k) keeps AI more expensive longer → lower Cheaper score.
     const slowDecayParams: AICostParams = {
       inferenceAnnualChange: -0.45,  // legacy, not used by new path
       manufacturingAnnualChange: -0.10,
       energyAnnualChange: -0.03,
-      tokenCostCurve: { floor: 0.5, k: 0.1, decayExponent: 0.7 },  // barely declines
+      tokenCostCurve: { floor: 0.05, k: 0.3, decayExponent: 0.7 },  // declines, but slower than default
     };
 
-    const defaultScore = computeCheaperScore(DEFAULT_START_YEAR + 5, testRole, softwareCluster);
-    const slowScore = computeCheaperScore(DEFAULT_START_YEAR + 5, testRole, softwareCluster, slowDecayParams);
+    const defaultScore = computeCheaperScore(
+      DEFAULT_START_YEAR + 5, testRole, softwareCluster,
+      undefined, undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 1.0,
+    );
+    const slowScore = computeCheaperScore(
+      DEFAULT_START_YEAR + 5, testRole, softwareCluster, slowDecayParams,
+      undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 1.0,
+    );
 
-    // Slower curve → AI stays more expensive → lower Cheaper score
+    // Slower curve → AI stays more expensive → lower Cheaper score (both interior)
+    expect(slowScore).toBeGreaterThan(0);
     expect(slowScore).toBeLessThan(defaultScore);
   });
 
-  it('tokenUsageMultiplier > 1 keeps inference cost higher → lower Cheaper score', () => {
+  // Mini-stage 1 re-spec: RETIREMENT GUARD — tokenUsageMultiplier (the global tokens-per-task
+  // schedule's flat override) is UNREAD by the frontier-intensity cost basis; the old test
+  // asserted a difference, this one asserts the dial is inert on an interior score.
+  it('tokenUsageMultiplier is inert (retired dial — no effect on Cheaper score)', () => {
     const params: AICostParams = {
       inferenceAnnualChange: -0.45,
       manufacturingAnnualChange: -0.10,
       energyAnnualChange: -0.03,
-      tokenUsageMultiplier: 20,  // 20× tokens/task vs. 2025 baseline
+      tokenUsageMultiplier: 20,  // 20× tokens/task vs. 2025 baseline — retired, must be a no-op
     };
-    const baselineScore = computeCheaperScore(DEFAULT_START_YEAR + 5, testRole, softwareCluster);
-    const highUsageScore = computeCheaperScore(DEFAULT_START_YEAR + 5, testRole, softwareCluster, params);
-    expect(highUsageScore).toBeLessThan(baselineScore);
+    const baselineScore = computeCheaperScore(
+      DEFAULT_START_YEAR + 5, testRole, softwareCluster,
+      undefined, undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 1.0,
+    );
+    const highUsageScore = computeCheaperScore(
+      DEFAULT_START_YEAR + 5, testRole, softwareCluster, params,
+      undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 1.0,
+    );
+    expect(baselineScore).toBeGreaterThan(0); // interior — inertness is observable, not clamped away
+    expect(highUsageScore).toBe(baselineScore);
   });
 });
 
@@ -407,11 +445,10 @@ describe('Zero-Displacement Pass', () => {
     // Corporate tax revenue is positive at t=0 (bootstrapped from baseline profits)
     expect(macro.corporateTaxRevenue).toBeGreaterThan(0);
 
-    // AI cost indices start at 1.0 at t=0
-    expect(macro.blendedAiCostIndex).toBeCloseTo(1.0, 2);
-    expect(macro.inferenceCostIndex).toBeCloseTo(1.0, 2);
-    expect(macro.manufacturingCostIndex).toBeCloseTo(1.0, 2);
-    expect(macro.energyCostIndex).toBeCloseTo(1.0, 2);
+    // Mini-stage 1: the retired Phase-5-tax cost indices are replaced by the realized-cost
+    // diagnostics; at the 2025 anchor both are 1 by definition (perToken(0)=1, M_f(0)=1).
+    expect(macro.impliedAggregateTokensPerTask).toBeCloseTo(1.0, 2);
+    expect(macro.aggregateFrontierWeight).toBeCloseTo(1.0, 2);
 
     // importDependence = 1.0 (no AI output)
     expect(macro.importDependence).toBe(1.0);

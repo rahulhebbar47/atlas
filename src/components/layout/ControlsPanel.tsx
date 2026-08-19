@@ -37,6 +37,8 @@ import { PolicyControls } from '@/components/controls/PolicyControls';
 import { StatePolicyOverrides } from '@/components/controls/StatePolicyOverrides';
 import { FiscalMonetaryControls } from '@/components/controls/FiscalMonetaryControls';
 import { ScenarioManager } from '@/components/controls/ScenarioManager';
+import { WorldviewSidebar } from '@/components/controls/WorldviewSidebar';
+import { DataCalibrationZone } from '@/components/controls/DataCalibrationZone';
 import { InfoTooltip } from '@/components/shared/InfoTooltip';
 import { FiscalResponseSection } from '@/components/controls/FiscalResponseSection';
 import { YearParameterSection } from '@/components/controls/YearParameterSection';
@@ -244,172 +246,17 @@ export function ControlsPanel() {
         >
           <div className="w-full h-full overflow-y-auto overflow-x-hidden">
             <div className="p-5 space-y-4">
-
-              {/* ═══ Section 1: Fiscal Response (always visible) ═══ */}
-              <FiscalResponseSection />
-
-              {/* ═══ Section 2: Year Parameters (collapsed by default) ═══ */}
-              <CollapsibleSection
-                title={`Year ${currentYear} Parameters`}
-                defaultOpen={false}
-                badge={yearOverrideCount || undefined}
-                color="#D4A03C"
-              >
-                <YearParameterSection />
-              </CollapsibleSection>
-
-              {/* ═══ Section 3: Baseline Configuration (collapsed by default) ═══ */}
-              <CollapsibleSection title="Baseline Configuration" defaultOpen={false} color="#8B8FA3">
-
-                {/* ── AI Capabilities ── */}
-                <CollapsibleSection title="AI Capabilities" defaultOpen={false} color="#22D3EE" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="Each vector models a specific AI technology on a sigmoid trajectory. Floor/ceiling set the range, steepness controls speed, midpoint sets the inflection year." />
-                    <CategoryResetButton color="#22D3EE" onClick={() => handleReset(resetAICapabilities)} />
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">Capability Curves</p>
-                      <CapabilityControls />
-                    </div>
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">Inference Cost</p>
-                      <InferenceCostControls />
-                    </div>
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">BFCS Thresholds</p>
-                      <BFCSEditor />
-                    </div>
-                    {/* Phase 10.A: Alpha Drivers + Augmentation + Scarcity + per-role difficulty */}
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">Alpha (α) Drivers</p>
-                      <AlphaControls />
-                    </div>
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">Augmentation &amp; Scarcity</p>
-                      <AugmentationAndScarcityControls />
-                    </div>
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">Role Replacement Difficulty</p>
-                      <ReplacementDifficultyEditor />
-                    </div>
-                  </div>
-                </CollapsibleSection>
-
-                {/* ── Labor & Demographics ── */}
-                <CollapsibleSection title="Labor & Demographics" defaultOpen={false} color="#A78BFA" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="New job creation, population growth, labor supply response, employment multipliers, and feedback mechanisms." />
-                    <CategoryResetButton color="#A78BFA" onClick={() => handleReset(resetLaborDemographics)} />
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">New Job Creation</p>
-                      <NewJobsControls />
-                    </div>
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">Demographics</p>
-                      <DemographicsControls />
-                    </div>
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">Feedback Loops</p>
-                      <FeedbackControls />
-                    </div>
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">Employment Multipliers</p>
-                      <MultiplierControls />
-                    </div>
-                  </div>
-                </CollapsibleSection>
-
-                {/* ── Investment & Corporate ── */}
-                <CollapsibleSection title="Investment & Corporate" defaultOpen={false} color="#3B82F6" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="Investment demand constraints, corporate profit margins, retention rates, AI market power, and AI production surplus allocation." />
-                    <CategoryResetButton color="#3B82F6" onClick={() => handleReset(resetInvestmentCorporate)} />
-                  </div>
-                  <InvestmentCorporateControls />
-                </CollapsibleSection>
-
-                {/* ── Consumer Demand ── */}
-                <CollapsibleSection title="Consumer Demand" defaultOpen={false} color="#F43F5E" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="Post-tax MPCs, income distribution, and deflation response." />
-                    <CategoryResetButton color="#F43F5E" onClick={() => handleReset(resetConsumerDemand)} />
-                  </div>
-                  <ConsumerDemandControls />
-                </CollapsibleSection>
-
-                {/* ── Monetary & Prices ── */}
-                <CollapsibleSection title="Monetary & Prices" defaultOpen={false} color="#06B6D4" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="Fisher equation monetary model. Velocity, AI cost structure, and price transmission." />
-                    <CategoryResetButton color="#06B6D4" onClick={() => handleReset(resetMonetaryPrices)} />
-                  </div>
-                  <MonetaryPricesControls />
-                </CollapsibleSection>
-
-                {/* ── Credit & Financial Markets ── */}
-                <CollapsibleSection title="Credit & Financial" defaultOpen={false} color="#F59E0B" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="Credit cycles, business lending, and financial returns." />
-                    <CategoryResetButton color="#F59E0B" onClick={() => handleReset(resetCreditFinancial)} />
-                  </div>
-                  <CreditFinancialControls />
-                </CollapsibleSection>
-
-                {/* ── Housing ── */}
-                <CollapsibleSection title="Housing" defaultOpen={false} color="#E07C24" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="Shelter prices, mortgages, and market stabilization." />
-                    <CategoryResetButton color="#E07C24" onClick={() => handleReset(resetHousing)} />
-                  </div>
-                  <HousingControls />
-                </CollapsibleSection>
-
-                {/* ── Supply Chain ── */}
-                <CollapsibleSection title="Supply Chain" defaultOpen={false} color="#F97316" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="AI infrastructure constraints: chips, energy, datacenters, robotics hardware. Delays capability curves and raises deployment costs." />
-                    <CategoryResetButton color="#F97316" onClick={() => handleReset(resetSupplyChain)} />
-                  </div>
-                  <SupplyChainControls />
-                </CollapsibleSection>
-
-                {/* ── Fiscal & Monetary ── */}
-                <CollapsibleSection title="Fiscal & Monetary" defaultOpen={false} color="#6366F1" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="Taylor Rule, fiscal dominance, risk premium, QE, and policy rate." />
-                    <CategoryResetButton color="#6366F1" onClick={() => handleReset(resetFiscalMonetary)} />
-                  </div>
-                  <FiscalMonetaryControls />
-                </CollapsibleSection>
-
-                {/* ── Policy Interventions ── */}
-                <CollapsibleSection title="Policy Interventions" defaultOpen={false} color="#10B981" level="nested">
-                  <div className="flex items-center gap-1 mb-2">
-                    <InfoTooltip text="Tax rates, UBI, UI, wage subsidies, retraining, profit sharing, SWF, and state overrides." />
-                    <CategoryResetButton color="#10B981" onClick={() => handleReset(resetPolicy)} />
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">Tax Rates</p>
-                      <TaxRateControls />
-                    </div>
-                    <PolicyControls />
-                    <div>
-                      <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider mb-2">State Overrides</p>
-                      <StatePolicyOverrides />
-                    </div>
-                  </div>
-                </CollapsibleSection>
-
-                {/* Scenario Manager (Phase 7) */}
-                <div className="border-t border-border pt-4 mt-2">
-                  <ScenarioManager />
-                </div>
-              </CollapsibleSection>
-
+              {/* R3a' (the redesign ruling): THE SIDEBAR IS THE WORLDVIEW SURFACE.
+                  The control sections and the per-year section RELOCATED to the
+                  Advanced view (src/components/charts/AdvancedView.tsx — the interim
+                  relocation; R3b rebuilds it as the dial-table grid). ScenarioManager
+                  holds the reserved Scenarios slot (B-2; worldview bundles at R3c).
+                  The data-calibration zone (the AEI program) is the TOPMOST section:
+                  the narrative arc reads ground the numbers → beliefs → happenings →
+                  choices. */}
+              <DataCalibrationZone />
+              <ScenarioManager />
+              <WorldviewSidebar />
             </div>
           </div>
         </motion.aside>

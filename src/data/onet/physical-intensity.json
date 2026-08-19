@@ -1,0 +1,465 @@
+{
+  "source": "O*NET 30.3 Database (onetcenter.org, public domain; db_30_3_text)",
+  "fetchedAt": "2026-08-15T17:04:27.436Z",
+  "rule": {
+    "descriptors": [
+      {
+        "file": "Work Activities.txt",
+        "elementName": "Performing General Physical Activities",
+        "scaleId": "IM",
+        "group": "workActivities"
+      },
+      {
+        "file": "Work Activities.txt",
+        "elementName": "Handling and Moving Objects",
+        "scaleId": "IM",
+        "group": "workActivities"
+      },
+      {
+        "file": "Work Context.txt",
+        "elementName": "Spend Time Standing",
+        "scaleId": "CX",
+        "group": "workContext"
+      },
+      {
+        "file": "Work Context.txt",
+        "elementName": "Physical Proximity",
+        "scaleId": "CX",
+        "group": "workContext"
+      },
+      {
+        "file": "Abilities.txt",
+        "elementName": "Manual Dexterity",
+        "scaleId": "IM",
+        "group": "abilities"
+      },
+      {
+        "file": "Abilities.txt",
+        "elementName": "Stamina",
+        "scaleId": "IM",
+        "group": "abilities"
+      },
+      {
+        "file": "Abilities.txt",
+        "elementName": "Trunk Strength",
+        "scaleId": "IM",
+        "group": "abilities"
+      }
+    ],
+    "normalization": "(value − 1) / 4 per descriptor (IM and CX scales are 1–5)",
+    "groupWeights": "equal (1/3 workActivities, 1/3 workContext, 1/3 abilities); mean within group",
+    "socAggregation": "O*NET-SOC 8-digit detail → 6-digit SOC, unweighted mean",
+    "clusterWeighting": "OEWS national employment (datatype 01, src/data/bls/oews-data.json); unweighted fallback noted per cluster",
+    "ratification": "Production program R4 (2026-08-15): CONTINUOUS scale, no binary threshold; the composite IS the embodiment gate strength"
+  },
+  "clusters": {
+    "ag_equipment": {
+      "score": 0.5569,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [],
+      "employmentCovered": 30940
+    },
+    "ag_farm_labor": {
+      "score": 0.6652,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 297110
+    },
+    "construction_electricians": {
+      "score": 0.6989,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [],
+      "employmentCovered": 742580
+    },
+    "construction_general": {
+      "score": 0.7144,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 1960630
+    },
+    "construction_hvac": {
+      "score": 0.65,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [],
+      "employmentCovered": 396870
+    },
+    "construction_plumbers": {
+      "score": 0.6447,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [],
+      "employmentCovered": 455940
+    },
+    "creative_design": {
+      "score": 0.2496,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 305120
+    },
+    "creative_marketing": {
+      "score": 0.1484,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 1141730
+    },
+    "creative_media": {
+      "score": 0.4398,
+      "weighting": "employment",
+      "socScored": 4,
+      "socMissing": [],
+      "employmentCovered": 163220
+    },
+    "creative_writing": {
+      "score": 0.202,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 198810
+    },
+    "edu_admin": {
+      "score": 0.322,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [
+        "11-9039"
+      ],
+      "employmentCovered": 496050,
+      "notes": "SOC not in O*NET: 11-9039"
+    },
+    "edu_support": {
+      "score": 0.3754,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [
+        "25-9045"
+      ],
+      "employmentCovered": 131830,
+      "notes": "SOC not in O*NET: 25-9045"
+    },
+    "edu_teachers": {
+      "score": 0.4482,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [
+        "25-1099"
+      ],
+      "employmentCovered": 2465850,
+      "notes": "SOC not in O*NET: 25-1099"
+    },
+    "finance_accounting": {
+      "score": 0.2082,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 2904060
+    },
+    "finance_banking": {
+      "score": 0.3324,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 657980
+    },
+    "finance_insurance": {
+      "score": 0.1881,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 107820
+    },
+    "finance_trading": {
+      "score": null,
+      "weighting": "unweighted",
+      "socScored": 0,
+      "socMissing": [
+        "13-2051",
+        "13-2054"
+      ],
+      "employmentCovered": 0,
+      "notes": "SOC not in O*NET: 13-2051, 13-2054; no scoreable SOC codes"
+    },
+    "food_fast_food": {
+      "score": 0.614,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 5233060
+    },
+    "food_industrial": {
+      "score": 0.5904,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 1079930
+    },
+    "food_restaurant": {
+      "score": 0.6526,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 3490150
+    },
+    "gov_federal": {
+      "score": null,
+      "weighting": "unweighted",
+      "socScored": 0,
+      "socMissing": [],
+      "employmentCovered": 0,
+      "notes": "no scoreable SOC codes"
+    },
+    "gov_postal": {
+      "score": 0.6131,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 447970
+    },
+    "gov_state_local": {
+      "score": null,
+      "weighting": "unweighted",
+      "socScored": 0,
+      "socMissing": [],
+      "employmentCovered": 0,
+      "notes": "no scoreable SOC codes"
+    },
+    "health_admin": {
+      "score": 0.2754,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [
+        "29-2071"
+      ],
+      "employmentCovered": 1396600,
+      "notes": "SOC not in O*NET: 29-2071"
+    },
+    "health_home_health": {
+      "score": 0.6493,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [
+        "31-1120",
+        "39-9021"
+      ],
+      "employmentCovered": 1388430,
+      "notes": "SOC not in O*NET: 31-1120, 39-9021"
+    },
+    "health_nurses": {
+      "score": 0.5358,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 3964790
+    },
+    "health_physicians": {
+      "score": 0.4289,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [
+        "29-1210",
+        "29-1228",
+        "29-1248"
+      ],
+      "employmentCovered": 174590,
+      "notes": "SOC not in O*NET: 29-1210, 29-1228, 29-1248"
+    },
+    "health_technicians": {
+      "score": 0.6117,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [
+        "29-2010"
+      ],
+      "employmentCovered": 264990,
+      "notes": "SOC not in O*NET: 29-2010"
+    },
+    "legal_attorneys": {
+      "score": 0.1868,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 771840
+    },
+    "legal_paralegals": {
+      "score": 0.2014,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [
+        "23-2099"
+      ],
+      "employmentCovered": 367220,
+      "notes": "SOC not in O*NET: 23-2099"
+    },
+    "mfg_assembly": {
+      "score": null,
+      "weighting": "unweighted",
+      "socScored": 0,
+      "socMissing": [
+        "51-2028",
+        "51-2098"
+      ],
+      "employmentCovered": 0,
+      "notes": "SOC not in O*NET: 51-2028, 51-2098; no scoreable SOC codes"
+    },
+    "mfg_machinists": {
+      "score": 0.5881,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [
+        "51-4011"
+      ],
+      "employmentCovered": 353920,
+      "notes": "SOC not in O*NET: 51-4011"
+    },
+    "mfg_qc": {
+      "score": 0.5592,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [],
+      "employmentCovered": 591180
+    },
+    "prof_admin": {
+      "score": 0.3121,
+      "weighting": "employment",
+      "socScored": 4,
+      "socMissing": [],
+      "employmentCovered": 8469880
+    },
+    "prof_consulting": {
+      "score": 0.2212,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 2022100
+    },
+    "prof_hr": {
+      "score": 0.2291,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 1197570
+    },
+    "prof_real_estate": {
+      "score": 0.3296,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 240190
+    },
+    "retail_cashiers": {
+      "score": 0.5029,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 6948280
+    },
+    "retail_ecommerce": {
+      "score": 0.6137,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 2877330
+    },
+    "retail_management": {
+      "score": 0.4579,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 1332170
+    },
+    "sci_engineering": {
+      "score": 0.2753,
+      "weighting": "employment",
+      "socScored": 4,
+      "socMissing": [],
+      "employmentCovered": 1181190
+    },
+    "sci_lab_research": {
+      "score": 0.3441,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 310950
+    },
+    "tech_data_ml": {
+      "score": 0.1481,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [
+        "15-2098"
+      ],
+      "employmentCovered": 233440,
+      "notes": "SOC not in O*NET: 15-2098"
+    },
+    "tech_it_support": {
+      "score": 0.3165,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 1162230
+    },
+    "tech_qa": {
+      "score": 0.2024,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [],
+      "employmentCovered": 199800
+    },
+    "tech_swe": {
+      "score": 0.1295,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [
+        "15-1256"
+      ],
+      "employmentCovered": 1733300,
+      "notes": "SOC not in O*NET: 15-1256"
+    },
+    "transport_delivery": {
+      "score": 0.6009,
+      "weighting": "employment",
+      "socScored": 2,
+      "socMissing": [],
+      "employmentCovered": 489340
+    },
+    "transport_taxi": {
+      "score": null,
+      "weighting": "unweighted",
+      "socScored": 0,
+      "socMissing": [
+        "53-3041",
+        "53-3054"
+      ],
+      "employmentCovered": 0,
+      "notes": "SOC not in O*NET: 53-3041, 53-3054; no scoreable SOC codes"
+    },
+    "transport_trucking": {
+      "score": 0.4586,
+      "weighting": "employment",
+      "socScored": 1,
+      "socMissing": [],
+      "employmentCovered": 2070480
+    },
+    "transport_warehouse": {
+      "score": 0.6161,
+      "weighting": "employment",
+      "socScored": 3,
+      "socMissing": [],
+      "employmentCovered": 4441600
+    },
+    "other_uncategorized": {
+      "score": null,
+      "weighting": "unweighted",
+      "socScored": 0,
+      "socMissing": [],
+      "employmentCovered": 0,
+      "notes": "residual cluster; no SOC codes by construction — unscored; Stage 2 defines the null-score gate default"
+    }
+  }
+}

@@ -131,6 +131,8 @@ function makeMockMacro(): MacroOutput {
     nonCorporateAssetTax: 0,
     capitalGainsRealizationRate: 0.07,
     aiSectorPE: 10,
+    sectorPEClampEngaged: false,
+    sectorEarningsFloorEngaged: false,
     traditionalSectorPE: 10,
     prevAICorporateProfits: 0,
     prevTraditionalCorporateProfits: 0,
@@ -143,6 +145,13 @@ function makeMockMacro(): MacroOutput {
     cyclePhase: 'STABLE' as const,
     aiGDPContribution: 0,
     aiGDPContributionPct: 0,
+    aiRealizedShareOfGDP: 0,
+    aiRealizedGDPContribution: 0,
+    aiOutputPotentialShare: 0,
+    aiPotentialCeiling: 0, // Stage 2 (Channel 2): fixture completion for the new surface
+    aiElasticityAbsorbed: 0, // Stage 2 (order item 4): fixture completion
+    aiMarketCapImplied: 0, // fixture completion
+    erpCrisisComponent: 0, // fixture completion
     revenuePressure: 0.1,
     automationAcceleration: 0.05,
     isDepression: false,
@@ -275,10 +284,16 @@ function makeMockMacro(): MacroOutput {
     profitFundedRatio: 0.5,
     creditFundedRatio: 0.5,
     corporateCashAccumulation: 0,
-    blendedAiCostIndex: 1.0,
-    inferenceCostIndex: 1.0,
-    manufacturingCostIndex: 1.0,
-    energyCostIndex: 1.0,
+    // Mini-stage 1: retired cost-index fields replaced by the realized-cost diagnostics
+    deployerRealizedSavings: 0,
+    impliedAggregateTokensPerTask: 1.0,
+    aggregateFrontierWeight: 1.0,
+    // Mini-stage 3 fixture defaults
+    laborForceExitedStock: 0,
+    u3UnemploymentRate: 0.04,
+    employmentToPopulation: 0.48,
+    longTermJoblessShare: 0,
+    meanJoblessDurationYears: 0,
     importDependence: 0.3,
     // Phase 8 Fix 5: Housing model + wage growth outputs
     homePriceIndex: 1.0,
@@ -302,11 +317,21 @@ function makeMockMacro(): MacroOutput {
     dynamicTrainingCompChips: 0,
     dynamicTrainingCompEnergy: 0,
     dynamicTrainingCompDC: 0,
-    effectiveComputeDeclineRate: -0.45,
+    frontierStock: 1,
+    effectiveCostTime: 0,
+    aiSavingsLevelTotal: 0,
+    aiSavingsLevelAiExposed: 0,
+    aiSavingsLevelLaborServices: 0,
+    aiSavingsLevelFoodEnergy: 0,
+    aiSavingsLevelShelter: 0,
+    aiSavingsLevelReplacement: 0,
+    aiSavingsLevelAugmentation: 0,
+    creditDeflationImpulseState: 0, // MS1: the on-path value (fixture mirrors macro.ts's default)
+    cascadeDeclineRateDiagnostic: -0.45,
     deploymentMultiplierCompute: 1,
     deploymentMultiplierPhysical: 1,
     deploymentMultiplierEnergy: 1,
-    automationDividend: 0,
+    // Mini-stage 1: automationDividend retired (deployerRealizedSavings set above)
     // Phase 10.A stub fields — not exercised by this state-sim test
     corporateMarginRatio: 0.12,
     aiDisplacementUnemployment: 0,
@@ -328,6 +353,7 @@ function makeMockPolicyEffects(): PolicyEffects {
     swfAnnualContribution: 0,
     requiredAssetOwnership: 0.1,
     requiredTransferLevel: 1_000,
+    aiProfitPayoutBase: 0, // Stage H addendum (A-6): fixture default — no payout base in these unit fixtures
   };
 }
 

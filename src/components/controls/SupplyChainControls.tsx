@@ -25,6 +25,9 @@ export function SupplyChainControls() {
   const scFromStore = useSimulationStore((s) => s.config.supplyChainConfig);
   const sc = useMemo(() => scFromStore ?? STABLE_DEFAULT, [scFromStore]);
   const updateConfig = useSimulationStore((s) => s.updateConfig);
+  // The flywheel dials live on the config ROOT (always-on — no SC block required).
+  const flywheelTheta = useSimulationStore((s) => s.config.flywheelStarvationThreshold) ?? 0.5;
+  const frontierCostPhi = useSimulationStore((s) => s.config.frontierCostElasticity) ?? 1.0;
 
   // Helper: update a field on the SC config
   const updateSC = useCallback(
@@ -113,6 +116,9 @@ export function SupplyChainControls() {
         <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider">Supply Shock Scenarios</p>
         <Slider label="AI Chip Availability" value={sc.inputs.aiChips} min={0} max={100} step={1}
           color={SC_COLOR} onChange={handleInput('aiChips')} formatValue={fmtIdx} />
+        <Slider label="Chip Price Index" value={sc.inputs.chipPrice} min={50} max={500} step={5}
+          color={SC_COLOR} onChange={handleInput('chipPrice')} formatValue={fmtIdx} />
+        <p className="text-text-muted text-[10px] leading-snug">Price and quantity are separate levers (2021-22: spot GPU 2-3× while shipments were rationed).</p>
         <Slider label="Energy Price Level" value={sc.inputs.energyPrice} min={50} max={500} step={5}
           color={SC_COLOR} onChange={handleInput('energyPrice')} formatValue={fmtIdx} />
         <Slider label="Grid Capacity for AI" value={sc.inputs.energyCapacity} min={0} max={100} step={1}
@@ -202,6 +208,35 @@ export function SupplyChainControls() {
           color={SC_COLOR} onChange={handleResilience('inferenceDC')} formatValue={fmtPct} />
         <Slider label="Rare Earth Resilience" value={sc.resilience.roboticsHardware} min={0} max={0.85} step={0.01}
           color={SC_COLOR} onChange={handleResilience('roboticsHardware')} formatValue={fmtPct} />
+      </div>
+
+      {/* Frontier Stock — cumulative capacity: famines compound, recovery rebuilds at fab speed */}
+      <div className="space-y-3">
+        <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider">Frontier Stock & Rebuild</p>
+        <Slider label="Frontier Drain Scale" value={sc.frontierDrainScale ?? STABLE_DEFAULT.frontierDrainScale ?? 1.0}
+          min={0} max={1.4} step={0.05} color={SC_COLOR}
+          onChange={(v) => updateSC(() => ({ frontierDrainScale: v }))} formatValue={fmtDec} />
+        <Slider label="Frontier Rebuild Years" value={sc.frontierRebuildYears ?? STABLE_DEFAULT.frontierRebuildYears ?? 4.0}
+          min={1} max={10} step={0.5} color={SC_COLOR}
+          onChange={(v) => updateSC(() => ({ frontierRebuildYears: v }))} formatValue={(v) => `${v.toFixed(1)}yr`} />
+        <Slider label="Frontier Rate Elasticity" value={sc.frontierRateElasticity ?? STABLE_DEFAULT.frontierRateElasticity ?? 1.0}
+          min={0} max={3} step={0.1} color={SC_COLOR}
+          onChange={(v) => updateSC(() => ({ frontierRateElasticity: v }))} formatValue={fmtDec} />
+        <Slider label="Innovation Compute Coupling" value={sc.frontierInnovationElasticity ?? STABLE_DEFAULT.frontierInnovationElasticity ?? 0.5}
+          min={0} max={1} step={0.05} color={SC_COLOR}
+          onChange={(v) => updateSC(() => ({ frontierInnovationElasticity: v }))} formatValue={fmtDec} />
+        <Slider label="Resilience Onset Years" value={sc.resilienceOnsetYears ?? STABLE_DEFAULT.resilienceOnsetYears ?? 4.0}
+          min={0} max={8} step={0.5} color={SC_COLOR}
+          onChange={(v) => updateSC(() => ({ resilienceOnsetYears: v }))} formatValue={(v) => `${v.toFixed(1)}yr`} />
+        {/* The flywheel (cost endogeneity) — ROOT-level dials, ALWAYS-ON: the funding
+            side of the same stock runs on every path, including worlds with no supply
+            shocks composed (these two write config root, not the SC block). */}
+        <Slider label="Flywheel Starvation Threshold" value={flywheelTheta}
+          min={0} max={0.75} step={0.05} color={SC_COLOR}
+          onChange={(v) => updateConfig((config) => ({ ...config, flywheelStarvationThreshold: v }))} formatValue={fmtDec} />
+        <Slider label="Frontier Cost Coupling" value={frontierCostPhi}
+          min={0} max={3} step={0.1} color={SC_COLOR}
+          onChange={(v) => updateConfig((config) => ({ ...config, frontierCostElasticity: v }))} formatValue={fmtDec} />
       </div>
 
       {/* Cascade & Hysteresis — chip cascade timing and adoption stickiness */}

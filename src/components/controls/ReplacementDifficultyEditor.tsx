@@ -25,7 +25,7 @@ const CONTROL_COLOR = '#6366F1';
 const EMPTY_FRICTION_OVERRIDES: Record<string, Record<string, number>> = {};
 const EMPTY_WAGE_PREMIUM_OVERRIDES: Record<string, Record<string, number>> = {};
 
-export function ReplacementDifficultyEditor() {
+export function ReplacementDifficultyEditor({ clusterId }: { clusterId?: string } = {}) {
   const frictionOverrides = useSimulationStore(
     (s) => s.config.roleReplacementFrictionYearsOverrides ?? EMPTY_FRICTION_OVERRIDES,
   );
@@ -35,7 +35,9 @@ export function ReplacementDifficultyEditor() {
   const setFrictionYears = useSimulationStore((s) => s.setRoleReplacementFrictionYears);
   const setWagePremium = useSimulationStore((s) => s.setRoleReplacementDifficultyWagePremium);
 
-  const [selectedClusterId, setSelectedClusterId] = useState<string>('tech_swe');
+  const [localClusterId, setSelectedClusterId] = useState<string>('tech_swe');
+  // a host page that IS the cluster fixes the scope and hides the selector
+  const selectedClusterId = clusterId ?? localClusterId;
 
   const clusterGroups = useMemo(() => {
     const groups: Record<string, typeof OCCUPATION_CLUSTERS> = {};
@@ -68,22 +70,26 @@ export function ReplacementDifficultyEditor() {
 
   return (
     <div className="space-y-3">
-      <label className="text-text-muted text-[10px] uppercase tracking-wider block mb-2">
-        Cluster
-      </label>
-      <select
-        className="w-full bg-surface-elevated text-text-primary text-xs px-2 py-1 rounded border border-border"
-        value={selectedClusterId}
-        onChange={(e) => setSelectedClusterId(e.target.value)}
-      >
-        {Object.entries(clusterGroups).map(([category, clusters]) => (
-          <optgroup label={category} key={category}>
-            {clusters.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+      {!clusterId && (
+        <>
+          <label className="text-text-muted text-[10px] uppercase tracking-wider block mb-2">
+            Cluster
+          </label>
+          <select
+            className="w-full bg-surface-elevated text-text-primary text-xs px-2 py-1 rounded border border-border"
+            value={selectedClusterId}
+            onChange={(e) => setSelectedClusterId(e.target.value)}
+          >
+            {Object.entries(clusterGroups).map(([category, clusters]) => (
+              <optgroup label={category} key={category}>
+                {clusters.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </optgroup>
             ))}
-          </optgroup>
-        ))}
-      </select>
+          </select>
+        </>
+      )}
 
       {selectedCluster?.roles.map((role) => {
         const frictionY = resolveFriction(selectedClusterId, role.id);

@@ -28,6 +28,13 @@ import type {
   BFCSDimension,
 } from '@/types';
 import { govData, validateGovernmentData, buildSectorCPIWeights } from '@/data/loadGovernmentData';
+// Production Program Stage 2 (Channel 2): the cluster VA anchor data layer.
+import {
+  clusterVAPerWorker as _clusterVAPerWorker,
+  clusterVAAnchorsTotalBillions,
+  economyVA2025Billions,
+  governmentVA2025Billions,
+} from '@/data/loadClusterVAAnchors';
 
 // ============================================================
 // 1. Simulation Defaults
@@ -38,6 +45,12 @@ export const DEFAULT_START_YEAR = 2025;
 
 /** Default simulation end year */
 export const DEFAULT_END_YEAR = 2050;
+
+/** Default sovereign-wealth-fund creation year — the fund exists from simulation
+ *  start unless the user picks a later creation year. Design default (equals
+ *  DEFAULT_START_YEAR so the absent-field behavior is byte-identical to the
+ *  pre-startYear model); user-adjustable via policyConfig.sovereignWealthFund.startYear. */
+export const DEFAULT_SWF_START_YEAR = DEFAULT_START_YEAR;
 
 // ============================================================
 // 2. Population & Labor Force
@@ -297,11 +310,23 @@ export const BOTTOM80_TRANSFER_SHARE = 0.78;
 export const BOTTOM80_ASSET_SHARE = 0.12;
 export const BOTTOM80_POP_SHARE = 0.80;
 
+// ═══ THE SUPPLY-SHOCK SEVERITY STEPS (the duration/severity build; owner-ratified) ═══
+/** Gap-scaling multipliers per severity: mild halves each shock leg's distance from
+ *  normal, severe grows it one-and-a-half times; medium is EXACTLY 1 — the compiler
+ *  bypasses the transform entirely so the authored (episode-cited or flagged-uncertain)
+ *  magnitudes ship verbatim (the DEFAULT-IDENTITY gate). Mild/severe are editorial
+ *  multiples of the authored anchor — stated in each event's rationale. */
+export const SEVERITY_K_STEPS = { mild: 0.5, medium: 1.0, severe: 1.5 } as const;
+
 // ═══ STAGE 8 (ratified): the quintile measurement layer ═══
 /** Quintile income-source shares — CBO "The Distribution of Household Income" (2021 data, 2024
  *  release) + CRS R44705, CONSISTENT with the cited BOTTOM80_* constants above (single source of
  *  truth: each row's bottom-4 sum equals the standing bottom-80 share). S8-R2(a): provenance at
- *  the slot; vintage stated. */
+ *  the slot; vintage stated.
+ *  H2 (the CWI audit finding-5 ruled build): the WAGE row is the YEAR-0 BASELINE, not the
+ *  per-year distribution — the quintile layer re-shapes it each year by displacement-incidence
+ *  wage-mass survival (quintileCWI.ts dynamicWageShares); with zero displacement the derived
+ *  shares are this vector verbatim. Asset and transfer rows remain static per-year shares. */
 export const QUINTILE_WAGE_SHARES = [0.04, 0.09, 0.13, 0.19, 0.55];      // Σ=1; bottom-4 = 0.45 = BOTTOM80_WAGE_SHARE
 export const QUINTILE_TRANSFER_SHARES = [0.32, 0.21, 0.15, 0.10, 0.22];  // Σ=1; bottom-4 = 0.78 = BOTTOM80_TRANSFER_SHARE
 export const QUINTILE_ASSET_SHARES = [0.01, 0.02, 0.03, 0.06, 0.88];     // Σ=1; bottom-4 = 0.12 = BOTTOM80_ASSET_SHARE
@@ -761,6 +786,37 @@ export const DEFAULT_WAGE_AUTOMATION_SENSITIVITY = 0.50;
  */
 export const DEFAULT_CREDIT_DEFLATION_SENSITIVITY = 0.04;
 
+// ── THE PASS-THROUGH LAW (deflation honesty; the ratified checkpoint) ──
+/**
+ * The credit noise floor T_noise: consumer tightening BELOW it runs the retained
+ * level law verbatim (the band — baseline identity + the sub-crisis stance drag,
+ * capped at floor/GR_PEAK × sensitivity ≈ −0.4%/yr); tightening ABOVE it emits only
+ * through the impulse kernel. [e]-measured: the zero-AI reference path's maximum
+ * tightening is 0.0212 and the default path's first crisis step is 0.215 — the floor
+ * sits between them with margin. Range 0–0.20 (capped below the measured crisis
+ * onset). Derivation: docs/Reference/GR_CREDIT_IMPULSE_DERIVATION.md.
+ */
+export const DEFAULT_CREDIT_DEFLATION_NOISE_FLOOR = 0.05;
+/**
+ * The credit impulse persistence κ: each year's tightening impulse decays by this
+ * factor (state J(t) = ΔT_sig/GR_PEAK + κ·J(t−1)). [e], EPISODE-ANCHORED: the
+ * 2008–09 credit-price impulse faded within about two years — κ = 0.5 halves it
+ * annually. One episode is one anchor; the dial says so. Range 0–0.9.
+ */
+export const DEFAULT_CREDIT_DEFLATION_PERSISTENCE = 0.5;
+/**
+ * The credit impulse sensitivity: price-level points per unit of ABOVE-FLOOR
+ * tightening CHANGE (in Great-Recession units), through the κ-kernel.
+ * [e — DERIVED from the citation basis, not chosen]: the level constant's own
+ * citation ("credit contraction of ~40% produced ~2% deflation") is an EPISODE
+ * TOTAL; distributing it over the reference episode's kernel mass (≈1.46) net of
+ * the band's level component (≈1.0pp) gives ≈ 0.007
+ * (docs/Reference/GR_CREDIT_IMPULSE_DERIVATION.md). The A8 belief ladder carries
+ * its existing ratios on this dial (Contained 0.0035 / Consensus 0.007 /
+ * 2008-replay 0.014 / Doom-spiral 0.021). Range 0–0.05.
+ */
+export const DEFAULT_CREDIT_DEFLATION_IMPULSE_SENSITIVITY = 0.007;
+
 /**
  * Fraction of sector-level labor scarcity passed through to prices.
  * When demand for workers exceeds supply in a sector, prices rise.
@@ -1144,6 +1200,39 @@ export const DEFAULT_AI_PE_SENSITIVITY = 100;
 export const DEFAULT_TRADITIONAL_PE_SENSITIVITY = 60;
 
 /**
+ * Sector P/E ceilings (F2 — the cited-range clamp, re-ruled 2026-08-14).
+ * Each sector's growth-sensitivity P/E clamps to the range its OWN constants cite —
+ * the ceilings are derived arithmetic, not judgment (battery-locked):
+ *   MAX_AI_SECTOR_PE          = BASE_PE_ZERO_GROWTH + 250 x 0.20 = 60
+ *     (250 = DEFAULT_AI_PE_SENSITIVITY's cited dot-com-euphoria bound, applied at
+ *      its cited Mag-7 calibration growth point of 20%)
+ *   MAX_TRADITIONAL_SECTOR_PE = BASE_PE_ZERO_GROWTH + 150 x 0.10 = 25
+ *     (150 = DEFAULT_TRADITIONAL_PE_SENSITIVITY's cited broad-euphoria bound at its
+ *      cited 10% growth point)
+ * Engagement is REPORTED (sectorPEClampEngaged trace flag), never silent.
+ */
+export const MAX_AI_SECTOR_PE = 60;
+export const MAX_TRADITIONAL_SECTOR_PE = 25;
+
+/**
+ * The valuation earnings floor (F3 — scoped to the NEGATIVE-profit regime only).
+ * The P/E and realization machinery are positive-earnings-regime calibrations
+ * (IRS realization 4-12%; Shiller/Gordon P/E dynamics). The signed sector-profit
+ * identity makes NEGATIVE traditional-sector profits reachable; at a sign crossing
+ * the growth arithmetic would otherwise capitalize a loss-to-profit swing as
+ * earnings growth. Valuation inputs BELOW ZERO are floored at the observed edge of
+ * the anchors' domain: the S&P 500 as-reported trailing-earnings trough of the
+ * Great Recession, ~8% of the prior peak (trailing 12-month EPS $6.86 in Mar-2009
+ * vs $84.92 peak, Standard & Poor's / Shiller data), applied to baseline profits.
+ * STRICTLY POSITIVE inputs pass through untouched — pre-adoption zeros and the
+ * ordinary regime are bit-identical to the unguarded arithmetic. Engagement is
+ * REPORTED (sectorEarningsFloorEngaged trace flag), never silent.
+ * (The derived dollar floor EQUITY_VALUATION_EARNINGS_FLOOR is exported below
+ * BASELINE_CORPORATE_PROFITS — module evaluation order.)
+ */
+export const EQUITY_VALUATION_EARNINGS_FLOOR_RATIO = 0.08;
+
+/**
  * Baseline capital gains realization rate (fraction of unrealized gains realized per year).
  * Source: IRS Statistics of Income, 20-year average of realized gains / estimated unrealized.
  * Historical range: 4% (2008-09 crash) to 12% (2021 boom). Mean ~7%.
@@ -1354,6 +1443,15 @@ export const BASE_CORPORATE_SPREAD = govData.bbbCorporateSpread;
 export const BASELINE_CORPORATE_PROFITS = govData.corporateProfitsAfterTax;
 
 /**
+ * The valuation earnings floor in dollars (F3) — the ratio's derivation and scoping
+ * are documented at EQUITY_VALUATION_EARNINGS_FLOOR_RATIO (the GFC as-reported
+ * trailing-earnings trough, ~8% of prior peak); defined here because it derives
+ * from BASELINE_CORPORATE_PROFITS (module evaluation order).
+ */
+export const EQUITY_VALUATION_EARNINGS_FLOOR =
+  EQUITY_VALUATION_EARNINGS_FLOOR_RATIO * BASELINE_CORPORATE_PROFITS;
+
+/**
  * Baseline mortgage spread (30-year fixed rate minus 10-year Treasury yield), as decimal.
  * Source: Derived from FRED MORTGAGE30US − FRED DGS10.
  * Fallback: 1.7% (170bp).
@@ -1528,10 +1626,12 @@ export const NEUTRAL_REAL_RATE = 0.01;
 /**
  * 10-year term premium.
  * Source: NY Fed ACM (Adrian-Crump-Moench) model 10-year term premium, 2024-2025 range: -0.1% to 0.8%.
- * Using 0.5% (50bp) as stable estimate.
  * https://www.newyorkfed.org/research/data_indicators/term_premia
+ * (Stale-copy correction, audit H679: the old "0.5% (50bp) stable estimate" prose and the
+ *  "default 0.003" claim below were pre-E-8c copies of a recalibrated default — the live value
+ *  is 0.007, and THIS constant is the single source of truth for every fallback/doc site.)
  *
- * DEPRECATED Phase 8 Fix 4: Now configurable via SimulationConfig.termPremium (default 0.003).
+ * DEPRECATED Phase 8 Fix 4: Now configurable via SimulationConfig.termPremium (default = TERM_PREMIUM, 0.007).
  * Kept for backward compat in functions that don't yet accept the config value.
  */
 // E-8c F-C (ratified): the 10Y term premium from PUBLISHED estimates — NY Fed ACM (ACMTP10),
@@ -1542,12 +1642,64 @@ export const NEUTRAL_REAL_RATE = 0.01;
 export const TERM_PREMIUM = 0.007;
 
 /**
- * Equity risk premium (implied, forward-looking).
+ * Maximum fiscal risk premium (decimal). Phase 8 Fix 4 calibration: raised from 0.04 to 0.06
+ * because the composite model distributes the premium across 3 components. Uncited calibration
+ * (honest status: no external source). Live role on the default path: rollover-stress normalizer
+ * in computeEndogenousRolloverRate (fiscal.ts); the premium-cap role applies on the legacy
+ * logistic path only. User-adjustable via SimulationConfig.fiscalRiskPremiumMax.
+ * Hoisted (audit H679, by-reference rule): the config default, validateConfig fallback, and CSV
+ * export fallback must all read this one constant — the stale-fallback-family finding.
+ */
+export const DEFAULT_FISCAL_RISK_PREMIUM_MAX = 0.06;
+
+/**
+ * Years for inflation expectations to converge to the Fed target (Phase 8 Fix 4 yield
+ * calibration). Uncited calibration (honest status: no external source).
+ * User-adjustable via SimulationConfig.inflationConvergenceYears.
+ * Hoisted (audit H679, by-reference rule): single source of truth for config default,
+ * validateConfig fallback, and CSV export fallback.
+ */
+export const DEFAULT_INFLATION_CONVERGENCE_YEARS = 5;
+
+/**
+ * Equity risk premium (implied, forward-looking) — the CALM-STATE base.
  * Source: Damodaran (NYU Stern) annual implied ERP computation, Jan 2025: ~4.4-4.6%.
  * Using 4.5% as central estimate.
  * http://pages.stern.nyu.edu/~adamodar/
+ * D1 fix (F1a, re-ruled 2026-08-14): the ERP is no longer static through a crisis —
+ * see DEFAULT_ERP_CRISIS_SENSITIVITY below (the same series' own crisis behavior).
  */
 export const EQUITY_RISK_PREMIUM = 0.045;
+
+/**
+ * Crisis sensitivity of the equity risk premium (F1a — the ERP re-anchor).
+ * The Damodaran implied-ERP series is countercyclical: Jan-2008 4.37% -> Jan-2009
+ * 6.43% (+2.06pp) across the Great Recession. The model's crisis indicator with the
+ * same episode anchor is consumer credit tightening (GR peak 0.5, its own citation),
+ * band-passed above the measured noise floor (creditDeflationNoiseFloor, 0.05):
+ *   sensitivity = (0.0643 - 0.0437) / (0.5 - 0.05) = 0.0458 -> 0.046  [e]-derived
+ * effectiveERP = EQUITY_RISK_PREMIUM + sensitivity x max(0, tightening(t-1) - floor).
+ * Below the floor the ERP is EXACTLY the base (the zero-AI reference path's maximum
+ * tightening is 0.0212 — the A-identity band, same structural guarantee as the
+ * credit-deflation channel). User-adjustable (erpCrisisSensitivity).
+ */
+export const DEFAULT_ERP_CRISIS_SENSITIVITY = 0.046;
+
+/**
+ * The Gordon validity-domain spread floor (F1b — the domain guard).
+ * The Gordon growth model is defined only for r > g (Gordon & Shapiro 1956; Gordon
+ * 1962) — the module's own source. When crisis dynamics push r - g below this
+ * spread, the form is OUT OF DOMAIN and the valuation caps at the highest
+ * valuation its cited P/E-bounds methodology ever priced (Shiller CAPE record
+ * 44.2x, Dec-1999), Gordon-inverted at trend nominal growth:
+ *   spread_min = (1 + 0.045) / 44.2 = 0.0236 -> 0.024  [e]-derived
+ * Engagement is REPORTED (gordonDomainGuardEngaged trace flag), never silent.
+ * THE LAW (recorded at the re-ruling): numerical guards protect arithmetic and
+ * never supply economics — the retired 1e-6 IEEE singularity constant printed a
+ * ~10^6 P/E and a $10^18 market cap for seven consecutive crisis years as the LIVE
+ * denominator. This spread floor is the economic constant that replaces it.
+ */
+export const GORDON_MIN_SPREAD = 0.024;
 
 /**
  * Initial share of Treasury debt held by foreign investors.
@@ -1636,6 +1788,14 @@ export const AI_PRODUCTIVITY_MULTIPLIER_BY_DEPLOYMENT: Record<DeploymentType, nu
 /**
  * Fraction of AI additional output → Investment (capital goods, AI infra).
  * Source: BEA Private Fixed Investment breakdown
+ *
+ * STAGE 2 BOUNDARY (order item 5 — the invest-leg/I_AI overlap resolution, checkpoint
+ * §1.1/§2): this leg is AI-PRODUCED CAPITAL GOODS (the composition of the ledger's
+ * emitted output), a DISJOINT CATEGORY from Channel 1's I_AI (dollars spent BUILDING
+ * AI capacity — chips/energy/DC/fleet at leg costs, financed by computeFinanceable).
+ * A dollar is one or the other by category definition (the checkpoint-§3 partition
+ * pattern); QB-2 asserts the investment-assembly identity with both as separate
+ * addends. The composition split's re-derivation from BEA use tables is REGISTERED.
  */
 export const DEFAULT_AI_PRODUCTION_INVESTMENT_FRACTION = 0.30;
 
@@ -1884,6 +2044,7 @@ export const DEFAULT_POLICY_CONFIG: PolicyConfig = {
   },
   sovereignWealthFund: {
     enabled: false,
+    startYear: DEFAULT_SWF_START_YEAR, // fund exists from simulation start by default
     initialFundSize: 0,
     annualContribution: { keyframes: [] },
     annualReturnRate: 0.07,     // Source: S&P 500 long-term average ~7% real
@@ -2147,6 +2308,17 @@ export function clusterConsumptionSector(clusterId: string): ConsumptionSector {
 }
 
 /**
+ * Fraction of foreclosed homes purchased by institutional investors (absorbs fire-sale flow).
+ * Source: CoreLogic / Amherst Capital (2012-2015): institutional purchases ran 20-40% of
+ * foreclosed inventory in recovery years. User-adjustable via config.institutionalBuyerRate.
+ * Hoisted (audit H679, by-reference rule): this default previously existed ONLY as a `?? 0.40`
+ * literal at 5 sites (macro.ts:2204/1158, HousingControls.tsx:57, csvImport.ts, validateConfig.ts)
+ * — a Hard-Rule magic-number violation. This constant is the single source of truth; the
+ * macro.ts and HousingControls.tsx literal sites are queued for retargeting (handed back).
+ */
+export const DEFAULT_INSTITUTIONAL_BUYER_RATE = 0.40;
+
+/**
  * Default mortgage stress amplifier.
  * Scales the composition effect: how much displaced worker mortgage
  * exposure amplifies credit tightening above a proportional baseline.
@@ -2275,6 +2447,12 @@ export const DEFAULT_HOUSING_DEPRECIATION_RATE = 0.0025;
  *  prices (HOUSING_STATE_INVENTORY §3). Source: Davis & Heathcote (2007) ~36% avg 1975-2006; Lincoln
  *  Institute land-share estimates ~40%+. */
 export const DEFAULT_LAND_SHARE = 0.40;
+/** Floor applied to landShare wherever it appears as a DIVISOR: the E-11 residual closure divides
+ *  by landShare (macro.ts computeHousingBlock), so landShare = 0 in a hand-edited scenario JSON
+ *  divides by zero. Audit-added bound (H679), UNCITED — a pure malformed-input guard; the default
+ *  0.40 never approaches it. Enforced at validateConfig entry AND as a defensive floor at the
+ *  division site. */
+export const LAND_SHARE_DIVISION_FLOOR = 0.01;
 /** Labor share of construction-cost growth. Source: Census/RSMeans cost composition ~30-40%. */
 export const DEFAULT_CONSTRUCTION_LABOR_SHARE = 0.35;
 /** Land-price growth per unit nominal household income growth. Source: Knoll, Schularick & Steger
@@ -2629,6 +2807,12 @@ export const DISCRETIONARY_SHARE_OF_G = 0.55; // 55%
  * retire early, or transition to gig/informal work.
  * Source: DATA_MODEL.md §6.2; CBO displaced worker studies estimate 60-80% → 0.7
  */
+// RETIRED AS A LIVE CONSTANT (mini-stage 3): the 0.7 was an implicit instant-30%-exit
+// assumption on the state layer, contradicting the national no-exit model (the audit's
+// split). The live value is DERIVED from the national duration pool each year
+// (searchingPool / displacedStock — 1.0 at year 0, falling as discouragement exits
+// accumulate); this constant remains only as the unit-fixture default of the derived
+// parameter. Kept per the no-delete rule.
 export const DISPLACEMENT_TO_UNEMPLOYMENT_FACTOR = 0.7;
 
 /**
@@ -2659,6 +2843,7 @@ export const POLICY_CHANNEL_COLORS = {
 /** Default supply chain input values (100 = no constraint). */
 export const DEFAULT_SUPPLY_CHAIN_INPUTS: SupplyChainInputs = {
   aiChips: 100,
+  chipPrice: 100, // Mini-stage 2 (C-3): chip price index — the energyPrice template; 100 = no-op
   energyPrice: 100,
   energyCapacity: 100,
   trainingDCCapacity: 100,
@@ -2739,16 +2924,156 @@ export const DEFAULT_TRAINING_SCALE_GROWTH_RATE = 3.0;
 
 /** Per-component training cost dynamics (tech decline rate, scale pressure). */
 export const DEFAULT_TRAINING_DYNAMICS = {
-  aiChips:    { techDeclineRate: -0.35, scalePressure: 0.05 },  // Fastest tech decline; fab scaling well-understood
+  // MS1 RE-ANCHOR (ruled 2026-08-07): chips scalePressure 0.05 → 0.3186. Epoch AI
+  // dollar-cost analyses show the amortized-hardware SHARE of frontier training cost
+  // roughly STABLE across 2017-2024 systems (~40-50%): cost-per-FLOP falls but demanded
+  // FLOP rises in step. Net chips drift ≈ 0 at the default growth rate:
+  // scalePressure = −techDeclineRate / ln(G) = 0.35 / ln(3.0) = 0.3186. The prior 0.05
+  // (uncited as a pair with −0.35) collapsed the chips share to ~1% by 2038 — the
+  // damping the post-crisis audit's Finding A attributed. Citation table registered to
+  // the data program; [c]-derivation status until it commits.
+  aiChips:    { techDeclineRate: -0.35, scalePressure: 0.3186 },
   energy:     { techDeclineRate: -0.04, scalePressure: 0.15 },  // GPU efficiency offset by density; grid doesn't scale
   datacenter: { techDeclineRate: -0.08, scalePressure: 0.25 },  // Modular innovation; hard phys constraints
 };
 
+// ============================================================
+// The frontier stock (the endogenous-frontier program, MS1)
+// ============================================================
+
 /**
- * Multiplier on DC scale pressure from permitting/regulatory environment.
- * 1.0 = current; 2.0 = permitting gridlock; 0.3 = streamlined or space DCs.
+ * Multiplier on the DERIVED drain elasticity κ_G = (G−1)/G, where G is the cited
+ * trainingScaleGrowthRate: a famine year at throughput u multiplies the relative stock
+ * by 1 − (1−u)·κ_G·scale (the checkpoint §2.3 derivation — capacity tracks demand
+ * growth on the default path; a starved year builds only fraction u of the planned
+ * increment). 1.0 = exactly the derived law, no free constant. [e] — the scale dial is
+ * the honesty knob on a derivation whose G is cited (Epoch AI). Range 0–1.4.
+ */
+export const DEFAULT_FRONTIER_DRAIN_SCALE = 1.0;
+/**
+ * Rebuild time constant toward the supportable level, years. Source class [c]:
+ * leading-edge fab construction 3–5 yr (SIA); TSMC Arizona announced 2020-05 → N4
+ * volume production 2024-Q4 (~4.5 yr). Range 1–10.
+ */
+export const DEFAULT_FRONTIER_REBUILD_YEARS = 4.0;
+/**
+ * Capability-clock speed = stock^elasticity. 1.0 = proportional (progress tracks
+ * relative capacity). [hu] — no measured stock→progress elasticity exists; 0 decouples
+ * the clock from the stock. Range 0–3.
+ */
+export const DEFAULT_FRONTIER_RATE_ELASTICITY = 1.0;
+/**
+ * Innovation-channel multiplier = stock^elasticity (consumed at the single
+ * new-job-creation site). 0.5 per the MS1 ruling: innovation is PARTIALLY
+ * compute-independent — 0 = fully independent of the hardware famine, 1 = fully
+ * compute-bound. [hu]. Range 0–1.
+ */
+export const DEFAULT_FRONTIER_INNOVATION_ELASTICITY = 0.5;
+/**
+ * Dead time before reactive resilience DELIVERS against a shock, years: the training
+ * channel consumes the resolved resilience series this many years back (capacity
+ * ordered then, delivered now); display rows keep the as-built series. Source class
+ * [e]: CHIPS Act signed 2022-08 → first US leading-edge volume production 2024-Q4
+ * (TSMC Arizona N4), ~2.5–4.5 yr act-to-capacity; fab class 3–5 yr. Range 0–8;
+ * 0 = the prior no-dead-time behavior.
+ */
+export const DEFAULT_RESILIENCE_ONSET_YEARS = 4.0;
+
+// ============================================================
+// The flywheel (cost endogeneity — the demand-side stock input + the cost clock)
+// ============================================================
+
+/**
+ * The starvation threshold θ on the funding gate F. F ≥ θ is the DEAD ZONE: the
+ * demand-side throughput is exactly 1 and the flywheel edge is open (zero gain — the
+ * identity condition). Below θ the throughput ramps linearly (F/θ).
+ *
+ * STAGE 1 (MS5) RE-DERIVATION, per the cap's OWN protocol: F was REDEFINED from the
+ * demand-proxy min(investmentRealization, aiCapacityUtilization) to the honest funding
+ * ratio financed-spend/required-spend (≡ 1 at zero required spend — ratification A3).
+ * The old default 0.5 / cap 0.75 derived from the OLD F's pinned-path minimum (0.776,
+ * scenario C 2050) so reference paths never starve. The NEW F's pinned-path minimum is
+ * 0.105 (the default path, 2035 — measured, probe-output/stage1-pb5-thetacap.json);
+ * the SAME protocol (pinned minimum − margin) yields 0.10 for BOTH the default and the
+ * cap — the dead-zone property on reference paths is preserved by the same derivation
+ * that set 0.5/0.75 under the old F. The starvation regime stays REACHABLE (famine
+ * shocks and weak-finance beliefs push F below 0.10 — PB-3 telemetry). The alternative
+ * resolution (θ retired, F starving the default path directly) REFOUNDS the model's
+ * headline finding and is presented to the reviewer in the Stage-1 report, not taken
+ * by executor choice. Old form kept per the record above; 0 = the edge's off-position.
+ */
+export const DEFAULT_FLYWHEEL_STARVATION_THRESHOLD = 0.10;
+/** The measurement-derived cap on θ (NEW-F pinned-path minimum 0.105 − margin; the
+ *  same protocol as the retired 0.75 = old-F 0.776 − margin; see above). */
+export const FLYWHEEL_STARVATION_THRESHOLD_MAX = 0.10;
+/**
+ * Cost-clock speed = stock^elasticity: the effective innovation time τ advances at
+ * S^φ_cost per year, and every leg of the realized AI cost object evaluates at τ
+ * instead of calendar time. The A2 cost dials define the frontier's POTENTIAL pace
+ * (the belief); τ is its funded REALIZATION (the mechanism). 1.0 = proportional (the
+ * one-machine symmetric default, matching the capability clock). [hu] — no measured
+ * funding→efficiency-progress elasticity exists. 0 = cost decoupled (the shipped
+ * calendar curves exactly). Range 0–3.
+ */
+export const DEFAULT_FRONTIER_COST_ELASTICITY = 1.0;
+
+/**
+ * THE COMPLEMENTARITY CLASSES (owner-ruled rider): how each supply-input family
+ * aggregates when multiple inputs are constrained. HARD COMPLEMENTS (chips, energy,
+ * datacenters) combine by MIN availability — chips without power are inert; a hard
+ * input's shortage binds at its own severity and is never diluted by healthy peers.
+ * SOFT inputs (logistics-class: robotics assembly/integration hardware) remain
+ * averaged. The Record is tsc-exhaustive over SupplyInputKey; the manifest compiler
+ * REFUSES an event entry writing a supply row with no declared class (the
+ * severity-class pattern). Price rows carry their quantity family's class.
+ */
+export const SUPPLY_INPUT_CLASS: Record<SupplyInputKey, 'hard-complement' | 'soft'> = {
+  aiChips: 'hard-complement',
+  chipPrice: 'hard-complement',           // chips family (price leg)
+  energyPrice: 'hard-complement',         // energy family (price leg)
+  energyCapacity: 'hard-complement',
+  trainingDCCapacity: 'hard-complement',
+  inferenceDCCapacity: 'hard-complement',
+  roboticsHardware: 'soft',               // logistics-class (owner-ruled soft)
+};
+
+/**
+ * THE INPUT KINDS (Production Program Stage 4 MS1 — the adoption-drag root fix,
+ * owner-ruled defect, Stage-0 review verdict): PRICE rows (100 = baseline price
+ * index) constrain when ABOVE 100 — a price spike impedes; a cheap price relieves
+ * nothing through the drag path because price declines already flow through the
+ * DIRECT cost-multiplier channels (computeDeploymentCostMultipliers) and a drag
+ * relief would double-count. QUANTITY rows (100 = baseline availability) constrain
+ * when BELOW 100 and RELIEVE symmetrically above 100 (the surplus semantics the
+ * Stage-4 arrival events require; A.7 probe verdict — rows above 100 were silently
+ * inert). The Record is tsc-exhaustive over SupplyInputKey: a new supply row cannot
+ * ship without declaring its kind.
+ */
+export const SUPPLY_INPUT_KIND: Record<SupplyInputKey, 'price' | 'quantity'> = {
+  aiChips: 'quantity',
+  chipPrice: 'price',
+  energyPrice: 'price',
+  energyCapacity: 'quantity',
+  trainingDCCapacity: 'quantity',
+  inferenceDCCapacity: 'quantity',
+  roboticsHardware: 'quantity',
+};
+
+/**
+ * Permitting-delay multiplier on datacenter capacity: at friction f, capacity
+ * additions that took one year take f years (the datacenter resilience trajectory
+ * advances by 1/f effective years per calendar year), and DC scale pressure in the
+ * training-cost-composition drift is multiplied by f. 1.0 = current (definitional);
+ * 2.0 = permitting gridlock; 0.3 = streamlined or space DCs. Uncited — user-adjustable.
  */
 export const DEFAULT_REGULATORY_FRICTION = 1.0;
+/**
+ * Floor on the permitting-clock divisor (1/friction). Matches the standing
+ * validateConfig clamp minimum for supplyChainConfig.regulatoryFriction; per-year
+ * vehicles carry no range, so the simulation floors the divisor rather than
+ * trusting the layer.
+ */
+export const MIN_REGULATORY_FRICTION = 0.1;
 
 /** How long before training chips reach inference. Source: ~1 GPU generation cycle. */
 export const DEFAULT_CASCADE_LAG = 2.5;
@@ -2760,11 +3085,17 @@ export const DEFAULT_COST_PASS_THROUGH = 0.0;
 /** Deployer cost pass-through to consumers. */
 export const DEFAULT_CONSUMER_PASS_THROUGH = 0.50;
 
-/** Cost pass-through trajectory anchors for linear interpolation. */
+/** Cost pass-through trajectory (the autopilot layer of the per-year resolved rate).
+ *  MINI-STAGE 3 RE-ANCHOR (ratification-4's condition discharged): the uncited 0→0.30→0.75
+ *  ramp is replaced by the EPISODE-ANCHORED constant — the 2021-22 record shows deployer-
+ *  side incidence in the upper-middle from the shock's onset (spot premia 2-3× paid by
+ *  hardware buyers immediately; src/data/episodes/chipShortage2021.ts), not a two-decade
+ *  ramp. 0.5 is the B2-5 sweep's mechanism-consistent point. The RETIRED ramp (kept as
+ *  the record): [{2025, 0.00}, {2035, 0.30}, {2045, 0.75}].
+ *  Config default stays 0.0 (the dormant block's no-op); this trajectory is the autopilot
+ *  layer that activates with a supplyChainConfig. */
 export const PASS_THROUGH_TRAJECTORY = [
-  { year: 2025, value: 0.00 },
-  { year: 2035, value: 0.30 },
-  { year: 2045, value: 0.75 },
+  { year: 2025, value: 0.50 },
 ];
 
 /** Maximum hysteresis width for cognitive AI adoption. */
@@ -2779,10 +3110,32 @@ export const HYSTERESIS_BASE_EMBODIED = 0.10;
 export const HYSTERESIS_CAP_YEARS_COGNITIVE = 6;
 /** Years for embodied hysteresis to reach max width. */
 export const HYSTERESIS_CAP_YEARS_EMBODIED = 5;
-/** Maximum annual adoption decline rate for cognitive AI. */
+/** Maximum annual adoption decline rate for cognitive AI. (Mini-stage 2: now the DEFAULT of
+ *  the user dial config.deAdoptionRateCognitive — the reverse gear's fast side. Uncited;
+ *  episode-anchored where the chip-episode battery binds.) */
 export const ADOPTION_DECLINE_RATE_COGNITIVE = 0.10;
-/** Maximum annual adoption decline rate for embodied AI. */
+/** Maximum annual adoption decline rate for embodied AI. (Dial default; same status.) */
 export const ADOPTION_DECLINE_RATE_EMBODIED = 0.05;
+/** Mini-stage 2: post-decline re-engagement cap as a fraction of the class de-adoption
+ *  rate (the asymmetric-speeds slow side: layoffs fast, re-hiring slow — the labor-
+ *  economics standard). UNCITED — honest-flagged structural dial; default of
+ *  config.reAdoptionRate. */
+export const DEFAULT_RE_ADOPTION_RATE_FRACTION = 0.5;
+
+// ═══ Mini-stage 3: the duration-structured displaced pool (checkpoint §5) ═══
+/** Discouragement hazard base (/yr): pool members leaving the measured labor force.
+ *  Anchor: CPS U→N transition flows (cited table registered to the data program);
+ *  honest-flagged until it commits. User dial exitBase. */
+export const DEFAULT_POOL_EXIT_BASE = 0.05;
+/** Duration slope on the exit hazard (/duration-year): hazard = base × (1 + slope × d).
+ *  Same anchor and status. User dial exitDurationSlope. */
+export const DEFAULT_POOL_EXIT_DURATION_SLOPE = 0.3;
+/** Employability decay per jobless year: (1 − rate)^d. Anchor: Kroft-Lange-Notowidigdo
+ *  callback-rate decay with unemployment duration. Honest-flagged. */
+export const DEFAULT_POOL_ATROPHY_RATE = 0.10;
+/** Re-entry wage scarring per jobless year (cap 0.25). Anchor: Jacobson-LaLonde-Sullivan /
+ *  Davis-von Wachter displaced-worker earnings losses (15-25%). Honest-flagged. */
+export const DEFAULT_POOL_WAGE_SCARRING_RATE = 0.02;
 
 /**
  * Deployment cost composition per deployment type.
@@ -2813,6 +3166,7 @@ export const SENSITIVITY_HIGH = 0.75;
  */
 export const COGNITIVE_SENSITIVITY: Record<SupplyInputKey, Record<BFCSDimension, number>> = {
   aiChips:              { better: 0.75, faster: 0.50, cheaper: 0.75, safer: 0    },
+  chipPrice:            { better: 0,    faster: 0,    cheaper: 0,    safer: 0    }, // C-3: the price channel acts through the DIRECT compute-cost multiplier, not the score-sensitivity path (zeros = no double-count)
   energyPrice:          { better: 0.75, faster: 0,    cheaper: 0.75, safer: 0    },
   energyCapacity:       { better: 0.75, faster: 0,    cheaper: 0,    safer: 0    },
   trainingDCCapacity:   { better: 0.75, faster: 0,    cheaper: 0.25, safer: 0    },
@@ -2827,6 +3181,7 @@ export const COGNITIVE_SENSITIVITY: Record<SupplyInputKey, Record<BFCSDimension,
  */
 export const EMBODIED_SENSITIVITY: Record<SupplyInputKey, Record<BFCSDimension, number>> = {
   aiChips:              { better: 0.50, faster: 0.25, cheaper: 0.50, safer: 0.25 },
+  chipPrice:            { better: 0,    faster: 0,    cheaper: 0,    safer: 0    }, // C-3: direct cost-multiplier channel only (see COGNITIVE_SENSITIVITY note)
   energyPrice:          { better: 0.50, faster: 0,    cheaper: 0.50, safer: 0    },
   energyCapacity:       { better: 0.50, faster: 0,    cheaper: 0,    safer: 0    },
   trainingDCCapacity:   { better: 0.50, faster: 0,    cheaper: 0.25, safer: 0    },
@@ -2841,6 +3196,7 @@ export const EMBODIED_SENSITIVITY: Record<SupplyInputKey, Record<BFCSDimension, 
  */
 export const PROPAGATION_LAGS: Record<SupplyInputKey, Record<BFCSDimension, number>> = {
   aiChips:              { better: 12, faster: 2,  cheaper: 2,  safer: 0 },
+  chipPrice:            { better: 6,  faster: 0,  cheaper: 0,  safer: 0 }, // C-3: price signals propagate like energyPrice (spot repricing is fast; training exposure slower)
   energyPrice:          { better: 6,  faster: 0,  cheaper: 0,  safer: 0 },
   energyCapacity:       { better: 6,  faster: 0,  cheaper: 0,  safer: 0 },
   trainingDCCapacity:   { better: 24, faster: 0,  cheaper: 0,  safer: 0 },
@@ -2955,7 +3311,7 @@ export const POLICY_PRESETS: PolicyPreset[] = [
       enhancedUI: {
         enabled: true,
         replacementRate: { keyframes: [{ year: 2025, value: 0.80 }] },        // Source: Denmark flexicurity — up to 90%
-        durationWeeks: 78,            // Source: Danish UI duration ~2 years
+        durationWeeks: 78,            // Source: Danish UI duration ~2 years — RESTORED (axes hygiene rider, D-19, completing the checkpoint §5 order): the duration-structured pool prices multi-year entitlements honestly (B3-6: 78wk pays 52/26/0); the Stage-H annualization lowering (78→52) is retired with its bound.
         retrainingBonus: 10_000,
         stateOverrides: {},
       },
@@ -3030,14 +3386,14 @@ export const POLICY_PRESETS: PolicyPreset[] = [
       enhancedUI: {
         enabled: true,
         replacementRate: { keyframes: [{ year: 2025, value: 0.80 }] },
-        durationWeeks: 104,           // 2 years
+        durationWeeks: 104,           // Models a 2-year benefit duration — design value, uncited (owner-ruled label, D-19); RESTORED (axes hygiene rider): the duration-structured pool prices it honestly (104wk pays 52/52/0 per cohort); the Stage-H lowering (104→52) is retired with its bound.
         retrainingBonus: 10_000,
         stateOverrides: {},
       },
       retraining: {
         enabled: true,
         stipendMonthly: { keyframes: [{ year: 2025, value: 4_000 }] },
-        durationMonths: 18,
+        durationMonths: 12,           // R1 CORRECTION (reviewer-ruled, the amendment discipline applied to the reviewer): the D-19 restore-to-18 was made without the cap check — the min(12, months) stipend annualization is STILL live (policy.ts), so 18 was a cosmetic value with a loud label. Presets respect live caps (the ratified Stage-H 1b standing rule). The design-intent 18 is REGISTERED as the value that restores WHEN the entitlement-months extension lands (model mechanics, a registered item outside the axes program's scope).
         effectivenessRate: 0.50,
         participationRate: 0.50,
         targetClusters: [],
@@ -3105,9 +3461,14 @@ export const DEFAULT_ALPHA_DRIVER_PARAMS: AlphaDriverParams = {
 
 /**
  * Default floored decay curve for the cost-per-token of AI work.
- * Shape: floor + (1 - floor) × exp(-k × t^decayExponent)
- * t=1 → ~0.61, t=5 → ~0.18, t=10 → ~0.053, t=25 → ~0.006 (~167× reduction over 25 years).
- * Combined with `DEFAULT_TOKEN_USAGE_GROWTH` to produce total inference cost.
+ * Shape: floor + (1 - floor) × exp(-k × t^decayExponent), with t = year − 2025
+ * (t = 0 IS calendar 2025, the reference baseline: curve value 1.0 exactly).
+ * Mechanically verified at these defaults (floor=0.001, k=0.50, decayExponent=0.7):
+ * t=1 → ~0.607, t=5 → ~0.215, t=10 → ~0.083, t=25 → ~0.0096 (~÷104.5 over 25 years).
+ * (Audit H679 doc correction: the previous milestones ~0.18/~0.053/~0.006/"~167×" were
+ * pre-sharpening values for retired parameters, not this curve.)
+ * Combined with the tokens-per-task trajectory (DEFAULT_TOKEN_USAGE_SCHEDULE, or a flat
+ * AICostParams.tokenUsageMultiplier override) to produce total inference cost.
  */
 export const DEFAULT_TOKEN_COST_CURVE: TokenCostCurveParams = {
   floor: 0.001,
@@ -3115,14 +3476,67 @@ export const DEFAULT_TOKEN_COST_CURVE: TokenCostCurveParams = {
   decayExponent: 0.7,
 };
 
+// ═══════════════════════════════════════════
+// THE FRONTIER-INTENSITY COST LAYER (the coupled design checkpoint, mini-stage 1)
+// ═══════════════════════════════════════════
+
 /**
- * Tokens-per-task multiplier at the simulation start year (2025).
+ * Frontier token-intensity multiple at the 2026 calibration anchor.
  *
- * Tokens/task is *defined relative to the 2025 reference baseline*, so the start
- * year is 1× by definition. This is the default for the start year only; from the
- * year after the start (2026) onward the default jumps to
- * DEFAULT_TOKEN_USAGE_MULTIPLIER and holds flat. Both are user-overridable per year
- * (sticky-forward) through the Year Parameters UI.
+ * Plain English: doing a task AT the capability frontier consumes many times more tokens
+ * than the 2025 single-shot baseline — reasoning chains, agentic retries, long context.
+ * This premium is PERSISTENT (the 2023-26 record shows no recovery to single-shot
+ * intensity); it is a property of frontier work, not a transient spike.
+ * M_f(t) = 1 for t ≤ 0; DEFAULT_FRONTIER_INTENSITY_LEVEL × (1+growth)^(t−1) for t ≥ 1.
+ * Source: the observed reasoning-class intensity jump (o1/o3-pattern record; the FS-1
+ * committed evidence base — static citation table to be committed with the data refresh).
+ * User-adjustable: aiCostParams.frontierIntensityLevel, range 1-100.
+ */
+export const DEFAULT_FRONTIER_INTENSITY_LEVEL = 20;
+
+/**
+ * Annual growth of frontier token intensity after the 2026 anchor.
+ *
+ * OWNER-RULED default +0.05/yr (the justified middle path: frontier task horizons keep
+ * lengthening, but competitive pressure from open-source disciplines frontier cost
+ * growth) — an honest-flagged judgment, not a citation. THE ARITHMETIC: absolute frontier
+ * per-task cost CLIMBS only when this growth exceeds the per-token decline rate (~26%/yr
+ * in the early window), so the range top (+0.40) expresses a genuinely runaway-frontier
+ * world (climbing absolute frontier costs alongside collapsing non-frontier costs) and
+ * the range bottom (−0.15) a chip-abundant future where frontier intensity itself
+ * compresses. Both worlds must be expressible; the default asserts neither.
+ * User-adjustable: aiCostParams.frontierIntensityGrowth, range −0.15 to +0.40.
+ */
+export const DEFAULT_FRONTIER_INTENSITY_GROWTH = 0.05;
+
+/**
+ * The migration dial σ: the capability surplus (Better − B*, score units) at which a
+ * role's frontier reliance HALVES. w(s) = max(w_min, 2^(−s/σ)) for s > 0, else 1.
+ * Once the frontier exceeds a role's requirement, its work migrates off the frontier
+ * onto the fast-collapsing fixed-capability curve; σ sets how quickly reliance migrates
+ * with surplus. Uncited structural dial (the design's one genuinely new free parameter);
+ * the per-band batteries bound its observable consequences.
+ * User-adjustable: aiCostParams.sigmaMigration, range 0.02-1.0.
+ */
+export const DEFAULT_SIGMA_MIGRATION = 0.15;
+
+/**
+ * Always-frontier task residue: the floor on the frontier-reliance weight w(s) — the
+ * fraction of a role's work that stays frontier-priced no matter how large the surplus.
+ * Default 0 (no residue) per the ratified checkpoint. Uncited; off by default.
+ * User-adjustable: aiCostParams.wMinFrontierFloor, range 0-0.5.
+ */
+export const DEFAULT_W_MIN_FRONTIER_FLOOR = 0;
+
+/**
+ * RETIRED (the coupled design checkpoint, mini-stage 1; Amendment 2 — no legacy toggles).
+ * Tokens-per-task multiplier at the simulation start year (2025). The global
+ * tokens-per-task schedule is replaced by the frontier-intensity object above (persistent
+ * premium at the frontier; arrival-anchored fixed-capability pricing off it); the
+ * aggregate economy-wide tokens-per-task path is now an EMERGENT OUTPUT
+ * (MacroOutput.impliedAggregateTokensPerTask), never an input. No runtime path reads this
+ * constant; kept per the no-delete rule as the FS-1-era record. The which-change pole is
+ * the recorded predecessor-commit run (6c831b7).
  */
 export const START_YEAR_TOKEN_USAGE_MULTIPLIER = 1.0;
 
@@ -3137,34 +3551,31 @@ export const START_YEAR_TOKEN_USAGE_MULTIPLIER = 1.0;
 export const DEFAULT_TOKEN_USAGE_MULTIPLIER = 20.0;
 
 /**
- * Default tokens-per-task trajectory vs. the 2025 reference baseline, indexed by offset
- * from the simulation start year (offset 0 = start year, 1× by definition). Years past
- * the end of the array hold the last entry.
- *
- *   offset 0 → 2025 =  1×   reference baseline, by definition
- *   offset 1 → 2026 = 20×   ┐ spike: reasoning/agentic models explode tokens-per-task
- *   offset 2 → 2027 = 25×   ┘ (chain-of-thought, tool loops, deeper context) — peak
- *   offset 3 → 2028 = 15×   ┐ recovery: algorithmic breakthroughs (distillation,
- *   offset 4 → 2029 =  5×   │ sparsity, efficient reasoning) drive tokens-per-task back
- *   offset 5 → 2030 =  1×   ┘ to the reference baseline, holding flat thereafter (2031+).
- *
- * Encodes the default narrative: a near-term token-usage spike that is solved through
- * efficiency gains. Every entry is user-overridable per year (sticky-forward) via the
- * Year Parameters UI. A scenario can instead set a flat AICostParams.tokenUsageMultiplier
- * to bypass this schedule entirely.
+ * RETIRED (the coupled design checkpoint, mini-stage 1; Amendment 2 — no legacy toggles).
+ * The spike-and-recover global tokens-per-task schedule [1×, 20×, 25×, 15×, 5×, 1×] was
+ * the owner's REDUCED-FORM PLACEHOLDER for the composition effect the frontier-intensity
+ * layer now models structurally: the explosion is a frontier phenomenon (persistent, per
+ * the 2023-26 record), and trailing-edge work rides the arrival-anchored fixed-capability
+ * curve instead of paying it. The old schedule charged the explosion to every task
+ * 2026-2029 and to no task after 2030 — wrong twice, symmetrically. No runtime path reads
+ * this constant; kept per the no-delete rule as the FS-1-era record. Which-change pole:
+ * the recorded predecessor-commit run (6c831b7).
  */
 export const DEFAULT_TOKEN_USAGE_SCHEDULE: readonly number[] = [1, 20, 25, 15, 5, 1];
 
 /** Default AICostParams — initializes config.aiCostParams so the UI controls have a concrete
  *  object to write into rather than falling through `undefined` to per-call fallbacks.
- *  tokenUsageMultiplier is intentionally omitted: leaving it unset selects the default
- *  spike-and-recover DEFAULT_TOKEN_USAGE_SCHEDULE. Set it explicitly only to force a flat
- *  post-2025 trajectory. */
+ *  Mini-stage 1: carries the frontier-intensity cost layer's four dials; the retired
+ *  tokenUsageMultiplier field is never set (and never read — probe-guarded). */
 export const DEFAULT_AI_COST_PARAMS = {
   inferenceAnnualChange: DEFAULT_INFERENCE_ANNUAL_CHANGE,
   manufacturingAnnualChange: DEFAULT_MANUFACTURING_ANNUAL_CHANGE,
   energyAnnualChange: DEFAULT_ENERGY_ANNUAL_CHANGE,
   tokenCostCurve: { ...DEFAULT_TOKEN_COST_CURVE },
+  frontierIntensityLevel: DEFAULT_FRONTIER_INTENSITY_LEVEL,
+  frontierIntensityGrowth: DEFAULT_FRONTIER_INTENSITY_GROWTH,
+  sigmaMigration: DEFAULT_SIGMA_MIGRATION,
+  wMinFrontierFloor: DEFAULT_W_MIN_FRONTIER_FLOOR,
 };
 
 /** Default steepness of the augmentation adoption S-curve (Phase 10.A Part 7).
@@ -3184,7 +3595,14 @@ export const ALPHA_BASELINE_CORPORATE_MARGIN = govData.baselineProfitGDPRatio;
 
 /** Default AI-replacement productivity multiplier (Phase 10.A Part 8 productivity formula).
  *  effectiveProductivity = 1 + weightedCapability × betterScore × replacementMultiplier × (1 + cheaperScore).
- *  At 2.0: capability 0.7, betterScore 0.5, cheaperScore 0.4 → 1.0 + 0.7×0.5×2.0×1.4 = 1.98 (~2× human). */
+ *  At 2.0: capability 0.7, betterScore 0.5, cheaperScore 0.4 → 1.0 + 0.7×0.5×2.0×1.4 = 1.98 (~2× human).
+ *
+ *  STAGE 2 STATUS (order item 5 — the ledger transition): the DIAL IS RETIRED. The
+ *  production ledger no longer consumes this constant in any form (its anchor is the
+ *  measured per-cluster VA/wage multiple — CLUSTER_VA_PER_WORKER). The ONE surviving
+ *  consumer is the deflation channel's replacement-savings formula (simulation.ts,
+ *  cluster effProd), which reads this FROZEN value; its re-derivation to the measured
+ *  VA-basis is DOCKETED for its own ruling, never made silently. [uncited — frozen] */
 export const DEFAULT_REPLACEMENT_MULTIPLIER = 2.0;
 
 /**
@@ -3359,3 +3777,400 @@ export const FALLBACK_REPLACEMENT_FRICTION_YEARS = 1.25;
 
 /** Global fallback when a cluster/role is missing from ROLE_AI_REPLACEMENT_DIFFICULTY_WAGE_PREMIUM_DEFAULTS. */
 export const FALLBACK_REPLACEMENT_DIFFICULTY_WAGE_PREMIUM = 0.30;
+
+// ============================================================
+// PRODUCTION PROGRAM STAGE 1 — CHANNEL 1: THE BUILDOUT
+// (design checkpoint §1 + AMENDMENT_A5; ratified 2026-08-15/17)
+// Evidence base: .archive/production-program/STAGE0_CITATION_TABLE.md rows 9–17,
+// STAGE0R_CITATION_ADDENDUM.md rows 25–35, docs/Reference/FLOPS_PER_WATT_DERIVATION.md
+// + BUILDOUT_LEG_COST_TRAJECTORIES.md, and src/data/{bea,census} Stage-0 artifacts.
+// ============================================================
+
+/** THE SEAM ANCHOR: observed 2025 AI buildout investment (the baseline capex partition's
+ *  point estimate). PICK: $140B inside the measured $130–155B bracket — the bracket's
+ *  center-adjacent round point = Census data-center structures $49.7B [measured] + the
+ *  center of the NIPA computers-line excess-over-trend bracket ~$90B [constructed]
+ *  (STAGE0R_REPORT §4). PB-1 runs the bracket ends as sensitivity. */
+export const I_AI_OBSERVED_2025 = 140e9;
+/** The measured bracket around the seam anchor (PB-1 sensitivity ends). */
+export const I_AI_OBSERVED_2025_BRACKET: readonly [number, number] = [130e9, 155e9];
+/** The baseline-embedded AI capex share of GDP: the 2025 BEA investment ratio already
+ *  CONTAINS the observed AI buildout (premises A.6); the partition subtracts this
+ *  embedded path and adds the endogenous machine (delta form — bit-zero at seam). */
+export const AI_CAPEX_BASELINE_SHARE = I_AI_OBSERVED_2025 / BASELINE_GDP_NOMINAL_2025;
+
+/** Per-leg 2025 unit costs, $ per unit of 2025-required capacity (index units:
+ *  K_required(2025) ≡ 1). SEAM-CALIBRATED: closing the 2026 believed-trajectory gap at
+ *  these costs lands in the observed $130–155B spend class; the leg split follows the
+ *  cost-composition evidence (chips-heavy; DC $/MW; energy interconnection) in
+ *  docs/Reference/BUILDOUT_LEG_COST_TRAJECTORIES.md. [seam-calibrated; INFRA] */
+export const BUILDOUT_LEG_COST_2025: Record<'chips' | 'energy' | 'dc', number> = {
+  chips: 180e9, energy: 120e9, dc: 180e9,
+};
+/** Per-leg unit-cost annual trends (Stage-1 DERIVED DEFAULTS; N1 owns trajectories at
+ *  Stage 4 and must prove consensus ≡ these): chips −26%/yr (Epoch FLOP/$ doubling
+ *  ~2.3yr, citation rows 9); energy 0 (Lazard v18 blend: renewables decline, gas
+ *  flat-to-rising); dc 0 (level citable, learning rate honest-uncertainty AS RATIFIED). */
+export const BUILDOUT_LEG_COST_TREND: Record<'chips' | 'energy' | 'dc', number> = {
+  chips: -0.26, energy: 0.0, dc: 0.0,
+};
+/** Per-leg depreciation (citation rows 16–17): accelerators 3–5yr cycles → 0.25;
+ *  grid-class assets ~30yr → 0.03; DC structures 25–40yr (MEP fit-out faster) → 0.04. */
+export const BUILDOUT_LEG_DEPRECIATION: Record<'chips' | 'energy' | 'dc', number> = {
+  chips: 0.25, energy: 0.03, dc: 0.04,
+};
+/** FLOPs-per-watt efficiency doubling time (docs/Reference/FLOPS_PER_WATT_DERIVATION.md:
+ *  T_double 2.5yr, band 2.3–2.6; DERIVED, not a dial; N1 does NOT move it). */
+export const FLOPS_PER_WATT_DOUBLING_YEARS = 2.5;
+
+/** Consensus AI-sector retention share of profits available for buildout finance.
+ *  MEASURED anchor: NIPA retention (1 − net dividends / after-tax profits) = 0.283
+ *  (2023), 0.287 (2024), 0.331 (2025) — FRED CPATAX + B056RC1A027NBEA, fetched
+ *  2026-08-17 (citation row 7 + named correction 3). BUYBACK BASIS DECLARED: NIPA net
+ *  dividends EXCLUDE share repurchases; a payout-inclusive basis would sit LOWER —
+ *  this dial is the net-dividends basis, stated. User-adjustable. */
+export const DEFAULT_AI_RETENTION_SHARE = 0.30;
+/** The AI-BUILDING firms' non-AI profit pool at the seam (hyperscaler-class combined
+ *  net income, 2024–25 vintage ~$400–500B) — the observed buildout is funded from
+ *  these balance sheets while in-model AI-sector profits are still small; AI profits
+ *  take over as they grow (the max() form in computeFinanceable).
+ *  [honest-uncertainty seam constant; INFRA] */
+export const BUILDER_PROFIT_BASE_2025 = 450e9;
+/** Debt-financed share of buildout finance as a ratio of the retained-profit leg —
+ *  hyperscaler capex is largely internally funded; the debt/lease share (neocloud,
+ *  project finance) is real but secondary. Routed through the EXISTING business-credit
+ *  multiplier (no parallel credit state). [honest-uncertainty] */
+export const BUILDOUT_DEBT_FINANCE_RATIO = 0.3;
+/** Training share of the 2025 compute requirement (training vs inference split of AI
+ *  compute demand at the seam). STAGE 2 (T-A, post-verdict ruling 1): upgraded from a
+ *  static [hu] seam constant to the DERIVED TIME-VARYING share's 2025 ANCHOR — the
+ *  slice explicitly INCLUDES reinforcement-learning rollout compute; the growth path
+ *  and its anchors (DeepSeek-R1 ≈5%; >10×/generation amplification; open-model <1%)
+ *  live in docs/Reference/TRAINING_SHARE_DERIVATION.md + citation addendum rows
+ *  41–44. Consumed via buildout.ts trainingShare(year) — derived, not a dial (the
+ *  FLOPs-per-watt precedent). */
+export const BUILDOUT_TRAINING_SHARE_2025 = 0.4;
+/** The training share's saturation ceiling (the RL-era growth path's asymptote;
+ *  honest band 0.40–0.75 — TRAINING_SHARE_DERIVATION.md). */
+export const BUILDOUT_TRAINING_SHARE_CAP = 0.6;
+/** The training share's convergence rate, /yr (≈ half the remaining gap per ~4.6yr —
+ *  two frontier generations; derived-with-band from the >10×/generation RL
+ *  amplification net of deployment's own growth). */
+export const BUILDOUT_TRAINING_SHARE_CONVERGENCE = 0.15;
+
+/** R3 (ratified): the smoothed binding-leg allocation's bounded partial-adjustment
+ *  step per year — the allocation vector moves at most this fraction toward the
+ *  shadow-price (binding-sink) target each year. [e]; oscillation battery PB-2 Leg C. */
+export const DEFAULT_BUILDOUT_ALLOC_SMOOTHING = 0.5;
+/** STAGE 4 MS4 (the adoption-gating build — the ratified design §3): the per-cluster
+ *  fleet allocation's bounded partial-adjustment step per year toward the
+ *  priority-proportional target shares (priority = value density × the audited
+ *  trust/safer/friction discounts). The ONE new authored number the ratified design
+ *  allows — [e], the R3 smoothing class; dial at grade. */
+export const DEFAULT_FLEET_ALLOC_SMOOTHING = 0.5;
+
+// ── The fleet stock (AMENDMENT_A5 §1: embodied capital rides a FLEET, not the DC) ──
+/** SoCs per embodied unit (automotive SoC practice — A5 ruling text; addendum row 32). */
+export const FLEET_CHIPS_PER_UNIT = 1.5;
+/** Automotive-class SoC unit cost at the seam, $ per SoC. [honest-uncertainty] */
+export const FLEET_SOC_COST_2025 = 1500;
+/** Embodied unit cost at the seam, $ per unit (industrial-arm class $25–80k system
+ *  cost; AV retrofit class higher; humanoid tail lower but not fleet-grade —
+ *  addendum row 31). [honest-uncertainty] */
+export const FLEET_UNIT_COST_2025 = 100e3;
+/** Fleet unit-cost annual trend. [honest-uncertainty] */
+export const FLEET_UNIT_COST_TREND = -0.05;
+/** Fleet depreciation: ~12–12.5-year service life (vehicle average-age series + IFR
+ *  12-year convention — addendum row 34). */
+export const FLEET_DEPRECIATION = 0.08;
+/** DEPRECATED (Production Program Stage 2, order item 3 — the 82.3% fleet-binding
+ *  flag's scheduled fix): the [hu] full-embodiment scale anchor is RETIRED — the fleet
+ *  requirement now DERIVES from cluster data (cleared embodied employment ×
+ *  UNITS_PER_EMBODIED_WORKER; see computeAIProductionExpansion + buildout.ts).
+ *  Retained per the no-delete rule; no live consumer. */
+export const FLEET_UNITS_AT_FULL_EMBODIMENT = 15e6;
+/** Manufacturing ramp seed: units/yr producible at the seam (the AI-fleet industrial
+ *  base barely exists in 2025). [honest-uncertainty] */
+export const FLEET_RAMP_SEED_UNITS = 100e3;
+/** Ramp growth per year WHEN THE RAMP BINDS (queue-not-fence exhaustion honesty,
+ *  A5 §1): episode-anchored to automotive production ramps (~6–24 months to rate —
+ *  addendum row 33). When slack, the ceiling holds (no free growth). [episode] */
+export const FLEET_RAMP_GROWTH = 0.35;
+
+// ── STAGE 5A — THE ENERGY PROGRAM (the ratified ENERGY_PROGRAM_DESIGN.md + owner
+//    rulings E1–E3). The energy leg's financed build enters a delivery PIPELINE with
+//    a per-worldview lead time and delivers through an ANNUAL ADDITIONS CEILING that
+//    grows only in binding years (queue-not-fence); a behind-the-meter express lane
+//    (E1) bypasses the queue at a cost premium; energy opex enters AI profits (A3). ──
+/** The additions ceiling's SEED, capacity units/yr (2025-required-capacity units) —
+ *  the 2025 industrial base's demonstrated AI-DC power additions rate. Seam-derived:
+ *  the observed 2025 energy-leg build class ≈ 0.25 alloc × I_AI_OBSERVED_2025 ($140B)
+ *  / BUILDOUT_LEG_COST_2025.energy ($120B) ≈ 0.29 units. Cross-check (citation rows
+ *  46 + 51): DC-claimable firm-equivalent additions ~3–9 GW/yr against the ~20 GW-class
+ *  2025 DC power base lands in the same ~0.15–0.45/yr band. ONE value across N1
+ *  variants (the 2025 base is measured fact; worldviews diverge in growth and lead). */
+export const ENERGY_QUEUE_CEILING_SEED = 0.30;
+/** The seam's IN-FLIGHT delivery book: years of already-contracted vintages delivering
+ *  at the seed rate from 2026 (citation row 48: 549 GW with executed interconnection
+ *  agreements not yet operating — the 2025 base has years of orders in flight; an
+ *  empty seam pipeline would fabricate a 2026–29 delivery famine the observed world
+ *  does not show). Measured fact, shared across variants. Deliveries gate on a LIVE
+ *  requirement — the zero-AI twin's book never existed (EB-4). */
+export const ENERGY_QUEUE_INFLIGHT_YEARS = 4;
+/** N1-owned (consensus default): effective lead years, order → available (LBNL
+ *  Queued Up: median request→operation >4yr for 2018–24 builds, >5yr for
+ *  2025-completed — rows 47–48; DC-side behind-the-meter/gas paths run faster, so the
+ *  grid-lane consensus sits at 4 with the honest band 3–5). Deregulation pole 1.5
+ *  [hu]; constrained pole 6 [row 48]. Annual resolution: effective offset
+ *  max(1, L), fractional L split between bracketing years. */
+export const DEFAULT_ENERGY_QUEUE_LEAD_YEARS = 4;
+/** N1-owned (consensus default): ceiling growth per BINDING year (queue-not-fence).
+ *  Anchor: the observed 2024→2025 utility-scale additions jump 48.6 → 63 GW ≈ +30%
+ *  (row 46), discounted for the non-DC claim on those additions (row 51) → 0.20
+ *  [cited-class]. Constrained 0.05; deregulation 0.50 [hu]. */
+export const DEFAULT_ENERGY_QUEUE_CEILING_GROWTH = 0.20;
+/** E1 (owner ruling): N1-owned behind-the-meter share of the financed energy build
+ *  that BYPASSES the grid queue (on-site/temporary generation — the xAI Colossus I/II
+ *  turbine deployments as the [episode] anchor; "the express lane observably exists",
+ *  the owner's words). Consensus 0.25 [episode/hu — anchored to observed current
+ *  behavior, not the queue statistics]; deregulation pole 0.60; constrained 0.10. */
+export const DEFAULT_ENERGY_BTM_SHARE = 0.25;
+/** E1: the express lane's lead, years (Colossus-class on-site turbine deployments run
+ *  months — the 0.5–1yr class of the ruling). At annual resolution this lands at the
+ *  +1-year floor: the pre-queue spend-to-available speed. [episode] */
+export const ENERGY_BTM_LEAD_YEARS = 0.5;
+/** E1: the express lane's capital-cost PREMIUM over the grid lane (temporary/on-site
+ *  generation runs above the grid industrial rate — Lazard LCOE+ v18.0: gas peaking
+ *  $149–251/MWh and CCGT-backlog capex pressure vs the 8.62¢/kWh industrial rate;
+ *  the lane's all-in premium stated at the gas-class multiple). Prices the LANE'S
+ *  units only; the operating price stays one series (boundary in buildout.ts).
+ *  [cited-class] */
+export const ENERGY_BTM_COST_PREMIUM = 1.75;
+/** A2 (orbital as integrated capacity): orbital platform depreciation — LEO design
+ *  life 5–7 years (radiation environment; hardened-electronics class) → δ ≈ 0.15/yr.
+ *  [cited-practice] */
+export const ORBITAL_DEPRECIATION = 0.15;
+/** A3 (energy opex in AI profits): the AI-attributed data-center power cost at the
+ *  2025 seam, $/yr at FULL utilization of the 1.0-unit 2025 capacity — the seam
+ *  anchor of energyOpex = seamRate × utilizedCompute × (1/FLOPsPerWatt norm) ×
+ *  p_energy index. Derivation (citation rows 45 + 49 + 52): US DC electricity
+ *  ~200 TWh-class (2025) × 8.62¢/kWh (EIA industrial rate 2025) ≈ $17B economy-wide;
+ *  the AI-attributed slice ~20% of DC load (2025-class [hu]) ≈ $3.5B. */
+export const AI_ENERGY_OPEX_SEAM_RATE = 3.5e9;
+/** A3 (the residual carve-out): the share of the economy-average non-labor cost
+ *  wedge (otherCostsShare, Q-3 proportionate convention) that implicitly WAS energy —
+ *  removed when the explicit opex line lands so no dollar counts twice.
+ *  [cited-class: EIA retail electricity sales to commercial + industrial ≈ $280–300B
+ *  against ~$30T GDP ≈ 0.9–1.0% → 0.01.] The design's seam-ratio form
+ *  (opex(2025)/revenue(2025)) is 0/0 in-model — the seam's realized AI revenue and
+ *  opex are both zero, so year-0 profits are bit-identical regardless (E3, trivially
+ *  held; asserted by EB-3/EB-11). */
+export const AI_ENERGY_WEDGE_SEAM_SHARE = 0.01;
+
+// ============================================================
+// PRODUCTION PROGRAM STAGE 2 — CHANNEL 2: THE LEDGER RE-ANCHOR
+// (design checkpoint §2 as ratified/amended: VALUE ADDED, not revenue [R1-A1];
+//  continuous embodiment gate reading the FLEET stock [R4 + A5′]; the fleet-scale
+//  re-derivation [Stage-2 order item 3]. Evidence: src/data/bea/cluster-va-anchors.json
+//  + .archive/production-program/{VA_ANCHOR_TABLE,STAGE2_BATTERIES}.md;
+//  the data import lives at the top of this file per import hygiene)
+// ============================================================
+
+/** Σ measured cluster VA anchors, $B (the Stage-0 Σ-sanity numerator: ≈$11,375B =
+ *  37.0% of economy VA over 46.1% of NEM wage employment — QB-1 Leg A). */
+export const CLUSTER_VA_ANCHORS_TOTAL_BILLIONS = clusterVAAnchorsTotalBillions;
+/** Economy-wide value added 2025, $B (BEA GDP-by-Industry Table 1: $30,762.1B —
+ *  the aggregation battery's denominator; report-basis note: annual VA basis, not the
+ *  Q4-SAAR gdp-components basis — citation addendum row 35). */
+export const ECONOMY_VA_2025_BILLIONS = economyVA2025Billions;
+
+/** Cluster VALUE-ADDED anchor per worker, $/worker/yr — the Channel-2 ledger's market
+ *  anchor (VA_cluster / NEM employment; the engine multiplies by its own year-0
+ *  employment — the basis-commensurability step, stated in the loader and the Stage-2
+ *  report). Measured rows: the 48-cluster artifact. ASSIGNED rows (the three
+ *  unanchored-by-construction clusters, Stage-2 order item 1):
+ *   - gov_federal: (GFGN $459.5B + GFGD $569.7B) / ~2.42M federal civilian ex-postal
+ *     employment (BLS CES "Federal, except U.S. Postal Service", 2025-class) ≈
+ *     $425k/worker [measured VA ÷ declared employment denominator]. LIVE in-engine:
+ *     the cluster has no OEWS socCodes, so its employment rides the DEPRECATED
+ *     estimator fallback (getBaselineFromBLS's documented fallback path) — the anchor
+ *     is consumed on that basis (measured 2045: ceiling ≈ $1.26T, emission 0; the
+ *     estimator-basis caveat stated in the Stage-2 report).
+ *   - gov_state_local: GSLG $2,171.2B / ~19.5M state+local general-government
+ *     employment (BLS CES state+local minus enterprise class) ≈ $111k/worker [same
+ *     estimator-fallback basis, stated].
+ *   - other_uncategorized: economy-average VA per NEM wage worker — $30,762.1B /
+ *     142.0M (NEM total 151.9M minus 9.9M self-employed) ≈ $217k/worker [declared
+ *     residual default; CONSERVATIVE vs the partition complement, whose per-worker
+ *     value is higher because the measured clusters skew to lower-VA industries]. */
+export const CLUSTER_VA_PER_WORKER: Record<string, number> = {
+  ..._clusterVAPerWorker,
+  gov_federal: (governmentVA2025Billions.federalGeneral * 1e9) / 2.42e6,
+  gov_state_local: (governmentVA2025Billions.stateLocalGeneral * 1e9) / 19.5e6,
+  other_uncategorized: (economyVA2025Billions * 1e9) / 142.0e6,
+};
+
+/** Clusters whose VA anchors are EXPLICIT FLOORS (never a silent under-count — the
+ *  Stage-0R review ruling + the ownership-mismatch finding):
+ *   SE ≥ ~35% (self-employed VA excluded from the anchor; the proprietors'-income
+ *   attribution upgrade is REGISTERED with its citable path — BEA NIPA 6.12 by
+ *   industry × NEM SE cells): transport_taxi 91.7%, prof_real_estate 54.9%,
+ *   creative_media 51.4%, creative_writing 41.8%, transport_delivery 38.1%.
+ *   OWNERSHIP MISMATCH (NEM classifies government-owned schools under NAICS 61 while
+ *   BEA carries their VA in GSLG — the education anchors capture private-education VA
+ *   only; edu_teachers' VA/wage ratio 0.37 is the visible symptom): edu_teachers,
+ *   edu_admin, edu_support. */
+export const CLUSTER_VA_ANCHOR_FLOORS: ReadonlySet<string> = new Set([
+  'transport_taxi', 'prof_real_estate', 'creative_media', 'creative_writing',
+  'transport_delivery', 'edu_teachers', 'edu_admin', 'edu_support',
+]);
+
+/** Embodied-capital units required per fully-automated embodied worker (the derived
+ *  fleet requirement's per-worker factor, replacing the retired [hu] scale anchor):
+ *  fleetRequired = Σ_c clearedEmployment_c × w_embodied,c × THIS.
+ *  Anchor 1.0, honest band [0.5, 1.5]. Basis: IFR robot-density-class evidence — the
+ *  most-automated manufacturing environments run ~1,000+ robots per 10,000 workers at
+ *  PARTIAL automation (IFR World Robotics 2025: Korea 1,012/10k economy-wide), i.e.
+ *  order-1 units per fully-automated worker; DOWNWARD pressure from shift arithmetic
+ *  (one unit covers ~2–3 worker-shifts ⇒ 0.33–0.5 units/worker-equivalent); UPWARD
+ *  pressure from task fragmentation (multiple stations per former job). User-adjustable
+ *  (config.unitsPerEmbodiedWorker, range = the band). [cited-anchored;
+ *  honest-uncertainty band] */
+export const DEFAULT_UNITS_PER_EMBODIED_WORKER = 1.0;
+export const UNITS_PER_EMBODIED_WORKER_RANGE: readonly [number, number] = [0.5, 1.5];
+
+// ── CHANNEL 3 — CORPORATE R&D FLOWS (Stage-3 MS4; checkpoint §3 as amended by the
+//    citation record). RD_spend = intensity × the REALIZED nominal AI revenue base
+//    (t−1) → the ONE investment pipeline (no bypass); RD_stock perpetual inventory;
+//    the productivity flow = Δln(RD_stock) × the cited returns elasticity, entering
+//    the EXISTING pass-through machinery as a Δ-form flow (a frozen stock emits
+//    nothing; de-accumulation reflates — the pass-through law).
+//    BASELINE HONESTY (checkpoint §3): baseline-era business R&D is inside the
+//    calibrated baseline; this channel carries only the AI-ERA INCREMENT (the
+//    AI-sector realized revenue base is 0 at the seam by construction).
+//    THE TWO-STOCKS PARTITION (checkpoint §3/§11.2d): the FRONTIER's AI-R&D stock is
+//    a capability-side index whose funding question is Channel 1's; THIS stock is
+//    economy-side business-R&D dollars driving prices — no dollar is in both
+//    (RB-4 Leg A asserts the partition). ──
+/** AI-sector R&D intensity on the REALIZED revenue base (sales basis — the NCSES
+ *  BERD survey's own basis): software/publishing/information industries run R&D at
+ *  ≈10–15% of sales (checkpoint §12.6 + citation row 8; economy-wide BERD ≈2.6–2.7%
+ *  of GDP for context — Stage-0 named correction 4). EXECUTOR INTERPRETATION
+ *  (flagged): the checkpoint's "profitBase" is consumed as the realized REVENUE base
+ *  because BERD intensities are sales-basis by construction. Anchor 0.12, range
+ *  [0.02, 0.20]. User-adjustable. [cited-class] */
+export const DEFAULT_AI_RD_INTENSITY = 0.12;
+/** R&D stock depreciation, per year: BEA R&D depreciation rates by industry run
+ *  ~10–25%/yr with computers/electronics/software at the top (16–25%) — the
+ *  AI-sector-class pick 0.20. [cited-class; BEA fixed-assets R&D depreciation] */
+export const DEFAULT_RD_DEPRECIATION = 0.20;
+/** The baseline US private business R&D capital stock the AI-era increment adds to:
+ *  ≈ $2.7T current-cost net stock (BEA fixed-assets R&D asset class, 2023-25
+ *  vintage evidence; consistent with BERD ~$700B/yr at ~15–20%/yr depreciation).
+ *  The productivity flow is Δln(BASE + increment) — the increment's growth measured
+ *  against the economy's whole research stock (the checkpoint §3 incremental-to-
+ *  baseline honesty: the base's own growth is inside baseline trend productivity and
+ *  never re-emits here; an increment-only Δln would fabricate double-digit deflation
+ *  from the first dollars — the small-base artifact, measured and refused at build).
+ *  [cited-class] */
+export const BASELINE_BUSINESS_RD_STOCK = 2.7e12;
+/** The R&D→TFP returns elasticity (output elasticity of the R&D stock): Hall,
+ *  Mairesse & Mohnen (2010) §4.1 p.22 — 0.01–0.25 centered ≈0.08 (Stage-0 NAMED
+ *  CORRECTION 2, source-read). The N2 axis scales ONLY this: Acemoglu-conservative
+ *  0.01 (the range floor — consistent with ≤0.66% TFP over a decade at the default
+ *  path's measured stock growth; stated at the manifest); Consensus 0.08; the
+ *  Davidson-class explosive tail 0.25 (the range top, [honest-uncertainty] bounding
+ *  pole). Range = the cited range [0.01, 0.25]. */
+export const DEFAULT_RD_TFP_ELASTICITY = 0.08;
+
+// ── Equity-issuance financing (Stage-3 MS3 — owner ruling v; the ratified
+//    EQUITY_ISSUANCE_DESIGN.md built verbatim + the ruled no-flow-of-funds boundary).
+//    equityIssuance(t) = ι × AIMarketCapImplied(t−1) × marketWindow(t−1), joining
+//    Financeable beside retention and debt — the projected-future-profits channel,
+//    DERIVED from the model's own D1-guarded sector valuation (guarded P/E × realized
+//    AI profits), never authored optimism.
+//    THE NO-FLOW-OF-FUNDS BOUNDARY (owner ruling v's addition, stated): the financing
+//    legs measure CAPACITY — no household portfolio is debited when issuance funds
+//    the buildout (consistent with the debt leg's treatment; the demand side sees the
+//    spending through the one investment pipeline only). ──
+/** Issuance rate ι: gross equity issuance as a share of the implied AI market cap
+ *  per year. US gross issuance (IPOs + follow-ons) runs ~$200–400B/yr against a
+ *  $40–50T market ≈ 0.5–1% economy-wide (SIFMA capital-markets statistics class);
+ *  hot-sector issuance runs multiples of that, and the 2025–26 AI financing regime
+ *  (mega private rounds + AI-linked debt/equity) sits above the economy-wide norm —
+ *  anchor 0.015, range [0.005, 0.03]. User-adjustable. [cited-class range] */
+export const DEFAULT_EQUITY_ISSUANCE_RATE = 0.015;
+/** The issuance window's sensitivity to the crisis equity premium: window =
+ *  clamp(1 − w × erpCrisisComponent / DEFAULT_ERP_CRISIS_SENSITIVITY, 0, 1) — at a
+ *  GFC-class crisis excess (the 0.046 anchor: the Damodaran 2008-09 implied-premium
+ *  step, the ONE crisis-ERP producer's own citation) the window closes to ~10%,
+ *  matching the episode record (IPO/issuance volumes fell roughly an order of
+ *  magnitude in the 2008-class shutdown; 2022-class softer). One series, one anchor
+ *  (the noise-floor pattern) — no second crisis state. [episode-anchored] */
+export const EQUITY_ISSUANCE_WINDOW_SENSITIVITY = 0.9;
+
+// ── The buildout import-content offset (Stage-3 MS2 — owner ruling vi, the Stage-2
+//    import-content audit's execution-proven defect fixed). NIPA accounting: imported
+//    equipment counts in I at full value and offsets in NX (imports) — the buildout's
+//    DOMESTIC stimulus is construction + power + the domestic equipment share +
+//    margins; the imported-silicon component is GDP-neutral. The offset applies to the
+//    MACHINE's realized spend ABOVE the baseline-embedded path (the partition delta):
+//    the baseline-embedded 2025 AI capex's import content is already inside the
+//    baseline NX calibration (the 2025 observed level). REGISTERED for the ceremony,
+//    stated not silent: the zero-AI twin's excluded capex carries the same import
+//    asymmetry (its true domestic loss is smaller than the gross exclusion) — an
+//    A-side question only the ceremony may move. ──
+/** Import-content share of each buildout sink's spend [cited-class, BEA input-output
+ *  import-matrix basis (imports proportional to the commodity's import share of
+ *  domestic supply — the BEA imputation methodology), 2023-25 vintage evidence]:
+ *  - chips 0.60 [band 0.5–0.7]: the US produces ~10% of world semiconductors while
+ *    consuming ~25% (AEI/SIA-class 2024); leading-edge logic ~90% fabricated in
+ *    Taiwan (USITC Taiwan-exposure working paper, 2023); electronic-products imports
+ *    $572B/2021 (USITC) — accelerators/servers are import-dominated with domestic
+ *    assembly margins on top.
+ *  - energy 0.30 [honest-uncertainty, IO basis]: transformers/solar modules heavily
+ *    imported; gas turbines mixed.
+ *  - dc 0.05: construction is produced on-site domestically (the construction
+ *    commodity's direct import share is ~nil in the IO tables; small indirect
+ *    materials content).
+ *  - fleet 0.50 [cited-class]: industrial-robot supply is dominated by Japanese and
+ *    European makers (the IFR supplier record); vehicle-class units mixed. */
+export const BUILDOUT_IMPORT_CONTENT_SHARE: Record<'chips' | 'energy' | 'dc' | 'fleet', number> = {
+  chips: 0.60, energy: 0.30, dc: 0.05, fleet: 0.50,
+};
+/** The composition-weighted default (the seam's equal allocation over the four sinks:
+ *  0.25×0.60 + 0.25×0.30 + 0.25×0.05 + 0.25×0.50 = 0.3625) — consumed only when the
+ *  loop supplies no allocation-weighted share (unit tests / direct computeMacro
+ *  callers); the loop always passes the live allocUsed-weighted value. */
+export const BUILDOUT_IMPORT_CONTENT_DEFAULT = 0.3625;
+
+// ── Elasticity-based absorption (Stage-2 order item 4; checkpoint §2's glut-semantics
+//    candidate, ratified architecture: the twin-benchmark absorption PRESERVED, the
+//    cited-elasticity quantity response JOINING it; what elasticity does not absorb
+//    remains honestly unrealized, surfaced). Per-value verification 2026-08-17 —
+//    .archive/production-program/STAGE2_CITATION_ADDENDUM.md rows 36–39. ──
+/** Own-price demand elasticity MAGNITUDE, AI-exposed consumption (broad goods &
+ *  services excl. food/energy/shelter). Anchor 0.75 on Shojaeddini–Marten–Schreiber–
+ *  Wolverton, EPA NCEE Working Paper 21-05 (2021), Table 12 national uncompensated
+ *  own-price elasticities: non-durables −0.816, consumer services −0.740 (a third
+ *  specification runs −0.28…−0.61 — the range's lower end). Range [0.3, 1.0].
+ *  User-adjustable. [web-verified 2026-08-17] */
+export const DEFAULT_ABSORPTION_ELASTICITY_AI_EXPOSED = 0.75;
+/** Own-price demand elasticity MAGNITUDE, labor-services consumption. Anchor 0.20 on
+ *  the RAND Health Insurance Experiment arc elasticity ≈ −0.2 (Manning, Newhouse et
+ *  al. 1987, AER 77(3)) — the sector is healthcare-dominant, DECLARED; non-health
+ *  labor services run more elastic (EPA NCEE 21-05 consumer services −0.74 marks the
+ *  upper region). Range [0.1, 0.5]. User-adjustable. [web-verified 2026-08-17] */
+export const DEFAULT_ABSORPTION_ELASTICITY_LABOR_SERVICES = 0.20;
+/** Own-price demand elasticity MAGNITUDE, food & energy consumption. Anchor 0.40 —
+ *  a DECLARED food-dominant blend of Andreyeva–Long–Brownell (2010, AJPH 100:216–222;
+ *  food categories 0.27–0.81, food-away-from-home/soft drinks/meats 0.7–0.8) with the
+ *  modern-era short-run fuel elasticity 0.034–0.077 (Hughes–Knittel–Sperling 2008 —
+ *  the Stage-0 named correction 1's era split carried). Range [0.05, 0.8].
+ *  User-adjustable. [web-verified 2026-08-17] */
+export const DEFAULT_ABSORPTION_ELASTICITY_FOOD_ENERGY = 0.40;
+// SHELTER is EXCLUDED from the live absorption term (declared boundary): shelter's AI
+// price channel is the housing SUPPLY response (Stage 6.5 stock-flow architecture),
+// not a consumer-price flow this term may double-read. The cited housing elasticity
+// row is verified and recorded (Hanushek–Quigley 1980: −0.64/−0.45; Polinsky–Ellwood
+// 1979: −0.7; EPA NCEE 21-05 housing −0.79) in the Stage-2 citation addendum.

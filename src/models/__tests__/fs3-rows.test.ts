@@ -7,7 +7,7 @@ import { OCCUPATION_CLUSTERS } from '@/data/occupationClusters';
 import { loadBLSData } from '@/services/dataLoader';
 import { transformOEWSToBaselines, createOtherClusterBaseline } from '@/services/dataTransform';
 import { DEFAULT_ROLE_ESTIMATION_CONFIG } from '@/data/roleEstimation';
-it('fs3 rows + margins', () => {
+it('fs3 rows + margins', async () => {
   const bls = loadBLSData(); if (!bls.isLoaded) throw new Error('x');
   const { baselines } = transformOEWSToBaselines(bls.oews, OCCUPATION_CLUSTERS, DEFAULT_ROLE_ESTIMATION_CONFIG);
   const o = OCCUPATION_CLUSTERS.find(c => c.id === 'other_uncategorized');
@@ -25,11 +25,15 @@ it('fs3 rows + margins', () => {
     }
   }
   writeFileSync('/tmp/fs3-margins.json', JSON.stringify(margins));
-  // the rows
-  for (const [n, mut] of [['basisOnly', (c: ReturnType<typeof getDefaultSimulationConfig>) => { c.seamBasisOnly = true; }],
-                          ['connOnly', (c: ReturnType<typeof getDefaultSimulationConfig>) => { c.legacyCheaperProxy = true; }]] as const) {
-    const cfg = getDefaultSimulationConfig(); mut(cfg);
-    const tl = runSimulation(cfg, OCCUPATION_CLUSTERS, baselines);
-    writeFileSync(`/tmp/fs3-${n}.json`, JSON.stringify(tl.years.map(y => ({ yr: y.year, ue: y.macro.unemploymentRate }))));
+  // the rows — RE-SPECCED (CO-D2 conversions 5-6, R3b): the toggle rows come from the
+  // RECORDED POLES (~/.atlas-referents/co-d2/<key>/pole.json, recorded pole-first at the
+  // conversion commits), not live toggles — the keys are retired; the artifact rows keep
+  // their meaning (yr/ue comparison basis vs the live run).
+  const { readFileSync } = await import('node:fs');
+  const { homedir } = await import('node:os');
+  for (const [n, poleKey] of [['basisOnly', 'seamBasisOnly'], ['connOnly', 'legacyCheaperProxy']] as const) {
+    const pole = JSON.parse(readFileSync(`${homedir()}/.atlas-referents/co-d2/${poleKey}/pole.json`, 'utf8')) as
+      { rows: Array<{ year: number; unemploymentRate: number }> };
+    writeFileSync(`/tmp/fs3-${n}.json`, JSON.stringify(pole.rows.map(r => ({ yr: r.year, ue: r.unemploymentRate }))));
   }
 });

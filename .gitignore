@@ -4,6 +4,10 @@ node_modules/
 # Archive — local-only, not published
 .archive/
 
+# AEI raw data cache — 77-219 MB CSVs fetched by scripts/fetch-anthropic-data.ts;
+# only the small transformed artifacts in src/data/anthropic/ are committed
+.anthropic-cache/
+
 # Build output
 dist/
 
@@ -57,3 +61,8 @@ coverage/
 
 # OS files
 Thumbs.db
+
+# Session transcripts (the finalization docket ruling): date-prefixed conversation
+# captures at the repo root never ship — the class, not the instances.
+/2[0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-*.txt
+.onet-cache/

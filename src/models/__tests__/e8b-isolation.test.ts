@@ -14,9 +14,13 @@ const { baselines } = transformOEWSToBaselines(bls.oews, OCCUPATION_CLUSTERS, DE
 const other = OCCUPATION_CLUSTERS.find((c) => c.id === 'other_uncategorized');
 if (other && !baselines.has('other_uncategorized')) baselines.set('other_uncategorized', createOtherClusterBaseline(baselines, other));
 
+// RETIRED VARIANTS (the program close-out; Amendment 2 — no legacy toggles): E7LIKE and
+// UNITS ran the legacy logistic premium via config.legacyFiscalPremium, retired at the
+// close-out. Their runs are the RECORDED POLE (~/.atlas-referents/e8b-legacy-pole/, taken
+// at commit dca51d6 before the retirement). The harness keeps the live variants only.
+//   E7LIKE: { legacyFiscalPremium: true, pceCpiWedge: 0 },
+//   UNITS:  { legacyFiscalPremium: true },
 const VARIANTS: Record<string, object> = {
-  E7LIKE: { legacyFiscalPremium: true, pceCpiWedge: 0 },
-  UNITS:  { legacyFiscalPremium: true },
   PREMIUM:{ pceCpiWedge: 0 },
   BOTH:   {},
 };

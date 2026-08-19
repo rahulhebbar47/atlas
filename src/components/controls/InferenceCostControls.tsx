@@ -3,17 +3,30 @@
  *
  * Token Cost Curve — the *baseline* declining cost-per-token of AI work.
  *
- * The other half of total inference cost — tokens-per-task (`tokenUsageMultiplier`) —
- * is a year-overridable parameter and lives in the Year Parameters section, since
- * its trajectory depends on business decisions and doesn't follow a smooth curve.
+ * The other half of total inference cost is the frontier-intensity layer
+ * (mini-stage 1): work AT the capability frontier pays a persistent tokens-per-task
+ * premium (`frontierIntensityLevel`, growing at `frontierIntensityGrowth`), while
+ * work the frontier has surpassed migrates onto arrival-anchored fixed-capability
+ * pricing (`sigmaMigration` sets the migration speed; `wMinFrontierFloor` the
+ * always-frontier residue). The economy-wide tokens-per-task path is an emergent
+ * OUTPUT (MacroOutput.impliedAggregateTokensPerTask), never an input.
  *
- * Combined: inferenceCostFactor(t) = tokenCostFactor(t) × tokenUsageMultiplier(year)
+ * (Superseded framing, kept for the record — the retired per-year global multiplier:)
+ * // Combined: inferenceCostFactor(t) = tokenCostFactor(t) × tokenUsageMultiplier(year)
+ * // RETIRED (Amendment 2, no legacy toggles): the per-year tokenUsageMultiplier row
+ * // and the global tokens-per-task schedule are replaced by the frontier layer above.
  */
 
 import { useCallback, useMemo } from 'react';
 import { useSimulationStore } from '@/stores/simulationStore';
 import { Slider } from '@/components/shared/Slider';
-import { DEFAULT_TOKEN_COST_CURVE } from '@/models/constants';
+import {
+  DEFAULT_TOKEN_COST_CURVE,
+  DEFAULT_FRONTIER_INTENSITY_LEVEL,
+  DEFAULT_FRONTIER_INTENSITY_GROWTH,
+  DEFAULT_SIGMA_MIGRATION,
+  DEFAULT_W_MIN_FRONTIER_FLOOR,
+} from '@/models/constants';
 import { computeTokenCostFactor } from '@/models/bfcs';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -26,11 +39,45 @@ export function InferenceCostControls() {
   );
   const setTokenCostCurve = useSimulationStore((s) => s.setTokenCostCurve);
 
+  // Frontier-intensity cost layer dials (mini-stage 1) — defaults by reference.
+  const frontierIntensityLevel = useSimulationStore(
+    (s) => s.config.aiCostParams?.frontierIntensityLevel ?? DEFAULT_FRONTIER_INTENSITY_LEVEL,
+  );
+  const frontierIntensityGrowth = useSimulationStore(
+    (s) => s.config.aiCostParams?.frontierIntensityGrowth ?? DEFAULT_FRONTIER_INTENSITY_GROWTH,
+  );
+  const sigmaMigration = useSimulationStore(
+    (s) => s.config.aiCostParams?.sigmaMigration ?? DEFAULT_SIGMA_MIGRATION,
+  );
+  const wMinFrontierFloor = useSimulationStore(
+    (s) => s.config.aiCostParams?.wMinFrontierFloor ?? DEFAULT_W_MIN_FRONTIER_FLOOR,
+  );
+  const setAiCostParams = useSimulationStore((s) => s.setAiCostParams);
+
   const handleCurveChange = useCallback(
     (key: 'floor' | 'k' | 'decayExponent') => (value: number) => {
       setTokenCostCurve({ ...tokenCostCurve, [key]: value });
     },
     [tokenCostCurve, setTokenCostCurve],
+  );
+
+  // One typed callback per dial (a computed `{ [key]: value }` would widen past
+  // Partial<AICostParams> under strict mode).
+  const handleFrontierLevel = useCallback(
+    (value: number) => setAiCostParams({ frontierIntensityLevel: value }),
+    [setAiCostParams],
+  );
+  const handleFrontierGrowth = useCallback(
+    (value: number) => setAiCostParams({ frontierIntensityGrowth: value }),
+    [setAiCostParams],
+  );
+  const handleSigmaMigration = useCallback(
+    (value: number) => setAiCostParams({ sigmaMigration: value }),
+    [setAiCostParams],
+  );
+  const handleWMinFloor = useCallback(
+    (value: number) => setAiCostParams({ wMinFrontierFloor: value }),
+    [setAiCostParams],
   );
 
   const previewData = useMemo(() => {
@@ -81,9 +128,54 @@ export function InferenceCostControls() {
 
       <p className="text-text-muted text-[10px] leading-relaxed">
         Cost per token of AI work, as a fraction of the 2025 baseline: floor + (1−floor) × exp(−k × t^exponent).
-        Total inference cost is this curve multiplied by the year-resolved <span className="font-mono">tokensPerTask</span> multiplier
-        (see Year Parameters → Technology).
+        Total inference cost blends this curve with the frontier-intensity layer below; the economy-wide
+        tokens-per-task path is an emergent output (CSV columns{' '}
+        <span className="font-mono">implied_aggregate_tokens_per_task</span> and{' '}
+        <span className="font-mono">aggregate_frontier_weight</span>), not an input.
       </p>
+
+      <div className="pt-2 border-t border-white/5">
+        <p className="text-text-muted text-[11px] font-medium mb-2">Frontier Intensity Layer</p>
+        <div className="space-y-3">
+          <Slider
+            label="Frontier Intensity (2026)"
+            value={frontierIntensityLevel}
+            min={1} max={100} step={1}
+            color={CONTROL_COLOR}
+            onChange={handleFrontierLevel}
+            formatValue={(v) => `${v.toFixed(0)}×`}
+          />
+          <Slider
+            label="Frontier Intensity Growth"
+            value={frontierIntensityGrowth}
+            min={-0.15} max={0.40} step={0.01}
+            color={CONTROL_COLOR}
+            onChange={handleFrontierGrowth}
+            formatValue={(v) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(0)}%/yr`}
+          />
+          <p className="text-text-muted text-[10px] leading-relaxed">
+            Absolute frontier per-task cost climbs only when this growth exceeds the per-token
+            decline rate (~26%/yr in the early window); below that, frontier cost still falls,
+            just more slowly than non-frontier cost.
+          </p>
+          <Slider
+            label="Migration σ (surplus to halve)"
+            value={sigmaMigration}
+            min={0.02} max={1.0} step={0.01}
+            color={CONTROL_COLOR}
+            onChange={handleSigmaMigration}
+            formatValue={(v) => v.toFixed(2)}
+          />
+          <Slider
+            label="Always-Frontier Floor"
+            value={wMinFrontierFloor}
+            min={0} max={0.5} step={0.01}
+            color={CONTROL_COLOR}
+            onChange={handleWMinFloor}
+            formatValue={(v) => v.toFixed(2)}
+          />
+        </div>
+      </div>
     </div>
   );
 }

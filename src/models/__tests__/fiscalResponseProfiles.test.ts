@@ -185,7 +185,7 @@ describe('resolveCombinedProfile', () => {
       DEFAULT_FISCAL_POLICY_PRESET,
       DEFAULT_FEDERAL_RESERVE_PRESET,
     );
-    expect(profile.name).toBe('Observed Political Economy (R-C default) + Balanced Mandate');
+    expect(profile.name).toBe('Observed Political Economy + Balanced Mandate');
     expect(profile.maxDiscretionaryCut).toBe(0.10);  // E-8b R-C default profile // from balanced_reduction
     expect(profile.taylorInflationCoeff).toBe(1.5); // from balanced_mandate
   });
@@ -216,7 +216,7 @@ describe('resolveCombinedProfile', () => {
 
   it('falls back to defaults for unknown preset names', () => {
     const profile = resolveCombinedProfile('nonexistent_fiscal', 'nonexistent_fed');
-    expect(profile.name).toBe('Observed Political Economy (R-C default) + Balanced Mandate');
+    expect(profile.name).toBe('Observed Political Economy + Balanced Mandate');
     expect(profile.maxDiscretionaryCut).toBe(0.10);  // E-8b R-C default profile
     expect(profile.taylorInflationCoeff).toBe(1.5);
   });

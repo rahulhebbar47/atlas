@@ -103,18 +103,18 @@ describe('parameterTimeline', () => {
     const yp = pt.get(firstYear)!;
 
     // First year uses getBaselineAutopilot → identity values → source = baseline
-    expect(yp.fiscalDiscretionaryMultiplier.source).toBe('baseline');
-    expect(yp.fiscalObligationMultiplier.source).toBe('baseline');
-    expect(yp.consolidationIntensity.source).toBe('baseline');
+    expect(yp.fiscalDiscretionaryMultiplier.source).toBe('default');
+    expect(yp.fiscalObligationMultiplier.source).toBe('default');
+    expect(yp.consolidationIntensity.source).toBe('default');
     expect(yp.consolidationIntensity.effective).toBe(0);
   });
 
   it('technology parameters are always baseline source', () => {
     const pt = defaultTimeline.parameterTimeline!;
     for (const [, yp] of pt) {
-      expect(yp.generativeCapabilityLevel.source).toBe('baseline');
-      expect(yp.agenticCapabilityLevel.source).toBe('baseline');
-      expect(yp.embodiedCapabilityLevel.source).toBe('baseline');
+      expect(yp.generativeCapabilityLevel.source).toBe('default');
+      expect(yp.agenticCapabilityLevel.source).toBe('default');
+      expect(yp.embodiedCapabilityLevel.source).toBe('default');
     }
   });
 });
@@ -210,59 +210,62 @@ describe('user overrides', () => {
 
     // At 2035: should have override source with value 0.25
     const y2035 = pt.get(2035)!;
-    expect(y2035.effectiveIncomeTaxRate.source).toBe('override');
+    expect(y2035.effectiveIncomeTaxRate.source).toBe('user-override');
     expect(y2035.effectiveIncomeTaxRate.effective).toBe(0.25);
     expect(y2035.effectiveIncomeTaxRate.userOverride).toBe(0.25);
 
     // At 2040: sticky → should still have override source with value 0.25
     const y2040 = pt.get(2040)!;
-    expect(y2040.effectiveIncomeTaxRate.source).toBe('override');
+    expect(y2040.effectiveIncomeTaxRate.source).toBe('user-override');
     expect(y2040.effectiveIncomeTaxRate.effective).toBe(0.25);
   });
 
-  it('tokensPerTask defaults to the spike-and-recover schedule', () => {
-    const config = getDefaultSimulationConfig();
-    const timeline = runSimulation(config, OCCUPATION_CLUSTERS, undefined, undefined, new Map());
-    const pt = timeline.parameterTimeline!;
-
-    // Spike-and-recover: 2025=1×, 2026=20×, 2027=25× (peak), 2028=15×, 2029=5×, 2030=1×.
-    const expected: Record<number, number> = {
-      2025: 1, 2026: 20, 2027: 25, 2028: 15, 2029: 5, 2030: 1,
-    };
-    for (const [yearStr, value] of Object.entries(expected)) {
-      const yp = pt.get(Number(yearStr))!;
-      expect(yp.tokenUsageMultiplier.effective).toBe(value);
-      expect(yp.tokenUsageMultiplier.source).toBe('baseline');
-    }
-
-    // 2031+ holds the last scheduled value (1×) flat through the horizon.
-    for (const y of [2031, 2040, config.endYear]) {
-      const yp = pt.get(y)!;
-      expect(yp.tokenUsageMultiplier.effective).toBe(1);
-      expect(yp.tokenUsageMultiplier.source).toBe('baseline');
-    }
-  });
-
-  it('overriding the 2026 tokensPerTask value shifts the whole post-2025 trajectory', () => {
-    const config = getDefaultSimulationConfig();
-    const overrides: UserOverrideMap = new Map([
-      ['tokenUsageMultiplier:2026', 50],
-    ]);
-    const timeline = runSimulation(config, OCCUPATION_CLUSTERS, undefined, undefined, overrides);
-    const pt = timeline.parameterTimeline!;
-
-    // 2025 is untouched — the 2026 override does not apply to earlier years.
-    expect(pt.get(2025)!.tokenUsageMultiplier.effective).toBe(1);
-    expect(pt.get(2025)!.tokenUsageMultiplier.source).toBe('baseline');
-
-    // 2026 onward all pick up the sticky override (50×).
-    for (const y of [2026, 2035, config.endYear]) {
-      const yp = pt.get(y)!;
-      expect(yp.tokenUsageMultiplier.effective).toBe(50);
-      expect(yp.tokenUsageMultiplier.source).toBe('override');
-    }
-  });
-
+// RETIRED (mini-stage 1; Amendment 2 — no legacy toggles): the global tokens-per-task
+// schedule and its per-year row left the model; these specs are preserved as the
+// predecessor record (the which-change pole is the recorded 6c831b7 run).
+//   it('tokensPerTask defaults to the spike-and-recover schedule', () => {
+//     const config = getDefaultSimulationConfig();
+//     const timeline = runSimulation(config, OCCUPATION_CLUSTERS, undefined, undefined, new Map());
+//     const pt = timeline.parameterTimeline!;
+//
+//     // Spike-and-recover: 2025=1×, 2026=20×, 2027=25× (peak), 2028=15×, 2029=5×, 2030=1×.
+//     const expected: Record<number, number> = {
+//       2025: 1, 2026: 20, 2027: 25, 2028: 15, 2029: 5, 2030: 1,
+//     };
+//     for (const [yearStr, value] of Object.entries(expected)) {
+//       const yp = pt.get(Number(yearStr))!;
+//       expect(yp.tokenUsageMultiplier.effective).toBe(value);
+//       expect(yp.tokenUsageMultiplier.source).toBe('default');
+//     }
+//
+//     // 2031+ holds the last scheduled value (1×) flat through the horizon.
+//     for (const y of [2031, 2040, config.endYear]) {
+//       const yp = pt.get(y)!;
+//       expect(yp.tokenUsageMultiplier.effective).toBe(1);
+//       expect(yp.tokenUsageMultiplier.source).toBe('default');
+//     }
+//   });
+//
+//   it('overriding the 2026 tokensPerTask value shifts the whole post-2025 trajectory', () => {
+//     const config = getDefaultSimulationConfig();
+//     const overrides: UserOverrideMap = new Map([
+//       ['tokenUsageMultiplier:2026', 50],
+//     ]);
+//     const timeline = runSimulation(config, OCCUPATION_CLUSTERS, undefined, undefined, overrides);
+//     const pt = timeline.parameterTimeline!;
+//
+//     // 2025 is untouched — the 2026 override does not apply to earlier years.
+//     expect(pt.get(2025)!.tokenUsageMultiplier.effective).toBe(1);
+//     expect(pt.get(2025)!.tokenUsageMultiplier.source).toBe('default');
+//
+//     // 2026 onward all pick up the sticky override (50×).
+//     for (const y of [2026, 2035, config.endYear]) {
+//       const yp = pt.get(y)!;
+//       expect(yp.tokenUsageMultiplier.effective).toBe(50);
+//       expect(yp.tokenUsageMultiplier.source).toBe('user-override');
+//     }
+//   });
+//
   it('override supersession: later override replaces earlier one', () => {
     const config = getDefaultSimulationConfig();
     const overrides: UserOverrideMap = new Map([
@@ -338,7 +341,7 @@ describe('CSV provenance columns', () => {
     for (let r = 0; r < rows.length; r++) {
       const year = defaultTimeline.config.startYear + r;
       if (pt.has(year)) {
-        expect(['baseline', 'autopilot', 'override']).toContain(rows[r]![sourceIdx]);
+        expect(['default', 'policy', 'user-override', 'imported', 'axis-variant', 'event']).toContain(rows[r]![sourceIdx]);
       } else {
         // Collapsed year — fallback is numeric 0
         expect(rows[r]![sourceIdx]).toBe('0');

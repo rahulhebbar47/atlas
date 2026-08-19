@@ -233,3 +233,122 @@ export function getAdoptionRate(
     adjustedAdoptionRate: cappedRate,
   };
 }
+
+// ============================================================
+// THE UNIFIED ADOPTION STATE MACHINE (the coupled design checkpoint §4, mini-stage 2)
+// ============================================================
+
+/**
+ * Plain English: adoption is no longer a one-way latch. Once triggered, a role's adoption
+ * GROWS along the existing rich S-curve while its economics hold; FREEZES when its scores
+ * dip inside the switching-cost band; and REVERSES when either (a) capability/availability
+ * genuinely regresses (unthrottled — the firm has no choice; the gap is realized as
+ * capacity loss, the 2021-22 production-cut reality), or (b) continuing automation costs
+ * more than re-hiring from the displaced pool by more than the band (throttled by how fast
+ * the pool can actually restaff — Amendment 1's capacity coupling). Re-engagement after a
+ * decline is SLOW (the labor-economics asymmetry).
+ *
+ * THE UNIFICATION (Amendment 2 — no toggles): this machine is the ONLY adoption path. The
+ * GROWING state returns the RAW getAdoptionRate value — every existing modifier
+ * (acceleration, competitive pressure, tail asymmetry, peer split) unchanged, NO ratchet —
+ * so when the machine never leaves GROWING (the no-shock default world) it reproduces the
+ * predecessor arithmetic EXACTLY (the pre-registered bit-identity row). The retired paths:
+ * the trigger latch's monotone-only consumption of getAdoptionRate, and the SC-scenario
+ * computeStatefulAdoptionRate (supplyChain.ts — kept as the deprecated record; its simple
+ * logistic + ratchet was that path's choice, superseded by the one rich curve).
+ *
+ * THE FRICTION ALLOCATION (Amendment 1, enforced): the hysteresis BAND carries one-time
+ * switching costs; the REHIRE BASIS (cheaperRehire — the displaced pool's composition-
+ * weighted wage) carries the ongoing wage truth of pool labor; FILL CAPACITY (the pool-size
+ * throttle, mini-stage 3 refines to effectiveness-weighted) carries matching. Each friction
+ * lives in exactly one object.
+ */
+export type UnifiedAdoptionStatus = 'not_triggered' | 'growing' | 'recovering' | 'frozen'
+  | 'declining_availability' | 'declining_cost';
+
+export interface UnifiedAdoptionResult {
+  adoptionRate: number;
+  status: UnifiedAdoptionStatus;
+  frozenSince: number | null;
+  hasDeclined: boolean;
+  /** Fraction of role employment re-hired this year via cost-triggered de-adoption
+   *  (for the caller's pool-budget bookkeeping). */
+  costRehireFraction: number;
+}
+
+export function computeUnifiedAdoptionState(i: {
+  year: number;
+  previousRate: number;
+  previousFrozenSince: number | null;
+  previousHasDeclined: boolean;
+  triggerYear: number | null;
+  /** The RAW rich-curve rate for this year (getAdoptionRate(...).adjustedAdoptionRate). */
+  growthRate: number;
+  bfcsCurrentlyMet: boolean;
+  scores: { better: number; faster: number; safer: number };
+  thresholds: { better: number; faster: number; cheaper: number; safer: number };
+  /** The REHIRE-basis Cheaper score (the pool's composition-weighted wage in the
+   *  denominator; degrades to the incumbent basis when the pool is empty). */
+  cheaperRehire: number;
+  hysteresisWidth: number;
+  /** Per-class de-adoption speed (rate points/yr) and the recovery cap (rate points/yr). */
+  deAdoptionRate: number;
+  reAdoptionRate: number;
+  /** [0,1] — the Amendment-1 capacity throttle on COST-triggered decline only
+   *  (min(deAdoptionRate, achievable restaffing) expressed as a factor). */
+  fillCapFactor: number;
+}): UnifiedAdoptionResult {
+  const base = {
+    frozenSince: null as number | null,
+    hasDeclined: i.previousHasDeclined,
+    costRehireFraction: 0,
+  };
+  if (i.triggerYear === null || i.year < i.triggerYear) {
+    return { ...base, adoptionRate: 0, status: 'not_triggered' };
+  }
+
+  if (i.bfcsCurrentlyMet) {
+    if (!i.previousHasDeclined) {
+      // The no-shock path: RAW rich curve — bit-identical to the predecessor by construction.
+      return { ...base, adoptionRate: i.growthRate, status: 'growing' };
+    }
+    // Post-decline re-engagement is SLOW (asymmetric speeds): upward movement is capped at
+    // reAdoptionRate per year until the rich curve is caught (then the episode is over).
+    const capped = Math.min(i.growthRate, i.previousRate + i.reAdoptionRate);
+    if (capped >= i.growthRate) {
+      return { ...base, hasDeclined: false, adoptionRate: i.growthRate, status: 'growing' };
+    }
+    return { ...base, adoptionRate: capped, status: 'recovering' };
+  }
+
+  // Not all gates met: classify the exit.
+  // (a) AVAILABILITY-FORCED (capability regression / input rationing): any NON-cost score
+  //     below the de-adoption bar — UNTHROTTLED (the firm has no choice; the restaffing gap
+  //     is realized as capacity loss, not smooth substitution).
+  const bar = (thr: number) => thr * (1 - i.hysteresisWidth);
+  const availabilityForced =
+    (i.thresholds.better > 0 && i.scores.better < bar(i.thresholds.better))
+    || (i.thresholds.faster > 0 && i.scores.faster < bar(i.thresholds.faster))
+    || (i.thresholds.safer > 0 && i.scores.safer < bar(i.thresholds.safer));
+  if (availabilityForced) {
+    const rate = Math.max(0, i.previousRate - i.deAdoptionRate);
+    return { ...base, hasDeclined: true, adoptionRate: rate, status: 'declining_availability' };
+  }
+  // (b) COST-TRIGGERED: continuing automation loses to REHIRING from the pool by more than
+  //     the band — throttled by achievable restaffing (Amendment 1).
+  if (i.thresholds.cheaper > 0 && i.cheaperRehire < bar(i.thresholds.cheaper)) {
+    const throttled = i.deAdoptionRate * Math.max(0, Math.min(1, i.fillCapFactor));
+    const rate = Math.max(0, i.previousRate - throttled);
+    return {
+      ...base, hasDeclined: true, adoptionRate: rate, status: 'declining_cost',
+      costRehireFraction: i.previousRate - rate,
+    };
+  }
+  // (c) Inside the band: FROZEN (switching costs hold the position).
+  return {
+    ...base,
+    adoptionRate: i.previousRate,
+    status: 'frozen',
+    frozenSince: i.previousFrozenSince ?? i.year,
+  };
+}

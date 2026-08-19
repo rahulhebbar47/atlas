@@ -22,7 +22,7 @@ import { useProfileComparison } from '@/hooks/useProfileComparison';
 import { useCurrentYear } from '@/hooks/useSimulation';
 import { useSimulationStore } from '@/stores/simulationStore';
 import { generateComparisonData, type ComparisonMetricRow } from '@/utils/comparisonNarrative';
-import { FISCAL_POLICY_PRESETS } from '@/models/fiscalResponseProfiles';
+import { FISCAL_POLICY_PRESETS, DEFAULT_FISCAL_POLICY_PRESET } from '@/models/fiscalResponseProfiles';
 import { Card } from '@/components/shared/Card';
 
 // ============================================================
@@ -50,7 +50,8 @@ const PROFILE_DISPLAY_NAMES: Record<string, string> = {
 export function ProfileComparisonPanel({ onClose }: { onClose: () => void }) {
   const comparisonProfileName = useSimulationStore((s) => s.fiscalComparisonProfile);
   const setFiscalComparisonProfile = useSimulationStore((s) => s.setFiscalComparisonProfile);
-  const currentProfileName = useSimulationStore((s) => s.config.fiscalPolicyPreset ?? 'balanced_reduction');
+  // Stage H: fallback references the live default preset (was a stale 'balanced_reduction' copy)
+  const currentProfileName = useSimulationStore((s) => s.config.fiscalPolicyPreset ?? DEFAULT_FISCAL_POLICY_PRESET);
 
   const comparison = useProfileComparison(comparisonProfileName);
   const comparisonData = useMemo(() => {

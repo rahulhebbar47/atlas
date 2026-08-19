@@ -11,6 +11,7 @@
 
 import { useMemo } from 'react';
 import { useSimulationStore } from '@/stores/simulationStore';
+import { clampPolicyRateForDisplay, isPEDisplayMeaningful } from '@/utils/format';
 import { Card } from '@/components/shared/Card';
 import {
   DebtGDPChart,
@@ -34,6 +35,8 @@ function SectionHeader({ label }: { label: string }) {
 
 export function MonetaryView() {
   const timeline = useSimulationStore((s) => s.timeline);
+  // Display-hygiene rider: the ELB for the policy-rate display clamp (engine untouched).
+  const elb = useSimulationStore((s) => s.config.effectiveLowerBound) ?? -0.005;
   const firstYear = timeline.years[0] as typeof timeline.years[number] | undefined;
   const hasFiscalMonetary = firstYear != null && firstYear.fiscalMonetary != null;
 
@@ -56,7 +59,9 @@ export function MonetaryView() {
       interestRates: years.map((y) => ({
         year: y.year,
         taylorPrescribedRate: y.fiscalMonetary!.federalReserve.taylorPrescribedRate,
-        policyRate: y.fiscalMonetary!.federalReserve.policyRate,
+        // Display-hygiene rider: the charted policy rate clamps at the ELB (the raw
+        // prescription stays charted as taylorPrescribedRate; engine untouched).
+        policyRate: clampPolicyRateForDisplay(y.fiscalMonetary!.federalReserve.policyRate, elb),
         tenYearYield: y.fiscalMonetary!.bondMarket.tenYearYield,
       })),
       yieldDecomp: years.map((y) => ({
@@ -74,7 +79,10 @@ export function MonetaryView() {
       equity: years.map((y) => ({
         year: y.year,
         aggregateMarketCap: y.fiscalMonetary!.equityMarket.aggregateMarketCap,
-        peRatio: y.fiscalMonetary!.equityMarket.peRatio,
+        // Display-hygiene rider: degenerate P/E points (near-zero earnings base)
+        // render as gaps; the raw value stays in diagnostics/CSV.
+        peRatio: isPEDisplayMeaningful(y.fiscalMonetary!.equityMarket.peRatio)
+          ? y.fiscalMonetary!.equityMarket.peRatio : null,
       })),
       revenue: years.map((y) => ({
         year: y.year,

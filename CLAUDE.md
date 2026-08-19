@@ -14,6 +14,9 @@ npm run build        # Production build (tsc && vite build)
 npm run fetch-bls    # Refresh BLS data → src/data/bls/
 npm run fetch-bea    # Refresh BEA data → src/data/bea/
 npm run fetch-fred   # Refresh FRED data → src/data/fred/
+
+npm run fetch-anthropic     # Fetch AEI raw data → .anthropic-cache/ (gitignored; 77-219 MB CSVs, sha256-pinned)
+npm run transform-anthropic # Transform → src/data/anthropic/<snapshot>/ committed artifacts (API population only)
 ```
 
 ## Hard Rules
@@ -24,13 +27,13 @@ npm run fetch-fred   # Refresh FRED data → src/data/fred/
 - **Do not generate or stub BLS data.** Real data lives in `src/data/bls/` as static JSON pre-fetched by `scripts/fetch-bls-data.ts`. Missing files → developer-facing error, never a user-facing API key prompt. There are no runtime BLS API calls.
 - **Reactive computation only.** No "Calculate" button. Every parameter change re-runs the simulation through Zustand.
 - **No time estimates or day-by-day plans.**
-- **The shelter gate metric (amended at L9c, adjacent to a recorded miss):** the structural shelter gate reads the SETTLED-WINDOW average (2035-2050) ∈ [3.0, 4.0]; the transient window (2026-2034) is reported alongside, always, as its own line (the E-9b rule extended to decade-scale transients; the 25-year-letter miss 2.96 stays in the record with its attribution).
-- **The liveness-proof requirement (standing, from FS-4b):** any dual-process, dead-code, or wrong-producer finding must include the LIVENESS PROOF — the live call graph showing who writes the field on the simulation path — before it is eligible for ruling (producer existence + consumer reads are not enough; the call path must be proven).
-- **The assertion-referent policy (standing, from FS-1b):** Scenario A's test referent is PINNED to the macro remediation baseline permanently — any A movement, at any point, is a finding, never a referent advance. C/D referents advance ONLY with ruled fixes, each advance attributed in the landing report (the snapshot chain).
-- **Loop-inventory re-derivation (standing, from the remediation engagement):** whenever a new EDGE is added to the system graph (a new term linking two blocks), the feedback-loop inventory must be RE-DERIVED over the FULL graph — loop analyses scoped to "the new elements only" are not acceptable for ratification (L8 slipped through two such scoped analyses).
-- **The report-basis law (standing, from FS-6b):** every terminal-record entry states its basis — instantaneous / CAGR / window-mean — at the entry (the FS-4b "realG 2.23" was a path CAGR mislabeled into a terminal block; the comparison against the 2050 instantaneous manufactured a phantom 0.48pp growth fall).
-- **The enforcement-over-reading law (standing, from FS-6f — the fourth cited-dead/uncited-live sighting):** reading verifies what code SAYS; only execution and type-enforcement verify what code DOES. All four sightings of the cited-dead/uncited-live genus (the E-8c constant, the F6 key, the tech_qa routing, the FRED fallback family) were found by enforcement machinery — exhaustiveness tests, liveness proofs, throw-on-failure — and zero by reading. Hardening orders do not require dormancy premises; the conversion-to-loud IS the test.
-- **The documentation writing standard (owner directive, standing; code exempt):** documentation is written for a smart reader expert in exactly ONE of {engineering, economics, policy}. Per mechanism, three layers: (a) a plain-English paragraph — what it does and the economic reason it exists, no symbols or code identifiers; (b) the precise specification — every variable defined at point of use, units, ranges, sources, user-adjustability; (c) the implementation pointer (file + function). Timeless present — describe the model as it IS, never the journey; provenance is a link to the audit summary (docs/FABLE_AUDIT_SUMMARY.md), not inline narrative. No internal audit vocabulary in model docs (stage numbers, finding/rider IDs, "as ruled", "bit-zero"). Every acronym expanded at first use per document; one name per concept, matching VARIABLE_REGISTRY. One idea per sentence; no ALL-CAPS emphasis. Every constant states value + source (or honest uncited status) + user-adjustability. THE ACCURACY GUARD: style work is meaning-preserving — never replace precision with approximation; add the plain gloss above the precise statement. Rewrites require the claims-preservation check (extract and diff technical claims before/after; zero added/dropped/weakened); a needed content change found during rewrite is docketed as a finding, never made silently. Scope: model-facing docs (README, DATA_MODEL, USER_PARAMETERS, VARIABLE_REGISTRY, EXECUTION_FLOW, POLICY_MODEL, MethodologyView and user-visible strings, all future model docs). the audit working records (maintained outside the repository) are EXEMPT — they are the authentic working record. Code and code comments exempt.
+- **The shelter-inflation gate:** the structural shelter gate reads the ZERO-AI reference path (the structural world): the settled-window average (2035–2050) must sit in [3.0, 4.0] %/yr, with the transient window (2026–2034) reported alongside, always, as its own line. The default path's two windows are reported alongside as context lines, never as the gate — the default path legitimately carries a late-2040s crisis. A regression test enforces the structural band.
+- **The liveness-proof requirement:** any dead-code, duplicate-process, or wrong-producer finding must include the LIVENESS PROOF — the live call graph showing who writes the field on the simulation path — before acting on it. Producer existence plus consumer reads are not enough; the call path must be proven by execution.
+- **The assertion-referent policy:** the zero-AI reference scenario's pinned test trace moves ONLY by an explicitly approved re-baseline with full attribution — never by drift, never as a side effect of another change. Any unapproved movement of that pin is a defect finding, never a reference update. An approved re-baseline archives the old pin as history (never deleted), decomposes the delta to the approved cause's exact footprint (any movement outside it stops the work), and restates every recorded claim that referenced the old numbers. The other pinned reference paths advance only with approved fixes, each advance attributed in its commit.
+- **Loop-inventory re-derivation:** whenever a new EDGE is added to the system graph (a new term linking two blocks), the feedback-loop inventory must be RE-DERIVED over the FULL graph — loop analyses scoped to "the new elements only" have twice missed real loops and are not acceptable.
+- **The report-basis rule:** every recorded summary number states its basis — instantaneous / compound-growth / window-mean — at the entry. Mixing bases (a path-average growth rate compared against a single-year instantaneous value) has manufactured phantom findings before.
+- **Enforcement over reading:** reading verifies what code SAYS; only execution and type-enforcement verify what code DOES. Every confirmed sighting of the documented-but-dead / undocumented-but-live genus in this codebase was found by enforcement machinery — exhaustiveness tests, liveness proofs, throw-on-failure — and none by reading. When hardening, convert silent failure to loud failure; the conversion IS the test.
+- **The documentation writing standard (code exempt):** documentation is written for a smart reader expert in exactly ONE of {engineering, economics, policy}. Per mechanism, three layers: (a) a plain-English paragraph — what it does and the economic reason it exists, no symbols or code identifiers; (b) the precise specification — every variable defined at point of use, units, ranges, sources, user-adjustability; (c) the implementation pointer (file + function). Timeless present — describe the model as it IS, never the development journey; provenance is a link to the audit summary (docs/FABLE_AUDIT_SUMMARY.md), not inline narrative. No internal development vocabulary in model docs (stage numbers, finding IDs, working-session shorthand). Every acronym expanded at first use per document; one name per concept, matching VARIABLE_REGISTRY. One idea per sentence; no ALL-CAPS emphasis. Every constant states value + source (or honest uncited status) + user-adjustability. THE ACCURACY GUARD: style work is meaning-preserving — never replace precision with approximation; add the plain gloss above the precise statement. Rewrites require the claims-preservation check (extract and diff technical claims before/after; zero added/dropped/weakened); a needed content change found during a rewrite is recorded as its own change, never made silently. Scope: model-facing docs (README, DATA_MODEL, USER_PARAMETERS, VARIABLE_REGISTRY, EXECUTION_FLOW, POLICY_MODEL, user-visible strings, all future model docs). Code and code comments exempt.
 
 ## Code Conventions
 
@@ -66,6 +69,10 @@ src/
 │   ├── alphaDrivers.ts           # Automation-share decomposition
 │   ├── augmentationAdoption.ts   # Augmentation vs. displacement channel
 │   ├── supplyChain.ts            # Supply-chain uncertainty
+│   ├── buildout.ts               # AI buildout finance + physical capacity (chips/energy/DC/fleet; the energy delivery queue)
+│   ├── aiCost.ts                 # AI service-cost curves (token cost, frontier intensity)
+│   ├── quintileCWI.ts            # Per-quintile welfare measurement layer
+│   ├── manifestCompiler.ts       # Worldview/event/policy composition compiler
 │   ├── stateSimulation.ts        # State-level displacement & policy
 │   ├── fiscalResponseProfiles.ts # Fiscal + Fed preset profiles
 │   └── parameterResolution.ts    # Per-year parameter interpolation
@@ -73,6 +80,7 @@ src/
 ├── stores/                 # Zustand simulation store
 ├── components/             # layout / controls / charts / policy / shared
 ├── data/{bls,bea,fred}/    # Static JSON, pre-fetched
+├── data/anthropic/         # AEI-derived calibration artifacts (processed.json + metadata.json per snapshot; raw CSVs stay in the gitignored .anthropic-cache/)
 ├── types/                  # TypeScript contracts — read first when in doubt
 ├── hooks/                  # Custom React hooks
 ├── utils/                  # Formatting, math helpers
@@ -92,6 +100,7 @@ Full specification in `docs/Methodology/DATA_MODEL.md`.
 7. **Policy Levers** — wages / assets / transfers income-channel splits (BEA-derived shares), each independently adjustable.
 8. **Fiscal-Monetary System** — Taylor Rule, bond market (10Y yield), equity market, debt dynamics, Fed balance sheet.
 9. **Second-Order Multipliers** — BEA input-output employment multipliers per industry.
+10. **AI Production & Buildout** (DATA_MODEL.md §14) — capability beliefs are ceilings; realized AI is grounded by buildout finance (retained profits, credit, equity issuance), the physical capacity machine (chips / energy / datacenters / the embodied fleet, capacity = the minimum), the energy delivery queue (interconnection lead times + an additions ceiling + a behind-the-meter lane), energy operating costs inside AI profits, and per-cluster fleet gating of embodied displacement.
 
 ## Domain Gotchas
 

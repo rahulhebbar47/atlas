@@ -5,7 +5,7 @@
  * Uses Framer Motion for height animation (0.3s per DESIGN_PHILOSOPHY.md).
  */
 
-import { useState, type ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface CollapsibleSectionProps {
@@ -18,6 +18,8 @@ interface CollapsibleSectionProps {
   color?: string;
   /** Whether this is a top-level (larger) section or nested (smaller). */
   level?: 'top' | 'nested';
+  /** R3c (P1-7): bump to force the section open (deep links land expanded). */
+  openSignal?: number;
 }
 
 export function CollapsibleSection({
@@ -27,8 +29,12 @@ export function CollapsibleSection({
   badge,
   color,
   level = 'top',
+  openSignal,
 }: CollapsibleSectionProps) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
+  useEffect(() => {
+    if (openSignal !== undefined && openSignal > 0) setIsOpen(true);
+  }, [openSignal]);
 
   const headerStyle = level === 'top'
     ? 'text-[12px] font-semibold tracking-[0.10em]'

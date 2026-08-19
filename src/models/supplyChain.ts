@@ -58,7 +58,55 @@ import {
   ADOPTION_DECLINE_RATE_EMBODIED,
   DEFAULT_START_YEAR,
   DEFAULT_INFERENCE_ANNUAL_CHANGE,
+  DEFAULT_FRONTIER_DRAIN_SCALE,
+  DEFAULT_FRONTIER_REBUILD_YEARS,
+  DEFAULT_FRONTIER_RATE_ELASTICITY,
+  DEFAULT_FRONTIER_INNOVATION_ELASTICITY,
+  DEFAULT_RESILIENCE_ONSET_YEARS,
+  SUPPLY_INPUT_CLASS,
+  SUPPLY_INPUT_KIND,
 } from '@/models/constants';
+
+// ============================================================
+// 0b. computeInputConstraint — THE ONE constraint-semantics producer
+// (Production Program Stage 4 MS1: the adoption-drag root fix + surplus semantics)
+// ============================================================
+
+/**
+ * Per-cell supply constraint, SIGNED, keyed by the input's declared kind
+ * (SUPPLY_INPUT_KIND — tsc-exhaustive):
+ *
+ *   PRICE rows:    max(0, 1 − 100/v) × (1 − resilience)
+ *     — a spike (v > 100) constrains; at/below 100 the constraint is EXACTLY 0
+ *       (price declines flow through the direct cost-multiplier channels; a drag
+ *       relief here would double-count). The reciprocal form is the model's own
+ *       precedent (computeCapabilityDelay's energy price leg) and keeps the
+ *       constraint in [0, 1), commensurable with quantity constraints.
+ *       The retired shortage-form treatment of price rows INVERTED the semantics
+ *       (cheap energy at 70 dragged adoption 0.966; a 130 spike dragged zero —
+ *       both execution-measured at Stage 0; ruled a defect, fixed here).
+ *   QUANTITY rows: (1 − v/100) × (1 − resilience)   — SIGNED
+ *     — shortage (v < 100) constrains; surplus (v > 100) RELIEVES symmetrically
+ *       (the Stage-4 arrival-event semantics; the retired max(0, ·) clamp made
+ *       above-100 rows silently inert — the A.7 probe's verdict). Resilience
+ *       damps both directions symmetrically (the ruled "resilience/origin
+ *       semantics carry").
+ *
+ * Composition clamps live at the CONSUMERS' ends (never per cell): drag/faster/
+ * safer multipliers never exceed 1 and capability delay never goes negative —
+ * the believed trajectory is a CEILING (the program's constitutional semantics);
+ * surplus relieves shortage but never accelerates beyond belief.
+ */
+export function computeInputConstraint(
+  key: SupplyInputKey,
+  value: number,
+  resilience: number,
+): number {
+  if (SUPPLY_INPUT_KIND[key] === 'price') {
+    return value > 100 ? Math.max(0, 1 - 100 / value) * (1 - resilience) : 0;
+  }
+  return (1 - value / 100) * (1 - resilience);
+}
 
 // ============================================================
 // 1. getDefaultSupplyChainConfig
@@ -87,8 +135,39 @@ export function getDefaultSupplyChainConfig(): SupplyChainConfig {
     hysteresisMaxEmbodied: DEFAULT_HYSTERESIS_MAX_EMBODIED,
     sensitivityBlendCognitive: -1,
     sensitivityBlendEmbodied: -1,
+    frontierDrainScale: DEFAULT_FRONTIER_DRAIN_SCALE,
+    frontierRebuildYears: DEFAULT_FRONTIER_REBUILD_YEARS,
+    frontierRateElasticity: DEFAULT_FRONTIER_RATE_ELASTICITY,
+    frontierInnovationElasticity: DEFAULT_FRONTIER_INNOVATION_ELASTICITY,
+    resilienceOnsetYears: DEFAULT_RESILIENCE_ONSET_YEARS,
   };
 }
+
+/**
+ * The parameter-row keys the engine consumes ONLY inside its supply-chain block
+ * (simulation.ts gates that block on config.supplyChainConfig). A per-year layer entry
+ * (an event's shock, a user's per-year override) on any of these keys DEMANDS the
+ * subsystem: when the block is dormant (undefined at defaults), the engine materializes
+ * the full default config — the same rule an Advanced-grid write under the absent
+ * parent applies (R3C-F2) — so the shocked row is actually consumed. Wiring audit
+ * 2026-08-01: without this, every sidebar event's supply-chain shock resolved into
+ * yearParams and moved nothing (the cited-dead/uncited-live genus, fifth sighting).
+ */
+export const SUPPLY_CHAIN_PARAM_KEYS: ReadonlySet<string> = new Set([
+  // Supply inputs
+  'supplyChainAiChips', 'supplyChainChipPrice', 'supplyChainEnergyPrice',
+  'supplyChainEnergyCapacity', 'supplyChainTrainingDC', 'supplyChainInferenceDC',
+  'supplyChainRoboticsHW', 'supplyChainSoftwareEfficiency',
+  // Resilience
+  'resilienceAiChips', 'resilienceEnergy', 'resilienceTrainingDC',
+  'resilienceInferenceDC', 'resilienceRoboticsHW',
+  // Training dynamics
+  'trainingChipsTechDecline', 'trainingEnergyTechDecline', 'trainingDCTechDecline',
+  'trainingChipsScalePressure', 'trainingEnergyScalePressure', 'trainingDCScalePressure',
+  // Regulatory + economics
+  'regulatoryFriction', 'costPassThroughRate', 'consumerPassThroughRate',
+  'costVsProcurementBlend',
+]);
 
 // ============================================================
 // 2. computeAutopilotResilience
@@ -98,15 +177,29 @@ export function getDefaultSupplyChainConfig(): SupplyChainConfig {
  * Time-evolved resilience values.
  * Onshoring fraction boosts aiChips resilience faster (CHIPS Act effect).
  * All values capped at MAX_RESILIENCE / MAX_RESILIENCE_DC.
+ *
+ * THE regulatoryFriction CONSUMER (the supply-chain shock ruling, Finding 3): the
+ * DATACENTER rows (trainingDC, inferenceDC) advance by EFFECTIVE permitting time when
+ * the caller supplies it — dcEffectiveYears = Σ 1/friction(τ) over elapsed years,
+ * accumulated in the simulation loop from the per-year RESOLVED friction. Permitting
+ * delay is a rate effect on capacity additions: at friction f, additions that took one
+ * year take f. At friction ≡ 1 the sum is the exact float t, so the expression is
+ * arithmetic-identical to the calendar form (the bit-identity guarantee). Absent
+ * (unit fixtures, the non-loop fallback), calendar time is used as before. The chip,
+ * energy, and robotics rows are not permitting-gated by this dial.
  */
 export function computeAutopilotResilience(
   year: number,
   baseResilience: SupplyChainResilience,
   onshoringFraction: number,
+  dcEffectiveYears?: number,
 ): SupplyChainResilience {
   const t = year - DEFAULT_START_YEAR;
+  const dcT = dcEffectiveYears ?? t;
   const clampRes = (base: number, rate: number, cap: number): number =>
     Math.min(cap, base + rate * t);
+  const clampResDC = (base: number, rate: number, cap: number): number =>
+    Math.min(cap, base + rate * dcT);
 
   // Onshoring fraction accelerates AI chip resilience improvement
   const chipRate = RESILIENCE_IMPROVEMENT_RATES.aiChips * (1 + onshoringFraction);
@@ -114,8 +207,8 @@ export function computeAutopilotResilience(
   return {
     aiChips: clampRes(baseResilience.aiChips, chipRate, MAX_RESILIENCE),
     energy: clampRes(baseResilience.energy, RESILIENCE_IMPROVEMENT_RATES.energy, MAX_RESILIENCE_DC),
-    trainingDC: clampRes(baseResilience.trainingDC, RESILIENCE_IMPROVEMENT_RATES.trainingDC, MAX_RESILIENCE_DC),
-    inferenceDC: clampRes(baseResilience.inferenceDC, RESILIENCE_IMPROVEMENT_RATES.inferenceDC, MAX_RESILIENCE_DC),
+    trainingDC: clampResDC(baseResilience.trainingDC, RESILIENCE_IMPROVEMENT_RATES.trainingDC, MAX_RESILIENCE_DC),
+    inferenceDC: clampResDC(baseResilience.inferenceDC, RESILIENCE_IMPROVEMENT_RATES.inferenceDC, MAX_RESILIENCE_DC),
     roboticsHardware: clampRes(baseResilience.roboticsHardware, RESILIENCE_IMPROVEMENT_RATES.roboticsHardware, MAX_RESILIENCE),
   };
 }
@@ -157,6 +250,7 @@ export function interpolatePassThrough(
 /** Maps SupplyChainInputs field to the SupplyInputKey used in lag/sensitivity matrices. */
 const INPUT_TO_KEY: Array<[keyof SupplyChainInputs, SupplyInputKey | null]> = [
   ['aiChips', 'aiChips'],
+  ['chipPrice', 'chipPrice'], // C-3: price shocks lag like energyPrice
   ['energyPrice', 'energyPrice'],
   ['energyCapacity', 'energyCapacity'],
   ['trainingDCCapacity', 'trainingDCCapacity'],
@@ -294,24 +388,30 @@ export function computeCapabilityDelay(
   softwareEfficiency: number,
 ): Record<CapabilityVectorId, number> {
   // Compute effective constraint per training resource component
-  // Using "better" dimension lags for training channel
-  const chipConstraint = Math.max(0, 1 - laggedInputs.aiChips.better / 100) * (1 - resilience.aiChips);
-  const dcConstraint = Math.max(0, 1 - laggedInputs.trainingDCCapacity.better / 100) * (1 - resilience.trainingDC);
+  // Using "better" dimension lags for training channel.
+  // MS1 (Stage 4): quantity constraints are SIGNED (surplus relieves) via the one
+  // constraint producer; the composed training constraint clamps at ≥ 0 below.
+  const chipConstraint = computeInputConstraint('aiChips', laggedInputs.aiChips.better, resilience.aiChips);
+  const dcConstraint = computeInputConstraint('trainingDCCapacity', laggedInputs.trainingDCCapacity.better, resilience.trainingDC);
 
-  // Energy: WORSE of capacity constraint and price constraint
-  const energyCapLag = laggedInputs.energyCapacity.better;
-  const energyPriceLag = laggedInputs.energyPrice.better;
-  const energyCapConstraint = Math.max(0, 1 - energyCapLag / 100) * (1 - resilience.energy);
-  const energyPriceConstraint = energyPriceLag > 100
-    ? Math.max(0, 1 - 100 / energyPriceLag) * 0.5 * (1 - resilience.energy)
-    : 0;
-  const energyConstraint = Math.max(energyCapConstraint, energyPriceConstraint);
+  // Energy: WORSE of capacity constraint and price constraint when a price spike
+  // is live; the signed capacity constraint passes through when no spike (a
+  // capacity surplus relieves — MS1). The 0.5 down-weight on the price leg is
+  // this function's standing composition (price makes some runs uneconomical,
+  // a partial constraint vs a hard capacity shortfall).
+  const energyCapConstraint = computeInputConstraint('energyCapacity', laggedInputs.energyCapacity.better, resilience.energy);
+  const energyPriceConstraint = computeInputConstraint('energyPrice', laggedInputs.energyPrice.better, resilience.energy) * 0.5;
+  const energyConstraint = energyPriceConstraint > 0
+    ? Math.max(energyCapConstraint, energyPriceConstraint)
+    : energyCapConstraint;
 
-  // Training constraint weighted by DYNAMIC composition
-  const trainingConstraint =
+  // Training constraint weighted by DYNAMIC composition; clamped at ≥ 0 — the
+  // believed trajectory is a CEILING: surplus capacity offsets shortage in the
+  // weighted budget composition but never advances capability beyond belief.
+  const trainingConstraint = Math.max(0,
     dynamicComposition.aiChips * chipConstraint +
     dynamicComposition.energy * energyConstraint +
-    dynamicComposition.datacenter * dcConstraint;
+    dynamicComposition.datacenter * dcConstraint);
 
   // Software efficiency offsets training constraints
   const softwareOffset = softwareEfficiency / 100; // 100 → 1.0, 150 → 1.5
@@ -322,6 +422,104 @@ export function computeCapabilityDelay(
     generative: annualDelay,
     agentic: annualDelay,
     embodied: annualDelay,
+  };
+}
+
+// ============================================================
+// 6b. The frontier stock (the endogenous-frontier program, MS1)
+// ============================================================
+
+/** The frontier-stock dials resolved from config (absent fields ⇒ the constants). */
+export interface FrontierStockDials {
+  drainScale: number;
+  rebuildYears: number;
+  rateElasticity: number;
+  innovationElasticity: number;
+}
+
+export function resolveFrontierStockDials(config?: SupplyChainConfig): FrontierStockDials {
+  // Flywheel MS: config optional — the stock is ALWAYS-ON (loop-hosted); on SC-dormant
+  // paths the dials resolve to the constants (identical values, one source).
+  return {
+    drainScale: config?.frontierDrainScale ?? DEFAULT_FRONTIER_DRAIN_SCALE,
+    rebuildYears: config?.frontierRebuildYears ?? DEFAULT_FRONTIER_REBUILD_YEARS,
+    rateElasticity: config?.frontierRateElasticity ?? DEFAULT_FRONTIER_RATE_ELASTICITY,
+    innovationElasticity: config?.frontierInnovationElasticity ?? DEFAULT_FRONTIER_INNOVATION_ELASTICITY,
+  };
+}
+
+/**
+ * One year of frontier-stock dynamics (the ratified checkpoint §2.2, order normative):
+ *
+ *   u        = clamp(1 − annualDelay, 0, 1)          — the year's training throughput
+ *   drained  = S_prev × max(0, 1 − (1−u)·κ_G·drainScale),  κ_G = (G−1)/G
+ *   S        = drained + (1/rebuildYears)·max(0, u − drained)
+ *   rate     = S^rateElasticity                       — the capability-clock speed
+ *   m_inn    = S^innovationElasticity                 — the innovation-channel multiplier
+ *
+ * The drain law is DERIVED from the cited growth dial G (capacity tracks demand on the
+ * default path; a starved year builds only fraction u of the planned increment); the
+ * right-hand algebraic form `1 − (1−u)·κ` is normative — at u = 1 it is exactly 1.0 in
+ * IEEE arithmetic for any float G, so an unshocked year is bit-exactly inert
+ * (S = S_prev × 1; rebuild adds λ·max(0, 0); pow(1, y) = 1). Since u ≤ 1 and rebuild
+ * targets u, S stays in (0, 1]; hence rate ≤ 1 and the cumulative delay the caller
+ * accumulates as (1 − rate) is monotone — the clock never runs backward, and every
+ * finite famine heals toward the SAME exogenous ceiling (rate → 1 as S → 1).
+ */
+export function computeFrontierStockUpdate(
+  prevStock: number,
+  annualDelay: number,
+  trainingScaleGrowthRate: number,
+  dials: FrontierStockDials,
+): { stock: number; rate: number; delayIncrement: number; innovationMultiplier: number } {
+  const u = Math.min(1, Math.max(0, 1 - annualDelay));
+  const kappaG = (trainingScaleGrowthRate - 1) / trainingScaleGrowthRate;
+  const drainFactor = Math.max(0, 1 - (1 - u) * kappaG * dials.drainScale);
+  const drained = prevStock * drainFactor;
+  const rebuildRate = dials.rebuildYears > 0 ? 1 / dials.rebuildYears : 1;
+  const stock = drained + rebuildRate * Math.max(0, u - drained);
+  const rate = Math.pow(stock, dials.rateElasticity);
+  return {
+    stock,
+    rate,
+    delayIncrement: 1 - rate,
+    innovationMultiplier: Math.pow(stock, dials.innovationElasticity),
+  };
+}
+
+/**
+ * DELIVERED resilience (the ruled onset re-anchor): the resolved resilience series
+ * evaluated `onsetYears` back — the capacity that damps this year's constraint is what
+ * was ordered onsetYears ago, not what today's as-built trajectory shows. Fractional
+ * onsets interpolate componentwise between the bracketing entries; lookups before the
+ * series start clamp to the first entry (the seam's resolved values). The display rows
+ * are NEVER shifted — this feeds the training-channel damping only.
+ *
+ * `history` is the per-year RESOLVED resilience in year order, INCLUDING the current
+ * year as its last entry; onset 0 therefore returns the current entry exactly (the
+ * prior no-dead-time behavior, bit-identical).
+ */
+export function lookupDeliveredResilience(
+  history: readonly SupplyChainResilience[],
+  onsetYears: number,
+): SupplyChainResilience {
+  const last = history.length - 1;
+  const target = last - Math.max(0, onsetYears);
+  const lo = Math.max(0, Math.floor(target));
+  const hi = Math.max(0, Math.ceil(target));
+  const loEntry = history[lo] ?? history[0]!;
+  const hiEntry = history[hi] ?? history[0]!;
+  if (lo === hi || target <= 0) {
+    return target <= 0 ? { ...history[0]! } : { ...loEntry };
+  }
+  const frac = target - lo;
+  const mix = (a: number, b: number): number => a + frac * (b - a);
+  return {
+    aiChips: mix(loEntry.aiChips, hiEntry.aiChips),
+    energy: mix(loEntry.energy, hiEntry.energy),
+    trainingDC: mix(loEntry.trainingDC, hiEntry.trainingDC),
+    inferenceDC: mix(loEntry.inferenceDC, hiEntry.inferenceDC),
+    roboticsHardware: mix(loEntry.roboticsHardware, hiEntry.roboticsHardware),
   };
 }
 
@@ -339,14 +537,18 @@ export function computeCascadeBacklog(
 ): number {
   const windowYears = Math.max(1, Math.ceil(cascadeLag));
   const startIdx = Math.max(0, chipSupplyHistory.length - windowYears);
+  // MS1 (Stage 4): a surplus year offsets deficit years WITHIN the window (more
+  // chips flow down the cascade), signed per year; the window total floors at 0
+  // (a surplus never puts the inference fleet AHEAD of the cascade). Diagnostic
+  // path only (cascadeDeclineRateDiagnostic).
   let sumDeficit = 0;
   let count = 0;
   for (let i = startIdx; i < chipSupplyHistory.length; i++) {
-    sumDeficit += Math.max(0, 1 - (chipSupplyHistory[i] ?? 100) / 100);
+    sumDeficit += 1 - (chipSupplyHistory[i] ?? 100) / 100;
     count++;
   }
   if (count === 0) return 0;
-  return sumDeficit / windowYears;
+  return Math.max(0, sumDeficit) / windowYears;
 }
 
 // ============================================================
@@ -378,19 +580,33 @@ export function computeDeploymentCostMultipliers(
   resilience: SupplyChainResilience,
   softwareEfficiency: number,
 ): { compute: number; physicalHardware: number; energy: number } {
+  // MS1 (Stage 4): quantity constraints SIGNED via the one producer — a surplus
+  // (row > 100) lowers the scarcity-pricing term below baseline (glut pricing,
+  // the 2015-class GPU-surplus direction); the 0.1 floor below stands.
   // AI Chips scarcity → compute (primary driver)
-  const chipConstraint = Math.max(0, 1 - effectiveInputs.aiChips / 100) * (1 - resilience.aiChips);
-  // Inference DC scarcity → compute (scarcity pricing, additive)
-  const infDCConstraint = Math.max(0, 1 - effectiveInputs.inferenceDCCapacity / 100) * (1 - resilience.inferenceDC);
+  const chipConstraint = computeInputConstraint('aiChips', effectiveInputs.aiChips, resilience.aiChips);
+  // Inference DC scarcity → compute (scarcity pricing)
+  const infDCConstraint = computeInputConstraint('inferenceDCCapacity', effectiveInputs.inferenceDCCapacity, resilience.inferenceDC);
   // Software efficiency → compute (divisor, reduces effective constraint)
   const softwareOffset = softwareEfficiency / 100; // 150 → 1.5
-  const computeMultiplier = 1.0 + (chipConstraint + infDCConstraint * 0.5) / softwareOffset;
+  // Mini-stage 2 (C-3): the chip PRICE channel multiplies compute directly (the
+  // energyPrice template) — price and quantity compose; the quantity channel's ×1.95
+  // scarcity ceiling no longer caps price shocks. `?? 100` guards legacy configs
+  // predating the field (validateConfig heals persisted ones).
+  const chipPriceMultiplier = (effectiveInputs.chipPrice ?? 100) / 100;
+  // THE COMPLEMENTARITY RIDER (owner-ruled): chips and inference datacenters are
+  // hard complements for compute — the scarcity term binds at the WORST input's own
+  // constraint (Leontief), never a diluted blend. An inference-DC shortage now binds
+  // at 1.0× its severity (was 0.5×); a chips-only shortage is unchanged (max(c,0)=c).
+  // DEPRECATED (the pre-rider additive blend, kept per the no-delete rule):
+  //   const computeMultiplier = (1.0 + (chipConstraint + infDCConstraint * 0.5) / softwareOffset) * chipPriceMultiplier;
+  const computeMultiplier = (1.0 + Math.max(chipConstraint, infDCConstraint) / softwareOffset) * chipPriceMultiplier;
 
   // Energy price → energy (direct pass-through)
   const energyMultiplier = effectiveInputs.energyPrice / 100;
 
-  // Robotics HW → physical hardware
-  const roboticsConstraint = Math.max(0, 1 - effectiveInputs.roboticsHardware / 100) * (1 - resilience.roboticsHardware);
+  // Robotics HW → physical hardware (signed — MS1)
+  const roboticsConstraint = computeInputConstraint('roboticsHardware', effectiveInputs.roboticsHardware, resilience.roboticsHardware);
   const physicalMultiplier = 1.0 + roboticsConstraint;
 
   return {
@@ -469,6 +685,7 @@ export function computeFasterMultiplier(
   let totalDrag = 0;
   const resMap: Record<SupplyInputKey, number> = {
     aiChips: resilience.aiChips,
+    chipPrice: resilience.aiChips, // C-3: chip-price exposure shares the chip-supply resilience
     energyPrice: resilience.energy,
     energyCapacity: resilience.energy,
     trainingDCCapacity: resilience.trainingDC,
@@ -480,13 +697,16 @@ export function computeFasterMultiplier(
     const sensitivity = matrix[key].faster;
     if (sensitivity === 0) continue;
     const laggedValue = laggedInputs[key].faster;
-    const constraint = Math.max(0, 1 - laggedValue / 100) * (1 - resMap[key]);
+    // MS1 (Stage 4): kind-aware signed constraint via the one producer.
+    const constraint = computeInputConstraint(key, laggedValue, resMap[key]);
     totalDrag += sensitivity * constraint;
   }
 
   // Software efficiency partially offsets faster drag
   const softwareOffset = softwareEfficiency / 100;
-  totalDrag = totalDrag / softwareOffset;
+  // MS1: composed drag clamps at ≥ 0 — surplus relieves shortage but never
+  // pushes the improvement rate above the believed baseline (ceilings semantics).
+  totalDrag = Math.max(0, totalDrag) / softwareOffset;
 
   return Math.max(0, 1 - totalDrag);
 }
@@ -512,6 +732,7 @@ export function computeSaferMultiplier(
   let totalDrag = 0;
   const resMap: Record<SupplyInputKey, number> = {
     aiChips: resilience.aiChips,
+    chipPrice: resilience.aiChips, // C-3: chip-price exposure shares the chip-supply resilience
     energyPrice: resilience.energy,
     energyCapacity: resilience.energy,
     trainingDCCapacity: resilience.trainingDC,
@@ -523,11 +744,13 @@ export function computeSaferMultiplier(
     const sensitivity = matrix[key].safer;
     if (sensitivity === 0) continue;
     const laggedValue = laggedInputs[key].safer;
-    const constraint = Math.max(0, 1 - laggedValue / 100) * (1 - resMap[key]);
+    // MS1 (Stage 4): kind-aware signed constraint via the one producer.
+    const constraint = computeInputConstraint(key, laggedValue, resMap[key]);
     totalDrag += sensitivity * constraint;
   }
 
-  return Math.max(0, 1 - totalDrag);
+  // MS1: composed drag clamps at ≥ 0 (ceilings semantics — see computeFasterMultiplier).
+  return Math.max(0, 1 - Math.max(0, totalDrag));
 }
 
 // ============================================================
@@ -554,6 +777,7 @@ export function computeAdoptionDrag(
   let count = 0;
   const resMap: Record<SupplyInputKey, number> = {
     aiChips: resilience.aiChips,
+    chipPrice: resilience.aiChips, // C-3: chip-price exposure shares the chip-supply resilience
     energyPrice: resilience.energy,
     energyCapacity: resilience.energy,
     trainingDCCapacity: resilience.trainingDC,
@@ -561,20 +785,42 @@ export function computeAdoptionDrag(
     roboticsHardware: resilience.roboticsHardware,
   };
 
+  // THE COMPLEMENTARITY RIDER (owner-ruled): hard-complement inputs (chips, energy,
+  // datacenters — SUPPLY_INPUT_CLASS) bind at their OWN severity: the worst hard cell's
+  // sensitivity × constraint is a FLOOR under the averaged aggregation, so a hard
+  // shortage is never diluted by healthy peers. Soft inputs (logistics-class) remain
+  // averaged exactly as before: with no hard cell binding, max(0, avg) = avg — the
+  // pre-rider value bit-exactly (the rider's identity battery).
+  //
+  // MS1 (Stage 4, the ruled root fix): the per-cell constraint comes from the ONE
+  // kind-aware producer — price rows drag when ABOVE 100 and relieve nothing below
+  // (the retired shortage-form treatment INVERTED price semantics: cheap energy at
+  // 70 dragged 0.966, a 130 spike dragged zero — both Stage-0-measured); quantity
+  // rows are SIGNED (surplus relieves the averaged channel). The hardBind floor
+  // (init 0) keeps a hard shortage undiluted by surplus elsewhere, and because
+  // binding = max(hardBind ≥ 0, avg), the composed constraint is automatically
+  // ≥ 0 — surplus can never push the drag multiplier above 1 (ceilings semantics).
+  // The retired per-cell form, kept per the no-delete rule:
+  //   const constraint = Math.max(0, 1 - laggedValue / 100) * (1 - resMap[key]);
+  let hardBind = 0;
   for (const key of Object.keys(matrix) as SupplyInputKey[]) {
     for (const dim of ['better', 'faster', 'cheaper', 'safer'] as BFCSDimension[]) {
       const sensitivity = matrix[key][dim];
       if (sensitivity === 0) continue;
       const laggedValue = laggedInputs[key][dim];
-      const constraint = Math.max(0, 1 - laggedValue / 100) * (1 - resMap[key]);
+      const constraint = computeInputConstraint(key, laggedValue, resMap[key]);
       totalConstraint += sensitivity * constraint;
       count++;
+      if (SUPPLY_INPUT_CLASS[key] === 'hard-complement') {
+        hardBind = Math.max(hardBind, sensitivity * constraint);
+      }
     }
   }
 
   const avgConstraint = count > 0 ? totalConstraint / count : 0;
+  const bindingConstraint = Math.max(hardBind, avgConstraint);
   // Pass-through modulates how much deployment cost affects adoption
-  const effectiveConstraint = avgConstraint * (0.5 + 0.5 * passThrough);
+  const effectiveConstraint = bindingConstraint * (0.5 + 0.5 * passThrough);
 
   return Math.max(0, 1 - effectiveConstraint);
 }
@@ -590,11 +836,15 @@ export function computeAdoptionDrag(
 export function computeHysteresisWidth(
   yearsSinceAdoption: number,
   deploymentType: DeploymentType,
-  config: SupplyChainConfig,
+  // Mini-stage 2 (path unification): the band runs on the DEFAULT path too — the config is
+  // optional; the maxima fall back to the ruled default dials when no SC config exists.
+  config?: Pick<SupplyChainConfig, 'hysteresisMaxCognitive' | 'hysteresisMaxEmbodied'>,
 ): number {
   const isCognitive = deploymentType === 'software' || deploymentType === 'hybrid';
   const base = isCognitive ? HYSTERESIS_BASE_COGNITIVE : HYSTERESIS_BASE_EMBODIED;
-  const max = isCognitive ? config.hysteresisMaxCognitive : config.hysteresisMaxEmbodied;
+  const max = isCognitive
+    ? (config?.hysteresisMaxCognitive ?? DEFAULT_HYSTERESIS_MAX_COGNITIVE)
+    : (config?.hysteresisMaxEmbodied ?? DEFAULT_HYSTERESIS_MAX_EMBODIED);
   const capYears = isCognitive ? HYSTERESIS_CAP_YEARS_COGNITIVE : HYSTERESIS_CAP_YEARS_EMBODIED;
 
   if (yearsSinceAdoption <= 0) return base;
@@ -616,8 +866,17 @@ export interface StatefulAdoptionResult {
 }
 
 /**
- * Full stateful adoption with freeze/decline/resume.
+ * RETIRED (the coupled design checkpoint, mini-stage 2; Amendment 2 — no legacy toggles):
+ * the SC-scenario stateful machine is superseded by computeUnifiedAdoptionState
+ * (adoption.ts) — ONE machine on the ONE rich growth curve (getAdoptionRate, raw), with the
+ * cost-triggered exit evaluated against the REHIRE basis and throttled by the pool's fill
+ * capacity (Amendment 1), replacing this machine's score-regression-only trigger, its
+ * simple-logistic + ratchet growth, and its instant-symmetric labor consequence. No live
+ * callers (the one-assembly-genus probe pattern applies); kept per the no-delete rule as
+ * the deprecated record. Which-change pole: the recorded commit-A episode run
+ * (~/.atlas-referents/ms2/instant-rehire-pole.json).
  *
+ * Original spec:
  * States:
  * 1. Not triggered → rate=0, status='not_triggered'
  * 2. First trigger this year → rate=0, status='first_trigger'
@@ -791,6 +1050,19 @@ export interface SupplyChainComputeInputs {
   baseComputeDeclineRate: number;
   cognitiveProgress: number;  // from previous year
   embodiedProgress: number;   // from previous year
+  /** Mini-stage 2 (C-1): the per-year RESOLVED resilience (autopilot-evolved, user-
+   *  overridable via the sidebar rows). When provided, step 1 consumes it directly —
+   *  record/display and execution read the same resolved series (battery B2-3). Absent
+   *  (unit fixtures), the block evolves from config.resilience as before. */
+  resolvedResilience?: SupplyChainResilience;
+  /** MS1 (the frontier stock): previous year's stock. Absent (unit fixtures) ⇒ 1
+   *  (on-path). The loop threads it like prevCumulativeDelay. */
+  prevFrontierStock?: number;
+  /** MS1 (the ruled onset re-anchor): the DELIVERED resilience for the TRAINING
+   *  channel — the resolved series onsetYears back, computed by the loop from its
+   *  resilience history. Absent (unit fixtures) ⇒ the effective resilience (the prior
+   *  no-dead-time behavior). Deployment/cost legs always use the effective series. */
+  deliveredResilience?: SupplyChainResilience;
 }
 
 /**
@@ -803,8 +1075,9 @@ export function computeSupplyChainEffects(
 ): SupplyChainEffects {
   const { year, config, shockHistory, chipSupplyHistory, prevCumulativeDelay, onshoringFraction, automationCoverage, baseComputeDeclineRate } = inputs;
 
-  // 1. Compute effective resilience
-  const effectiveResilience = computeAutopilotResilience(year, config.resilience, onshoringFraction);
+  // 1. Compute effective resilience (C-1: the resolved per-year series when supplied)
+  const effectiveResilience = inputs.resolvedResilience
+    ?? computeAutopilotResilience(year, config.resilience, onshoringFraction);
 
   // 2. Compute aggregate resilience (weighted average)
   const aggregateResilience = (
@@ -821,25 +1094,51 @@ export function computeSupplyChainEffects(
   // 4. Dynamic training composition
   const dynamicTrainingComposition = computeDynamicTrainingComposition(year, config);
 
-  // 5. Capability delays
+  // 5. Capability delays — MS1: the TRAINING channel damps by DELIVERED resilience
+  // (the ruled onset dead time; absent in unit fixtures ⇒ effective, the prior
+  // behavior). FLYWHEEL MS (the hoist): the frontier-stock update and the cumulative
+  // accumulation MOVED to the simulation loop — the stock is always-on and its
+  // demand-side input (the funding gate) reads macro state this block cannot see.
+  // This function's output is the year's SUPPLY-side annual delay; the loop composes
+  // u = min(u_supply, u_demand) and calls computeFrontierStockUpdate itself.
   const annualDelay = computeCapabilityDelay(
-    laggedInputs, effectiveResilience, dynamicTrainingComposition, config.inputs.softwareEfficiency,
+    laggedInputs, inputs.deliveredResilience ?? effectiveResilience,
+    dynamicTrainingComposition, config.inputs.softwareEfficiency,
   );
-  const cumulativeCapabilityDelay: Record<CapabilityVectorId, number> = {
-    generative: prevCumulativeDelay.generative + annualDelay.generative,
-    agentic: prevCumulativeDelay.agentic + annualDelay.agentic,
-    embodied: prevCumulativeDelay.embodied + annualDelay.embodied,
-  };
+  // DEPRECATED (the hoist) — the retired in-block update, kept per the no-delete rule:
+  //   const frontier = computeFrontierStockUpdate(
+  //     inputs.prevFrontierStock ?? 1, annualDelay.generative,
+  //     config.trainingScaleGrowthRate, resolveFrontierStockDials(config));
+  //   const cumulativeCapabilityDelay = { generative/agentic/embodied:
+  //     prevCumulativeDelay.* + frontier.delayIncrement };
+  void prevCumulativeDelay; // reason: params retained for signature stability (deprecated inputs; the loop owns the state)
 
-  // 6. Cascade backlog & effective compute decline
+  // 6. Cascade backlog & the DIAGNOSTIC decline rate (ruling 4's loudness: renamed from
+  // effectiveComputeDeclineRate — not consumed by any economic path, proven by
+  // strict-equality execution; the realized cost trend lives on the τ clock).
   const cascadeBacklog = computeCascadeBacklog(chipSupplyHistory, config.chipCascadeLag);
-  const effectiveComputeDeclineRate = computeEffectiveComputeDecline(
+  const cascadeDeclineRateDiagnostic = computeEffectiveComputeDecline(
     baseComputeDeclineRate, cascadeBacklog, config.chipCascadeCostPremium,
   );
 
   // 7. Deployment cost multipliers
+  // Mini-stage 2 (C-7): cost multipliers read the LAGGED inputs — aligned with
+  // faster/safer/drag (the audit's internal timing inconsistency resolved; a shock's
+  // cost incidence phases in with the propagation lags instead of instantly). The
+  // CHEAPER-dimension lagged view is flattened back to the inputs shape; software
+  // efficiency is unlagged by design (INPUT_TO_KEY maps it to null).
+  const cheaperLaggedInputs: SupplyChainInputs = {
+    aiChips: laggedInputs.aiChips.cheaper,
+    chipPrice: laggedInputs.chipPrice.cheaper,
+    energyPrice: laggedInputs.energyPrice.cheaper,
+    energyCapacity: laggedInputs.energyCapacity.cheaper,
+    trainingDCCapacity: laggedInputs.trainingDCCapacity.cheaper,
+    inferenceDCCapacity: laggedInputs.inferenceDCCapacity.cheaper,
+    roboticsHardware: laggedInputs.roboticsHardware.cheaper,
+    softwareEfficiency: config.inputs.softwareEfficiency,
+  };
   const deploymentCostMultipliers = computeDeploymentCostMultipliers(
-    config.inputs, effectiveResilience, config.inputs.softwareEfficiency,
+    cheaperLaggedInputs, effectiveResilience, config.inputs.softwareEfficiency,
   );
 
   // 8. Pass-through
@@ -866,11 +1165,12 @@ export function computeSupplyChainEffects(
 
   return {
     annualCapabilityDelay: annualDelay,
-    cumulativeCapabilityDelay,
+    // cumulativeCapabilityDelay / frontierStock / frontierRate / innovationStockMultiplier:
+    // DEPRECATED, no longer populated — the loop produces them (the hoist; one producer).
     dynamicTrainingComposition,
     deploymentCostMultipliers,
     bfcsCostMultipliers,
-    effectiveComputeDeclineRate,
+    cascadeDeclineRateDiagnostic,
     fasterMultiplier,
     saferMultiplier,
     adoptionDragMultiplier,

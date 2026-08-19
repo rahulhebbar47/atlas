@@ -16,7 +16,10 @@ describe('LLAG diagnostic', () => {
     const cfg = getDefaultSimulationConfig();
     const flat = { floor: 0, ceiling: 0, steepness: 1.0, midpointYear: 2035 };
     cfg.capabilities = { generative: flat, agentic: flat, embodied: flat } as Record<CapabilityVectorId, typeof flat>;
-    cfg.diagSpotBuilderPrice = true;
+    // RE-SPECCED (CO-D2 conversion 7/7): the diagnostic toggle retired — the REAL dial
+    // expresses the same machinery (zero capability loss); the llag-faithful pole is at
+    // ~/.atlas-referents/co-d2/diagSpotBuilderPrice/pole-llag.json.
+    cfg.builderPriceMode = 'spot';
     assertKnownConfigKeys(cfg, 'harness');
     const tl = runSimulation(cfg, OCCUPATION_CLUSTERS, baselines);
     const rows = tl.years.map(y => { const m = y.macro as unknown as Record<string, number>;

@@ -87,7 +87,9 @@ export function AutopilotLog() {
           baselineValue: pv.baseline,
           autopilotValue: pv.autopilot,
           effectiveValue: pv.effective,
-          source: pv.source === 'override' ? 'override' : 'autopilot',
+          // R1 tag migration: the log's two display buckets keep their meaning —
+          // user-set/imported values are 'override'; machine-adjusted values 'autopilot'.
+          source: (pv.source === 'user-override' || pv.source === 'imported') ? 'override' : 'autopilot',
         });
       }
 

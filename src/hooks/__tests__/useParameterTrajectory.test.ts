@@ -112,7 +112,12 @@ describe('Parameter trajectory extraction', () => {
       const t = extractTrajectory(key, pt);
       if (t.points.length > 0) extractedCount++;
     }
-    expect(extractedCount).toBe(46);
+    // Stage H item 3: ALL_PARAM_KEYS derives from PARAM_CATEGORIES (the engine-honored
+    // rows). Mini-stage 1: 17 — tokenUsageMultiplier RETIRED with the global schedule
+    // (Amendment 2; the aggregate tokens-per-task path is an emergent OUTPUT).
+    // Mini-stage 2 (C-1): 40 — the 22 supply-chain rows returned (consumed by execution
+    // via per-year resolution in the simulation loop) + supplyChainChipPrice (C-3).
+    expect(extractedCount).toBe(40);
   });
 
   it('produces correct number of points per parameter', () => {
@@ -185,7 +190,7 @@ describe('Parameter trajectory with overrides', () => {
     const pointAt2035 = t.points.find(p => p.year === 2035);
     if (pointAt2035) {
       expect(pointAt2035.override).toBe(0.20);
-      expect(pointAt2035.source).toBe('override');
+      expect(pointAt2035.source).toBe('user-override');
       expect(pointAt2035.effective).toBe(0.20);
     }
 
@@ -193,7 +198,7 @@ describe('Parameter trajectory with overrides', () => {
     const pointAt2040 = t.points.find(p => p.year === 2040);
     if (pointAt2040) {
       expect(pointAt2040.override).toBe(0.20);
-      expect(pointAt2040.source).toBe('override');
+      expect(pointAt2040.source).toBe('user-override');
     }
   });
 
@@ -247,7 +252,7 @@ describe('Most changed parameters sorting', () => {
 });
 
 describe('Grouped parameter trajectories', () => {
-  it('produces 5 groups matching PARAM_CATEGORIES', () => {
+  it('produces 9 groups matching PARAM_CATEGORIES', () => {
     const pt = defaultTimeline.parameterTimeline!;
     const grouped = new Map<string, string[]>();
 
@@ -263,14 +268,17 @@ describe('Grouped parameter trajectories', () => {
       }
     }
 
-    expect(grouped.size).toBe(10);
+    // Stage H item 3 hid the policy group (6 dead keys) and the four supply-chain groups —
+    // recorded-not-consumed pending re-wiring. Mini-stage 2 (C-1): the four supply-chain
+    // groups RETURN (rows consumed by execution; per-year resolution in the simulation
+    // loop) + supplyChainChipPrice (C-3). The policy group stays hidden.
+    expect(grouped.size).toBe(9);
     expect(grouped.get('fiscal')?.length).toBe(5);
     expect(grouped.get('tax')?.length).toBe(4);
     expect(grouped.get('monetary')?.length).toBe(2);
     expect(grouped.get('fed')?.length).toBe(3);
-    expect(grouped.get('policy')?.length).toBe(6);
-    expect(grouped.get('tech')?.length).toBe(4);
-    expect(grouped.get('supplyInputs')?.length).toBe(7);
+    expect(grouped.get('tech')?.length).toBe(3); // mini-stage 1: tokenUsageMultiplier retired
+    expect(grouped.get('supplyInputs')?.length).toBe(8); // 7 returned + chipPrice (C-3)
     expect(grouped.get('supplyResilience')?.length).toBe(5);
     expect(grouped.get('trainingDynamics')?.length).toBe(7);
     expect(grouped.get('supplyEcon')?.length).toBe(3);

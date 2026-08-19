@@ -115,9 +115,18 @@ export function computeRoleDisplacement(
   /** Phase 10.A — effective α for this role this year (replaces the squared capability proxy). */
   alpha: number,
   wageElasticityOverride?: number,
+  /** STAGE 4 MS4 — THE ADOPTION-GATING BUILD (the ratified design §2): the
+   *  displacement gate g_c = (1 − w_embodied,c) + w_embodied,c × fleetCoverage_c —
+   *  the cluster's software path never gates; the embodied path gates on the
+   *  per-cluster fleet coverage (a fully embodied cluster displaces NO ONE
+   *  without robots). Absent (unit fixtures, zero-AI, pre-clearance) ⇒ 1. The
+   *  wage-depression term follows the gated displacementPct (no robots ⇒ no
+   *  embodied wage pressure — the standing coupling). */
+  displacementGate = 1,
 ): RoleDisplacementResult {
-  // Phase 10.A V2 displacement: adoption × weightedCapability × α
-  const displacementPct = computeDisplacementV2(adoptionRate, weightedCapability, alpha);
+  // Phase 10.A V2 displacement: adoption × weightedCapability × α — MS4: × the gate
+  const displacementPct = Math.max(0, Math.min(1,
+    computeDisplacementV2(adoptionRate, weightedCapability, alpha) * displacementGate));
 
   // Headcount multiplier: 1 - displacement_pct
   const headcountMultiplier = Math.max(0, Math.min(1, 1 - displacementPct));
@@ -167,6 +176,8 @@ export function computeClusterDisplacement(
   wageElasticityOverride?: number,
   /** Phase 10.A — scarcity-intensity for this-year cluster premium (used when propagating to macro). */
   scarcityIntensity?: number,
+  /** Stage 4 MS4: the cluster's displacement gate (see computeRoleDisplacement). */
+  displacementGate = 1,
 ): ClusterDisplacementResult {
   const roleResults: RoleDisplacementResult[] = [];
   let totalRemainingEmployment = 0;
@@ -194,6 +205,7 @@ export function computeClusterDisplacement(
       weightedCapability,
       alpha,
       wageElasticityOverride,
+      displacementGate, // Stage 4 MS4: the per-cluster fleet gate
     );
 
     roleResults.push(result);

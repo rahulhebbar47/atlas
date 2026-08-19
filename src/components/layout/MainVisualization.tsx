@@ -16,6 +16,9 @@ import { TimelineControl } from '@/components/controls/TimelineControl';
 // import { NewJobsChart } from '@/components/charts/NewJobsChart';
 // import { DisplacementDemandDiagram } from '@/components/charts/DisplacementDemandDiagram';
 // import { HistoricalComparisonChart } from '@/components/charts/HistoricalComparisonChart';
+// R3a': AxisBoardView RETIRED (unmounted; the sidebar is the worldview surface) — kept per no-delete.
+// import { AxisBoardView } from '@/components/charts/AxisBoardView';
+import { AdvancedView } from '@/components/charts/AdvancedView';
 import { OccupationsView } from '@/components/charts/OccupationsView';
 import { PolicyDashboard } from '@/components/policy/PolicyDashboard';
 // DEPRECATED: StatesView — state-level analysis removed from main nav in Phase 5
@@ -86,18 +89,41 @@ function OverviewView() {
   );
 }
 
+/** The declared monetary-collapse notice: when a composed scenario drives the
+ *  price level to the model's declared collapse regime, the run records the
+ *  collapse year and freezes the remaining years — and the user is told so in
+ *  plain words. Never a silent freeze. */
+function MonetaryCollapseNotice() {
+  const collapseYear = useSimulationStore((s) => s.timeline.monetaryCollapseYear);
+  if (collapseYear === null || collapseYear === undefined) return null;
+  return (
+    <div
+      role="alert"
+      className="mt-4 rounded-lg border border-red-500/40 bg-red-950/40 px-4 py-3 text-sm text-red-200"
+    >
+      <span className="font-semibold">Monetary collapse declared in {collapseYear}.</span>{' '}
+      Under this configuration the price level spirals beyond meaning — the model
+      declares the currency collapsed, records the year, and freezes later output.
+      Values after {collapseYear} are not meaningful economics; they are the frozen
+      final state. Softening the composed policies or worldview reverses this.
+    </div>
+  );
+}
+
 export function MainVisualization() {
   const activeView = useSimulationStore((s) => s.activeView);
 
   return (
     <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 min-w-0">
       <TimelineControl />
+      <MonetaryCollapseNotice />
       <div className="grid gap-6 mt-6 min-w-0">
         {activeView === 'overview' && <OverviewView />}
         {activeView === 'fiscal' && <FiscalView />}
         {activeView === 'economics' && <EconomicsView />}
         {activeView === 'monetary' && <MonetaryView />}
         {activeView === 'occupations' && <OccupationsView />}
+        {(activeView === 'advanced' || activeView === 'axes' /* legacy value heals */) && <AdvancedView />}
         {activeView === 'policy' && <PolicyDashboard />}
         {activeView === 'methodology' && <MethodologyView />}
         {activeView === 'predictions' && <PredictionsView />}

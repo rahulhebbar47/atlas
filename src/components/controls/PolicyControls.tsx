@@ -10,17 +10,21 @@
 import { useCallback } from 'react';
 import { useSimulationStore } from '@/stores/simulationStore';
 import { POLICY_CHANNEL_COLORS } from '@/models/constants';
-import { usePolicyConfig } from '@/hooks/usePolicyData';
+// The per-field rebuild: this editor renders the EFFECTIVE policy config (what the
+// run consumed) so sidebar package selections are visible; writes go to the user
+// config and touch their keys, so an edited control's effective value IS the user's.
+import { useEffectivePolicyConfig } from '@/hooks/usePolicyData';
 import { Slider } from '@/components/shared/Slider';
 import { PolicyKeyframeEditor } from './PolicyKeyframeEditor';
 import { PolicyPresetSelector } from './PolicyPresetSelector';
+import { ComposedNotice } from '@/components/shared/ComposedNotice';
 import { PolicyToggleCard } from './PolicyToggleCard';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import { interpolatePolicy } from '@/utils/policyInterpolation';
 import type { PolicyConfig, PolicySchedule } from '@/types';
 
 export function PolicyControls() {
-  const config = usePolicyConfig();
+  const config = useEffectivePolicyConfig();
   const currentYear = useSimulationStore((s) => s.currentYear);
   const togglePolicy = useSimulationStore((s) => s.togglePolicy);
   const updatePolicyParam = useSimulationStore((s) => s.updatePolicyParam);
@@ -38,6 +42,8 @@ export function PolicyControls() {
 
   return (
     <div className="space-y-4">
+      {/* prefix form (trailing dot): per-field packages have no whole-slot entry */}
+      <ComposedNotice dialKey="policyConfig." what="these support programs" />
       {/* Presets */}
       <PolicyPresetSelector />
 
@@ -128,6 +134,14 @@ export function PolicyControls() {
         accentColor={POLICY_CHANNEL_COLORS.asset}
       >
         <Slider
+          label="Fund Creation Year"
+          value={config.sovereignWealthFund.startYear ?? 2025}
+          min={2025} max={2045} step={1}
+          color={POLICY_CHANNEL_COLORS.asset}
+          onChange={(v) => update('sovereignWealthFund', { startYear: v })}
+          formatValue={(v) => `${v}`}
+        />
+        <Slider
           label="Initial Fund Size"
           value={config.sovereignWealthFund.initialFundSize}
           min={0} max={5000} step={50}
@@ -162,6 +176,11 @@ export function PolicyControls() {
           color={POLICY_CHANNEL_COLORS.asset}
           formatValue={(v) => formatPercent(v, 0)}
         />
+        {/* DEPRECATED (Stage H addendum, A-6): the "AI Company Profits" exogenous-base slider is
+            removed — equity-stakes and profit-sharing payouts are now priced from the model's
+            own realized AI corporate profits (prior year), not a hand-set 500×1.15^t path that
+            claimed $1T of 2030 profits the model never recorded. Field kept (no-delete rule);
+            deadness enforced by stageH-honesty.test.ts.
         <Slider
           label="AI Company Profits"
           value={config.sovereignWealthFund.totalAICompanyProfits}
@@ -169,7 +188,7 @@ export function PolicyControls() {
           color={POLICY_CHANNEL_COLORS.asset}
           onChange={(v) => update('sovereignWealthFund', { totalAICompanyProfits: v })}
           formatValue={(v) => `$${v}B/yr`}
-        />
+        /> */}
       </PolicyToggleCard>
 
       <PolicyToggleCard
@@ -235,6 +254,10 @@ export function PolicyControls() {
           color={POLICY_CHANNEL_COLORS.transfer}
           formatValue={(v) => formatPercent(v, 0)}
         />
+        {/* Duration range 0-104: the displaced-worker pool prices multi-year entitlements
+            honestly — each duration cohort draws down 52 payable weeks per year, so a
+            78-week program pays 52 then 26 then 0. (The earlier 52-week cap reflected a
+            retired annualization bound; the pool dissolved it.) */}
         <Slider
           label="Duration"
           value={config.enhancedUI.durationWeeks}
@@ -261,14 +284,15 @@ export function PolicyControls() {
           color={POLICY_CHANNEL_COLORS.transfer}
           formatValue={(v) => `$${v.toLocaleString()}`}
         />
-        <Slider
+        {/* DEPRECATED (Stage H): dead dial — retraining.effectivenessRate is never read on the simulation path (live sibling participationRate has no control; adding one is design-stage work); config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+        {/* <Slider
           label="Effectiveness"
           value={config.retraining.effectivenessRate}
           min={0} max={1.0} step={0.05}
           color={POLICY_CHANNEL_COLORS.transfer}
           onChange={(v) => update('retraining', { effectivenessRate: v })}
           formatValue={(v) => formatPercent(v, 0)}
-        />
+        /> */}
       </PolicyToggleCard>
     </div>
   );

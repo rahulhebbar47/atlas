@@ -2,15 +2,18 @@
  * ATLAS Timeline Control
  *
  * Horizontal bar at the top of the main visualization area.
- * Play/pause button, year display, range scrubber with policy window band.
+ * Play/pause button, year display, range scrubber.
  *
- * Phase 5: Replaced T* tipping point marker with a green policy window band
- * spanning from policyWindowStart to policyWindowClose.
+ * Phase 5: Replaced T* tipping point marker with a green policy window band.
+ * Owner order (pre-flight polish): the window tints RETIRED with the policy-window
+ * overlays — the track is plain gold-on-elevated; the year display no longer turns
+ * red past the window (the same retired semantics). Override/autopilot dots stay
+ * (a different feature).
  */
 
 import { useCallback } from 'react';
 import { useSimulationStore } from '@/stores/simulationStore';
-import { usePolicyWindowInfo, useCurrentYear } from '@/hooks/useSimulation';
+import { useCurrentYear } from '@/hooks/useSimulation'; // usePolicyWindowInfo retired with the window band (owner order)
 import { useTimelinePlayback } from '@/hooks/useTimelinePlayback';
 import { useOverrideCount, useAutopilotYears } from '@/hooks/useParameterTimeline';
 
@@ -22,12 +25,10 @@ export function TimelineControl() {
   const setCurrentYear = useSimulationStore((s) => s.setCurrentYear);
   const togglePlay = useSimulationStore((s) => s.togglePlay);
   const setEndYear = useSimulationStore((s) => s.setEndYear);
-  const {
-    prepWindowOpen, prepWindowClose,
-    fiscalWindowOpen, fiscalWindowClose,
-    status,
-  } = usePolicyWindowInfo();
-  const isPast = status === 'post-window';
+  // RETIRED (owner order — the window overlays are gone): the window-band reads.
+  //   const { prepWindowOpen, prepWindowClose, fiscalWindowOpen, fiscalWindowClose,
+  //     status } = usePolicyWindowInfo();
+  //   const isPast = status === 'post-window';
   const { years: overrideYears } = useOverrideCount();
   const autopilotYears = useAutopilotYears();
 
@@ -48,16 +49,8 @@ export function TimelineControl() {
     [setEndYear],
   );
 
-  // Two-window band positions as percentages
   const totalRange = endYear - startYear;
-  const prepStartPct = prepWindowOpen !== null
-    ? ((prepWindowOpen - startYear) / totalRange) * 100 : null;
-  const prepEndPct = prepWindowClose !== null
-    ? ((prepWindowClose - startYear) / totalRange) * 100 : null;
-  const fiscalStartPct = fiscalWindowOpen !== null
-    ? ((fiscalWindowOpen - startYear) / totalRange) * 100 : null;
-  const fiscalEndPct = fiscalWindowClose !== null
-    ? ((fiscalWindowClose - startYear) / totalRange) * 100 : null;
+  // RETIRED (owner order): the two-window band percentages — see buildTrackGradient's note.
 
   // Scrubber fill percentage
   const fillPercent = ((currentYear - startYear) / totalRange) * 100;
@@ -74,11 +67,7 @@ export function TimelineControl() {
 
       {/* Current year display */}
       <div className="flex-shrink-0 w-[72px]">
-        <span
-          className={`font-display text-3xl leading-none transition-colors duration-300 ${
-            isPast ? 'text-critical' : 'text-text-primary'
-          }`}
-        >
+        <span className="font-display text-3xl leading-none text-text-primary">
           {currentYear}
         </span>
       </div>
@@ -94,14 +83,9 @@ export function TimelineControl() {
           onChange={handleScrub}
           className="w-full relative z-[2]"
           style={{
-            '--slider-color': isPast
-              ? 'var(--color-critical)'
-              : 'var(--color-gold)',
-            background: buildTrackGradient(
-              fillPercent, isPast,
-              prepStartPct, prepEndPct ?? fiscalStartPct ?? null,
-              fiscalStartPct, fiscalEndPct,
-            ),
+            '--slider-color': 'var(--color-gold)',
+            // the plain track (owner order): gold fill, elevated background — no window tints
+            background: `linear-gradient(to right, var(--color-gold) 0%, var(--color-gold) ${fillPercent.toFixed(1)}%, var(--color-bg-elevated) ${fillPercent.toFixed(1)}%, var(--color-bg-elevated) 100%)`,
           } as React.CSSProperties}
         />
 
@@ -169,6 +153,10 @@ export function TimelineControl() {
   );
 }
 
+/* RETIRED (owner order, pre-flight polish): the window-aware track gradient — the
+ * green/amber/red window tints left with the policy-window overlays. Kept per the
+ * no-delete rule; the scrubber uses the plain two-stop gradient inline above. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 /**
  * Build a multi-stop linear gradient that colors the timeline track:
  * - Default track color for the unfilled portion

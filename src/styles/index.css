@@ -185,3 +185,33 @@ body::after {
   position: relative;
   z-index: 2;
 }
+
+/* AnimatedRange (the Advanced grid's sliders): custom track so the fill-to-thumb
+   gradient renders; the thumb stays a quiet gold dot. One accent everywhere. */
+.atlas-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 9999px;
+  outline: none;
+  cursor: pointer;
+}
+.atlas-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: #D4A03C;
+  border: 2px solid #0C1424;
+}
+.atlas-range::-moz-range-thumb {
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: #D4A03C;
+  border: 2px solid #0C1424;
+}
+.atlas-range:focus-visible {
+  box-shadow: 0 0 0 2px rgba(212, 160, 60, 0.4);
+}

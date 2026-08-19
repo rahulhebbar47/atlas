@@ -7,13 +7,15 @@
 
 import { MetricCard } from '@/components/shared/MetricCard';
 import { usePolicyMetrics, usePolicyWindow } from '@/hooks/usePolicyData';
-import { usePolicyConfig } from '@/hooks/usePolicyData';
+// The per-field rebuild: this summary describes the RUN — it reads the effective
+// policy config (the values the simulation actually consumed).
+import { useEffectivePolicyConfig } from '@/hooks/usePolicyData';
 import { formatCurrency, formatPercent } from '@/utils/format';
 
 export function PolicyMetricsSummary() {
   const metrics = usePolicyMetrics();
   const window = usePolicyWindow();
-  const config = usePolicyConfig();
+  const config = useEffectivePolicyConfig();
 
   if (!metrics) {
     return (

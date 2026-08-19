@@ -51,6 +51,7 @@ export const PARAM_LABELS: Record<string, string> = {
 
   // Supply Chain — Supply Shock Scenarios
   supplyChainAiChips: 'AI Chip Availability',
+  supplyChainChipPrice: 'Chip Price Index',
   supplyChainEnergyPrice: 'Energy Price Level',
   supplyChainEnergyCapacity: 'Grid Capacity for AI',
   supplyChainTrainingDC: 'Training DC Capacity',
@@ -134,19 +135,24 @@ export const PARAM_CATEGORIES: ParamCategoryConfig[] = [
       'taylorEmploymentGapCoeff',
     ],
   },
-  {
-    key: 'policy',
-    label: 'Policy Programs',
-    color: '#10B981',
-    params: [
-      'ubiEnabled',
-      'ubiMonthlyAmount',
-      'wageSubsidyEnabled',
-      'wageSubsidyPercentage',
-      'swfEnabled',
-      'equityEnabled',
-    ],
-  },
+  // DEPRECATED (Stage H item 3): the Policy Programs override group is HIDDEN — these six keys
+  // are resolved and recorded but the engine never reads them back (computePolicyEffects reads
+  // config.policyConfig only; the audit's recorded-not-consumed finding). Editing them changed
+  // nothing while displaying as effective. Policy programs are set through the Policy controls
+  // (live keyframe schedules). Re-wiring, if any, is design-checkpoint work.
+  // {
+  //   key: 'policy',
+  //   label: 'Policy Programs',
+  //   color: '#10B981',
+  //   params: [
+  //     'ubiEnabled',
+  //     'ubiMonthlyAmount',
+  //     'wageSubsidyEnabled',
+  //     'wageSubsidyPercentage',
+  //     'swfEnabled',
+  //     'equityEnabled',
+  //   ],
+  // },
   {
     key: 'tech',
     label: 'Technology',
@@ -155,15 +161,22 @@ export const PARAM_CATEGORIES: ParamCategoryConfig[] = [
       'generativeCapabilityLevel',
       'agenticCapabilityLevel',
       'embodiedCapabilityLevel',
-      'tokenUsageMultiplier',
+      // RETIRED (mini-stage 1; Amendment 2): tokenUsageMultiplier — the per-year
+      // tokens-per-task row left with the global schedule; the aggregate path is an
+      // emergent OUTPUT (implied_aggregate_tokens_per_task in the CSV).
+      // 'tokenUsageMultiplier',
     ],
   },
+  // Mini-stage 2 (C-1): the groups RETURN — the rows are consumed by execution now
+  // (per-year resolution in the simulation loop); record/display ≡ execution is
+  // battery-asserted.
   {
     key: 'supplyInputs',
     label: 'Supply Shock Scenarios',
     color: '#F97316',
     params: [
       'supplyChainAiChips',
+      'supplyChainChipPrice',
       'supplyChainEnergyPrice',
       'supplyChainEnergyCapacity',
       'supplyChainTrainingDC',
@@ -236,7 +249,7 @@ const MULTIPLIER_PARAMS = new Set([
   'fiscalObligationMultiplier',
   'fiscalRevenueMultiplier',
   'effectiveColaDampeningFactor',
-  'tokenUsageMultiplier',
+  // 'tokenUsageMultiplier', // RETIRED (mini-stage 1; Amendment 2)
 ]);
 
 /** Set of parameter keys that represent rates/fractions (displayed as %). */
@@ -262,6 +275,7 @@ const RATE_PARAMS = new Set([
 /** Supply chain index params (displayed as integer index, 100 = baseline). */
 const INDEX_PARAMS = new Set([
   'supplyChainAiChips',
+  'supplyChainChipPrice',
   'supplyChainEnergyPrice',
   'supplyChainEnergyCapacity',
   'supplyChainTrainingDC',
@@ -322,11 +336,19 @@ export function formatParamValue(value: number, paramKey: string): string {
 
 /**
  * Check if a parameter is read-only (technology params are computed from S-curves).
+ *
+ * Stage H item 3: fiscalRevenueMultiplier and effectiveColaDampeningFactor join the read-only
+ * set — their DISPLAYED (autopilot) values are what the engine actually uses, but user
+ * overrides of them were never read back (the engine consumes the four effective tax rates
+ * and the profile's COLA dampening directly). Editable rows that ignore edits are dishonest;
+ * truthful displays stay visible, editing is disabled. Re-wiring is design-checkpoint work.
  */
 export function isReadOnlyParam(paramKey: string): boolean {
   return paramKey === 'generativeCapabilityLevel'
     || paramKey === 'agenticCapabilityLevel'
     || paramKey === 'embodiedCapabilityLevel'
+    || paramKey === 'fiscalRevenueMultiplier'
+    || paramKey === 'effectiveColaDampeningFactor'
 ;
 }
 

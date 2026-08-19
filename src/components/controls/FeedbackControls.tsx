@@ -18,8 +18,10 @@ import {
   REVENUE_PRESSURE_SENSITIVITY_DEFAULT,
   REVENUE_PRESSURE_CAP,
   REVENUE_PRESSURE_DECAY,
-  AI_WAGE_PRODUCTIVITY_MULTIPLIER,
-  PHILLIPS_CURVE_SENSITIVITY,
+  // DEPRECATED (Stage H): dead dial — aiWageProductivityMultiplier is written to secondOrderParams but never read; control removed below.
+  // AI_WAGE_PRODUCTIVITY_MULTIPLIER,
+  // DEPRECATED (Stage H): dead dial — phillipsCurveSensitivity's reader computeWagePressure is retired; zero live call sites; control removed below.
+  // PHILLIPS_CURVE_SENSITIVITY,
 } from '@/models/constants';
 
 /** Teal accent for feedback loop controls */
@@ -29,8 +31,9 @@ export function FeedbackControls() {
   const revPressureSens = useSimulationStore((s) => s.config.revenuePressureSensitivity ?? REVENUE_PRESSURE_SENSITIVITY_DEFAULT);
   const revPressureCap = useSimulationStore((s) => s.config.revenuePressureCap ?? REVENUE_PRESSURE_CAP);
   const revPressureDecay = useSimulationStore((s) => s.config.revenuePressureDecay ?? REVENUE_PRESSURE_DECAY);
-  const aiWagePremium = useSimulationStore((s) => s.config.aiWageProductivityMultiplier ?? AI_WAGE_PRODUCTIVITY_MULTIPLIER);
-  const phillipsSens = useSimulationStore((s) => s.config.phillipsCurveSensitivity ?? PHILLIPS_CURVE_SENSITIVITY);
+  // DEPRECATED (Stage H): dead dials — aiWageProductivityMultiplier written but never read; phillipsCurveSensitivity's reader retired; deadness enforced by stageH-honesty.test.ts.
+  // const aiWagePremium = useSimulationStore((s) => s.config.aiWageProductivityMultiplier ?? AI_WAGE_PRODUCTIVITY_MULTIPLIER);
+  // const phillipsSens = useSimulationStore((s) => s.config.phillipsCurveSensitivity ?? PHILLIPS_CURVE_SENSITIVITY);
   const updateConfig = useSimulationStore((s) => s.updateConfig);
 
   const handleRevSens = useCallback(
@@ -45,25 +48,32 @@ export function FeedbackControls() {
     (value: number) => updateConfig((c) => ({ ...c, revenuePressureDecay: value })),
     [updateConfig],
   );
-  const handleAiWage = useCallback(
-    (value: number) => updateConfig((c) => ({ ...c, aiWageProductivityMultiplier: value })),
-    [updateConfig],
-  );
-  const handlePhillips = useCallback(
-    (value: number) => updateConfig((c) => ({ ...c, phillipsCurveSensitivity: value })),
-    [updateConfig],
-  );
+  // DEPRECATED (Stage H): dead-dial handlers — controls removed below; config fields kept (no-delete rule).
+  // const handleAiWage = useCallback(
+  //   (value: number) => updateConfig((c) => ({ ...c, aiWageProductivityMultiplier: value })),
+  //   [updateConfig],
+  // );
+  // const handlePhillips = useCallback(
+  //   (value: number) => updateConfig((c) => ({ ...c, phillipsCurveSensitivity: value })),
+  //   [updateConfig],
+  // );
 
   return (
     <div className="space-y-3">
       <Slider label="Rev. Pressure Sensitivity" value={revPressureSens} min={0} max={3} step={0.1} color={CONTROL_COLOR} onChange={handleRevSens} formatValue={(v) => v.toFixed(1)} />
       <Slider label="Rev. Pressure Cap" value={revPressureCap} min={0} max={1} step={0.05} color={CONTROL_COLOR} onChange={handleRevCap} formatValue={(v) => v.toFixed(2)} />
       <Slider label="Rev. Pressure Decay" value={revPressureDecay} min={0} max={1} step={0.05} color={CONTROL_COLOR} onChange={handleRevDecay} formatValue={(v) => v.toFixed(2)} />
-      <Slider label="AI Wage Premium" value={aiWagePremium} min={0} max={1} step={0.05} color={CONTROL_COLOR} onChange={handleAiWage} formatValue={(v) => v.toFixed(2)} />
-      <Slider label="Wage-UE Sensitivity" value={phillipsSens} min={0} max={5} step={0.1} color={CONTROL_COLOR} onChange={handlePhillips} formatValue={(v) => v.toFixed(1)} />
-      <p className="text-text-muted text-[10px] leading-relaxed">
+      {/* DEPRECATED (Stage H): dead dial — aiWageProductivityMultiplier is written to secondOrderParams but never read on the simulation path; config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+      {/* <Slider label="AI Wage Premium" value={aiWagePremium} min={0} max={1} step={0.05} color={CONTROL_COLOR} onChange={handleAiWage} formatValue={(v) => v.toFixed(2)} /> */}
+      {/* DEPRECATED (Stage H): dead dial — phillipsCurveSensitivity's only reader computeWagePressure was retired (Stage 3), zero live call sites; config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+      {/* <Slider label="Wage-UE Sensitivity" value={phillipsSens} min={0} max={5} step={0.1} color={CONTROL_COLOR} onChange={handlePhillips} formatValue={(v) => v.toFixed(1)} /> */}
+      {/* DEPRECATED (Stage H): caption line about the AI wage premium removed with its dead dial; live caption kept below. */}
+      {/* <p className="text-text-muted text-[10px] leading-relaxed">
         Revenue pressure accelerates automation during GDP contractions.
         AI wage premium peaks at 50% automation coverage.
+      </p> */}
+      <p className="text-text-muted text-[10px] leading-relaxed">
+        Revenue pressure accelerates automation during GDP contractions.
       </p>
     </div>
   );

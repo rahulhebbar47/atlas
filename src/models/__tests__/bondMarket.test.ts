@@ -37,138 +37,165 @@ import {
 // computeFiscalRiskPremium — composite model (trajectory, sustainability, level)
 // ============================================================
 
-describe('computeFiscalRiskPremium', () => {
-  // E-8b: these tests exercise the PRESERVED legacy logistic path (useLegacyLogistic = true).
-  const legacyPremium = (...args: Parameters<typeof computeFiscalRiskPremium> extends [infer A, infer B, infer C, infer D, ...unknown[]] ? [A, B, C, D, number?, number?, number?, number?, number?, number?] : never) =>
-    computeFiscalRiskPremium(args[0] as number, args[1] as number, args[2] as number, args[3] as number,
-      (args[4] as number) ?? 0.5, (args[5] as number) ?? 0.35, (args[6] as number) ?? 0.15, (args[7] as number) ?? 0.06,
-      (args[8] as number) ?? 2.0, (args[9] as number) ?? 0.15, 0, true);
-  it('returns near-zero premium when debt is stable and low', () => {
-    // Stable debt at 60% (current=prev), low rate (3%), moderate growth (4%)
-    // Trajectory: 0 change, but sigmoid centered at +10pp → baseline ~27% of max → ~16bp trajectory
-    // Sustainability: r=0.03 < g=0.04 → zero (r-g < 0)
-    // Level: 0.60 << 2.0 midpoint → very low level risk
-    // Total: weighted sum with default weights (0.50/0.35/0.15)
-    const result = legacyPremium(
-      0.60,  // current debt/GDP
-      0.60,  // prev debt/GDP (stable)
-      0.03,  // weighted avg debt rate
-      0.04,  // nominal GDP growth rate
-    );
-    expect(result.fiscalRiskPremium).toBeLessThan(0.015); // <150bp (mostly trajectory baseline)
-    expect(result.fiscalRiskPremium).toBeGreaterThanOrEqual(0);
-    expect(result.sustainabilityRisk).toBe(0); // r < g
-    expect(result.levelRisk).toBeLessThan(0.001); // very low at 60%
-  });
+// RETIRED SUITE (the program close-out; Amendment 2 — no legacy toggles): the tests below
+// exercised the pre-E-8b LEGACY logistic premium through the isolation flag, retired at the
+// close-out (comment-and-record in bondMarket.ts; recorded pole ~/.atlas-referents/
+// e8b-legacy-pole/). Their expected values are the legacy arithmetic's record. The live
+// enforcement is the INERTNESS guard below: the retired flag slot changes nothing.
+// describe('computeFiscalRiskPremium', () => {
+//   // E-8b: these tests exercise the PRESERVED legacy logistic path (useLegacyLogistic = true).
+//   const legacyPremium = (...args: Parameters<typeof computeFiscalRiskPremium> extends [infer A, infer B, infer C, infer D, ...unknown[]] ? [A, B, C, D, number?, number?, number?, number?, number?, number?] : never) =>
+//     computeFiscalRiskPremium(args[0] as number, args[1] as number, args[2] as number, args[3] as number,
+//       (args[4] as number) ?? 0.5, (args[5] as number) ?? 0.35, (args[6] as number) ?? 0.15, (args[7] as number) ?? 0.06,
+//       (args[8] as number) ?? 2.0, (args[9] as number) ?? 0.15, 0, true);
+//   it('returns near-zero premium when debt is stable and low', () => {
+//     // Stable debt at 60% (current=prev), low rate (3%), moderate growth (4%)
+//     // Trajectory: 0 change, but sigmoid centered at +10pp → baseline ~27% of max → ~16bp trajectory
+//     // Sustainability: r=0.03 < g=0.04 → zero (r-g < 0)
+//     // Level: 0.60 << 2.0 midpoint → very low level risk
+//     // Total: weighted sum with default weights (0.50/0.35/0.15)
+//     const result = legacyPremium(
+//       0.60,  // current debt/GDP
+//       0.60,  // prev debt/GDP (stable)
+//       0.03,  // weighted avg debt rate
+//       0.04,  // nominal GDP growth rate
+//     );
+//     expect(result.fiscalRiskPremium).toBeLessThan(0.015); // <150bp (mostly trajectory baseline)
+//     expect(result.fiscalRiskPremium).toBeGreaterThanOrEqual(0);
+//     expect(result.sustainabilityRisk).toBe(0); // r < g
+//     expect(result.levelRisk).toBeLessThan(0.001); // very low at 60%
+//   });
+//
+//   it('returns positive trajectory risk when debt is rising', () => {
+//     // Debt rising from 1.2 to 1.3 (10pp increase)
+//     // Phase 8 Fix 5: Trajectory sigmoid centered at 0.15 (was 0.10).
+//     // At 10pp change, sigmoid ≈ 10.9% → modest trajectory risk.
+//     const result = legacyPremium(
+//       1.30,  // current debt/GDP
+//       1.20,  // prev debt/GDP (rising by 10pp)
+//       0.03,  // low rate
+//       0.04,  // moderate growth
+//     );
+//     expect(result.trajectoryRisk).toBeGreaterThan(0.005); // >50bp trajectory component (midpoint now 0.15)
+//     expect(result.fiscalRiskPremium).toBeGreaterThan(0);
+//     // Trajectory should dominate (weight=0.50), others minimal
+//     expect(result.trajectoryRisk).toBeGreaterThan(result.sustainabilityRisk);
+//   });
+//
+//   it('returns positive sustainability risk when r > g', () => {
+//     // Stable debt, but high rates (6%) vs low growth (1%)
+//     // r - g = 0.05 (500bp unsustainability gap) → max sustainability risk (60bp with default max=0.06)
+//     const result = legacyPremium(
+//       1.20,  // current debt/GDP
+//       1.20,  // prev debt/GDP (stable)
+//       0.06,  // high weighted avg debt rate
+//       0.01,  // low nominal GDP growth
+//     );
+//     expect(result.sustainabilityRisk).toBeGreaterThan(0.05); // >500bp sustainability component (at max)
+//     // Trajectory baseline is near-zero with steep sigmoid (steepness ~42, centered at +10pp)
+//     // At zero debt/GDP change: sigmoid(-42 × -0.10) = 1/(1+exp(4.2)) ≈ 0.015 → ~0.9bp
+//     expect(result.trajectoryRisk).toBeGreaterThan(0); // always positive (sigmoid never reaches 0)
+//     expect(result.trajectoryRisk).toBeLessThan(0.005); // but very small at zero change
+//     // Sustainability should dominate
+//     expect(result.sustainabilityRisk).toBeGreaterThan(result.trajectoryRisk);
+//   });
+//
+//   it('returns positive level risk at high debt/GDP', () => {
+//     // Stable at 2.5x (well above 2.0 midpoint)
+//     // Level sigmoid centered at 2.0 with transition over 60pp → 2.5 is 50pp above → very high level risk
+//     const result = legacyPremium(
+//       2.50,  // current debt/GDP (very high)
+//       2.50,  // prev debt/GDP (stable)
+//       0.03,  // moderate rate
+//       0.04,  // moderate growth
+//     );
+//     expect(result.levelRisk).toBeGreaterThan(0.05); // very high level risk (near max)
+//     // Trajectory baseline is near-zero with steep sigmoid (steepness ~42)
+//     expect(result.trajectoryRisk).toBeGreaterThan(0); // always positive
+//     expect(result.trajectoryRisk).toBeLessThan(0.005); // very small at zero change
+//     expect(result.sustainabilityRisk).toBe(0); // r < g
+//   });
+//
+//   it('caps total at maxPremium', () => {
+//     // Extreme scenario: debt rising rapidly (3.0→3.5), very high rates (10%), negative growth (-5%)
+//     // All three components should be maxed out
+//     const result = legacyPremium(
+//       3.50,  // current debt/GDP
+//       3.00,  // prev debt/GDP (rising by 50pp)
+//       0.10,  // very high rate
+//       -0.05, // negative growth (recession)
+//     );
+//     // Each component can individually reach maxPremium (default 0.06)
+//     // But weighted sum should respect the composite formula
+//     expect(result.fiscalRiskPremium).toBeGreaterThan(0.05); // very high premium
+//     expect(result.fiscalRiskPremium).toBeLessThanOrEqual(0.06); // capped at default maxPremium
+//     expect(result.trajectoryRisk).toBeGreaterThan(0.05); // trajectory maxed
+//     expect(result.sustainabilityRisk).toBeGreaterThan(0.05); // sustainability maxed
+//     expect(result.levelRisk).toBeGreaterThan(0.05); // level maxed
+//   });
+//
+//   it('respects custom weights', () => {
+//     // Same inputs, different weight configurations
+//     const defaultWeights = legacyPremium(
+//       1.30, 1.20, 0.06, 0.01,
+//       // defaults: trajectory=0.50, sustainability=0.35, level=0.15
+//     );
+//     const trajectoryHeavy = legacyPremium(
+//       1.30, 1.20, 0.06, 0.01,
+//       0.90, 0.05, 0.05, // emphasize trajectory
+//     );
+//     const sustainabilityHeavy = legacyPremium(
+//       1.30, 1.20, 0.06, 0.01,
+//       0.05, 0.90, 0.05, // emphasize sustainability
+//     );
+//     // Different weights should produce different total premiums
+//     expect(trajectoryHeavy.fiscalRiskPremium).not.toBe(defaultWeights.fiscalRiskPremium);
+//     expect(sustainabilityHeavy.fiscalRiskPremium).not.toBe(defaultWeights.fiscalRiskPremium);
+//     expect(trajectoryHeavy.fiscalRiskPremium).not.toBe(sustainabilityHeavy.fiscalRiskPremium);
+//   });
+//
+//   it('returns minimal premium when debt is stable, r<g, and level is low', () => {
+//     // Good conditions: stable at 80%, r=2% < g=3%, well below level midpoint
+//     // Trajectory sigmoid baseline still applies (change=0, centered at +10pp)
+//     const result = legacyPremium(
+//       0.80,  // current debt/GDP
+//       0.80,  // prev debt/GDP (stable)
+//       0.02,  // low rate
+//       0.03,  // moderate growth
+//     );
+//     // Total premium dominated by trajectory baseline (~27% of max → ~16bp)
+//     expect(result.fiscalRiskPremium).toBeLessThan(0.015); // <150bp
+//     expect(result.fiscalRiskPremium).toBeGreaterThan(0); // trajectory baseline always positive
+//     expect(result.sustainabilityRisk).toBe(0); // r < g
+//     expect(result.levelRisk).toBeLessThan(0.001); // very low at 80%
+//   });
+// });
+//
+// // ============================================================
+// // computeForeignDemand
+// // ============================================================
 
-  it('returns positive trajectory risk when debt is rising', () => {
-    // Debt rising from 1.2 to 1.3 (10pp increase)
-    // Phase 8 Fix 5: Trajectory sigmoid centered at 0.15 (was 0.10).
-    // At 10pp change, sigmoid ≈ 10.9% → modest trajectory risk.
-    const result = legacyPremium(
-      1.30,  // current debt/GDP
-      1.20,  // prev debt/GDP (rising by 10pp)
-      0.03,  // low rate
-      0.04,  // moderate growth
-    );
-    expect(result.trajectoryRisk).toBeGreaterThan(0.005); // >50bp trajectory component (midpoint now 0.15)
-    expect(result.fiscalRiskPremium).toBeGreaterThan(0);
-    // Trajectory should dominate (weight=0.50), others minimal
-    expect(result.trajectoryRisk).toBeGreaterThan(result.sustainabilityRisk);
+describe('computeFiscalRiskPremium — the retired flag is INERT (close-out toggle-free guard)', () => {
+  const FIXTURES: Array<[number, number, number, number]> = [
+    [0.60, 0.60, 0.03, 0.04],   // stable low debt
+    [1.35, 1.20, 0.055, 0.035], // rising debt, r > g
+    [2.50, 2.30, 0.06, 0.02],   // extreme level
+  ];
+  it('flag=true ≡ flag=false on every fixture (the dual path is dead)', () => {
+    for (const [b, pb, r, g] of FIXTURES) {
+      const off = computeFiscalRiskPremium(b, pb, r, g);
+      const on = computeFiscalRiskPremium(b, pb, r, g, 0.5, 0.35, 0.15, 0.06, 2.0, 0.15, 0, true);
+      expect(on).toEqual(off);
+    }
   });
-
-  it('returns positive sustainability risk when r > g', () => {
-    // Stable debt, but high rates (6%) vs low growth (1%)
-    // r - g = 0.05 (500bp unsustainability gap) → max sustainability risk (60bp with default max=0.06)
-    const result = legacyPremium(
-      1.20,  // current debt/GDP
-      1.20,  // prev debt/GDP (stable)
-      0.06,  // high weighted avg debt rate
-      0.01,  // low nominal GDP growth
-    );
-    expect(result.sustainabilityRisk).toBeGreaterThan(0.05); // >500bp sustainability component (at max)
-    // Trajectory baseline is near-zero with steep sigmoid (steepness ~42, centered at +10pp)
-    // At zero debt/GDP change: sigmoid(-42 × -0.10) = 1/(1+exp(4.2)) ≈ 0.015 → ~0.9bp
-    expect(result.trajectoryRisk).toBeGreaterThan(0); // always positive (sigmoid never reaches 0)
-    expect(result.trajectoryRisk).toBeLessThan(0.005); // but very small at zero change
-    // Sustainability should dominate
-    expect(result.sustainabilityRisk).toBeGreaterThan(result.trajectoryRisk);
-  });
-
-  it('returns positive level risk at high debt/GDP', () => {
-    // Stable at 2.5x (well above 2.0 midpoint)
-    // Level sigmoid centered at 2.0 with transition over 60pp → 2.5 is 50pp above → very high level risk
-    const result = legacyPremium(
-      2.50,  // current debt/GDP (very high)
-      2.50,  // prev debt/GDP (stable)
-      0.03,  // moderate rate
-      0.04,  // moderate growth
-    );
-    expect(result.levelRisk).toBeGreaterThan(0.05); // very high level risk (near max)
-    // Trajectory baseline is near-zero with steep sigmoid (steepness ~42)
-    expect(result.trajectoryRisk).toBeGreaterThan(0); // always positive
-    expect(result.trajectoryRisk).toBeLessThan(0.005); // very small at zero change
-    expect(result.sustainabilityRisk).toBe(0); // r < g
-  });
-
-  it('caps total at maxPremium', () => {
-    // Extreme scenario: debt rising rapidly (3.0→3.5), very high rates (10%), negative growth (-5%)
-    // All three components should be maxed out
-    const result = legacyPremium(
-      3.50,  // current debt/GDP
-      3.00,  // prev debt/GDP (rising by 50pp)
-      0.10,  // very high rate
-      -0.05, // negative growth (recession)
-    );
-    // Each component can individually reach maxPremium (default 0.06)
-    // But weighted sum should respect the composite formula
-    expect(result.fiscalRiskPremium).toBeGreaterThan(0.05); // very high premium
-    expect(result.fiscalRiskPremium).toBeLessThanOrEqual(0.06); // capped at default maxPremium
-    expect(result.trajectoryRisk).toBeGreaterThan(0.05); // trajectory maxed
-    expect(result.sustainabilityRisk).toBeGreaterThan(0.05); // sustainability maxed
-    expect(result.levelRisk).toBeGreaterThan(0.05); // level maxed
-  });
-
-  it('respects custom weights', () => {
-    // Same inputs, different weight configurations
-    const defaultWeights = legacyPremium(
-      1.30, 1.20, 0.06, 0.01,
-      // defaults: trajectory=0.50, sustainability=0.35, level=0.15
-    );
-    const trajectoryHeavy = legacyPremium(
-      1.30, 1.20, 0.06, 0.01,
-      0.90, 0.05, 0.05, // emphasize trajectory
-    );
-    const sustainabilityHeavy = legacyPremium(
-      1.30, 1.20, 0.06, 0.01,
-      0.05, 0.90, 0.05, // emphasize sustainability
-    );
-    // Different weights should produce different total premiums
-    expect(trajectoryHeavy.fiscalRiskPremium).not.toBe(defaultWeights.fiscalRiskPremium);
-    expect(sustainabilityHeavy.fiscalRiskPremium).not.toBe(defaultWeights.fiscalRiskPremium);
-    expect(trajectoryHeavy.fiscalRiskPremium).not.toBe(sustainabilityHeavy.fiscalRiskPremium);
-  });
-
-  it('returns minimal premium when debt is stable, r<g, and level is low', () => {
-    // Good conditions: stable at 80%, r=2% < g=3%, well below level midpoint
-    // Trajectory sigmoid baseline still applies (change=0, centered at +10pp)
-    const result = legacyPremium(
-      0.80,  // current debt/GDP
-      0.80,  // prev debt/GDP (stable)
-      0.02,  // low rate
-      0.03,  // moderate growth
-    );
-    // Total premium dominated by trajectory baseline (~27% of max → ~16bp)
-    expect(result.fiscalRiskPremium).toBeLessThan(0.015); // <150bp
-    expect(result.fiscalRiskPremium).toBeGreaterThan(0); // trajectory baseline always positive
-    expect(result.sustainabilityRisk).toBe(0); // r < g
-    expect(result.levelRisk).toBeLessThan(0.001); // very low at 80%
+  it('the only path is the Laubach linear premium (zero-anchored at the 2025 state)', () => {
+    const at2025 = computeFiscalRiskPremium(1.2, 1.2, 0.043, 0.04);
+    expect(at2025.fiscalRiskPremium).toBeCloseTo(0, 9);
+    const deep = computeFiscalRiskPremium(2.2, 2.1, 0.05, 0.03);
+    expect(deep.fiscalRiskPremium).toBeGreaterThan(0);
+    expect(deep.sustainabilityRisk).toBe(0); // E-8b: r−g lives in the debt dynamics, not the premium
   });
 });
-
-// ============================================================
-// computeForeignDemand
-// ============================================================
 
 describe('computeForeignDemand', () => {
   const initialDebtGDP = 1.20;

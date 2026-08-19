@@ -20,6 +20,7 @@ import {
   CURRENT_LAW_UI_REPLACEMENT_RATE,
   CURRENT_LAW_UI_DURATION_WEEKS,
   DEFAULT_START_YEAR,
+  DEFAULT_SWF_START_YEAR,
   AGE_THRESHOLD_FRACTIONS,
   HOURS_PER_WORK_YEAR,
   MONTHS_PER_YEAR,
@@ -107,52 +108,80 @@ export function computeAssetPolicyEffect(
   year: number,
   previousFundSize: number,
   population: number,
+  /** Stage H addendum (A-6): prior-year realized ENDOGENOUS AI corporate profits, dollars
+   *  (MacroOutput.aiCorporateProfits at t−1; 0 at year 0 — the 2025 anchor's initialization).
+   *  The equity-stakes and profit-sharing payout base. */
+  laggedAiProfits: number = 0,
 ): { assetAddition: number; updatedFundSize: number; swfAnnualContribution: number } {
   let assetAddition = 0;
   let updatedFundSize = previousFundSize;
   let swfContribution = 0; // billions — government outlay to the fund
-  const yearsSinceStart = year - DEFAULT_START_YEAR;
+  // DEPRECATED (the per-field policy rebuild): the seed condition now keys off the
+  // fund's own startYear, not the simulation offset.
+  // const yearsSinceStart = year - DEFAULT_START_YEAR;
 
-  // Sovereign wealth fund (POLICY_MODEL.md §3.1)
+  // Sovereign wealth fund (POLICY_MODEL.md §3.1). The creation year (the per-field
+  // policy rebuild): initialFundSize seeds AT swf.startYear and the fund is inert
+  // before it — no returns, no dividends, no contributions consumed, no fiscal cost.
+  // Absent startYear ⇒ DEFAULT_SWF_START_YEAR = DEFAULT_START_YEAR, and the sim loop
+  // never runs years before the start year, so the prior seed condition
+  // (yearsSinceStart === 0) is reproduced exactly. This also closes the prior
+  // seed-loss class: a fund enabled after the start year used to skip its seed forever.
   if (config.sovereignWealthFund.enabled) {
     const swf = config.sovereignWealthFund;
-    const fundSize = yearsSinceStart === 0
-      ? swf.initialFundSize
-      : previousFundSize;
+    const fundStartYear = swf.startYear ?? DEFAULT_SWF_START_YEAR;
+    if (year >= fundStartYear) {
+      const fundSize = year === fundStartYear
+        ? swf.initialFundSize
+        : previousFundSize;
 
-    // Fund grows: size * (1 + return) + contribution - distribution
-    const returns = fundSize * swf.annualReturnRate;
-    const distribution = fundSize * swf.distributionRate;
-    const annualContrib = interpolatePolicy(swf.annualContribution, year);
-    swfContribution = annualContrib; // Phase 5h (Fix 5): Track for fiscal cost
-    updatedFundSize = fundSize + returns + annualContrib - distribution;
+      // Fund grows: size * (1 + return) + contribution - distribution
+      const returns = fundSize * swf.annualReturnRate;
+      const distribution = fundSize * swf.distributionRate;
+      const annualContrib = interpolatePolicy(swf.annualContribution, year);
+      swfContribution = annualContrib; // Phase 5h (Fix 5): Track for fiscal cost
+      updatedFundSize = fundSize + returns + annualContrib - distribution;
 
-    // Dividend per capita (billions → dollars: * 1e9 / population)
-    const dividendPerCapita = (distribution * DOLLARS_PER_BILLION) / population;
-    assetAddition += dividendPerCapita * population;
+      // Dividend per capita (billions → dollars: * 1e9 / population)
+      const dividendPerCapita = (distribution * DOLLARS_PER_BILLION) / population;
+      assetAddition += dividendPerCapita * population;
+    }
   }
 
   // Universal equity stakes (now part of SWF policy — Phase 5g consolidation)
+  // Stage H addendum (A-6, measure-then-decide): the payout base is the model's ENDOGENOUS
+  // AI corporate profits, lagged one year (t−1 realized — the basis the loop ordering forces:
+  // policy runs before macro each year — and the one profit-distribution economics prescribes:
+  // this year's distributions come from last year's realized earnings). Year 0 reads the
+  // year-0 initialization (0 — the 2025 anchor carries no automation profits by construction).
+  // The RETIRED exogenous path (kept as the deprecation record, never executed):
+  //   totalProfits = swf.totalAICompanyProfits × (1 + swf.profitGrowthRate)^t   [500 × 1.15^t $B]
+  // claimed ≈$1.0T of AI profits in 2030 when the endogenous residual was ≈$0, and ≈2× the
+  // endogenous base by 2050 — payouts priced off profits the model never recorded.
   const swf = config.sovereignWealthFund;
-  if (swf.enabled && interpolatePolicy(swf.ownershipFraction, year) > 0) {
-    // AI company profits grow over time
-    const totalProfits = swf.totalAICompanyProfits * Math.pow(1 + swf.profitGrowthRate, yearsSinceStart);
-    // Equity income: ownership_fraction * total_profits
+  // THE NON-NEGATIVE PAYOUT BASE (the policy-wiring review's fix): distributions
+  // are non-negative by the model's own dividend definition — a loss year pays
+  // zero; the loss itself flows through the AI sector's retained earnings, never
+  // as a charge on households (the unfloored form billed households the AI
+  // sector's pre-revenue operating losses). The RAW lagged series stays exposed
+  // as aiProfitPayoutBase (the standing attribution assertion); only the
+  // application floors.
+  const payoutBase = Math.max(0, laggedAiProfits);
+  // The creation-year gate: the fund cannot hold equity stakes before it exists
+  // (absent startYear ⇒ simulation start ⇒ the gate is always open, prior behavior).
+  if (swf.enabled && year >= (swf.startYear ?? DEFAULT_SWF_START_YEAR)
+    && interpolatePolicy(swf.ownershipFraction, year) > 0) {
     const ownershipFrac = interpolatePolicy(swf.ownershipFraction, year);
-    const equityIncome = ownershipFrac * totalProfits * DOLLARS_PER_BILLION;
+    const equityIncome = ownershipFrac * payoutBase;  // dollars — endogenous, t−1, floored
     assetAddition += equityIncome;
   }
 
-  // Profit sharing mandates (POLICY_MODEL.md §3.3)
-  // Phase 5g: Now reads from sovereignWealthFund (merged from universalEquity).
-  // A future refactor could compute profits from aiGDPContribution directly.
+  // Profit sharing mandates (POLICY_MODEL.md §3.3) — same endogenous t−1 base (A-6),
+  // same non-negative floor (arithmetically the same instrument as the equity stake).
   if (config.profitSharing.enabled) {
     const ps = config.profitSharing;
-    // Simplified: a fraction of total AI company profits is shared
-    const aiProfits = config.sovereignWealthFund.totalAICompanyProfits *
-      Math.pow(1 + config.sovereignWealthFund.profitGrowthRate, yearsSinceStart);
     const sharePct = interpolatePolicy(ps.mandatorySharePercentage, year);
-    const sharedProfits = aiProfits * sharePct * DOLLARS_PER_BILLION;
+    const sharedProfits = sharePct * payoutBase;  // dollars — endogenous, t−1, floored
     assetAddition += sharedProfits;
   }
 
@@ -253,6 +282,18 @@ export function computeTransferPolicyEffect(
   displacedPoolWage: number,
   aiGDPContribution?: number,     // Phase 5g: for UBI productivity indexing
   startYearAiGDP?: number,        // Phase 5g: AI GDP at index start year
+  /** Mini-stage 3: the searching pool's duration shares (index = years jobless) — the
+   *  entitlement-weeks pricing input. Absent (unit fixtures) = all cohort-0. */
+  poolDurationSharesInput?: number[],
+  /** THE COLA INDEXATION FACTOR (the policy-wiring review's fix): the fiscal
+   *  autopilot's DAMPENED cost-of-living factor, lagged one year — the same index
+   *  the budget applies to its own obligations. UBI's inflation indexation consumes
+   *  THIS, not the raw price level, so indexed transfers ride the economy's actual
+   *  cost-of-living machinery (including any profile-declared dampening) instead of
+   *  re-amplifying their own monetization inflation. Absent ⇒ the retired raw
+   *  price-level basis (unit-fixture compatibility; the simulation loop always
+   *  passes the factor). */
+  colaIndexationFactor?: number,
 ): { transferAddition: number; enhancedUIAddition: number; displacedFlatAddition: number; uiPricingWage: number } {
   // FS-6b: the transfer total now returns DECOMPOSED so the quintile measurement layer can
   // route each component by its honest incidence (UBI flat per-capita; the wage-proportional
@@ -271,9 +312,10 @@ export function computeTransferPolicyEffect(
   if (config.ubi.enabled && ubiAmount > 0) {
     let monthlyAmount = ubiAmount;
 
-    // Inflation indexing
+    // Inflation indexing — through the dampened COLA factor (F2), falling back to
+    // the raw price level only when no factor is supplied (unit fixtures).
     if (config.ubi.indexedToInflation) {
-      monthlyAmount *= priceLevel;
+      monthlyAmount *= colaIndexationFactor ?? priceLevel;
     }
 
     const annualUBI = monthlyAmount * MONTHS_PER_YEAR;
@@ -314,16 +356,31 @@ export function computeTransferPolicyEffect(
   if (config.enhancedUI.enabled) {
     const ui = config.enhancedUI;
     const replRate = interpolatePolicy(ui.replacementRate, year);
-    const weeklyBenefit = (uiPricingWage / WEEKS_PER_YEAR) * replRate;
-    const annualBenefit = weeklyBenefit * Math.min(52, ui.durationWeeks);
-
-    // Only add the amount ABOVE the current-law statutory benefit (same formula, current-law
-    // parameters) — $0 at default settings, monotone in added generosity.
-    const currentLawAnnualBenefit = (uiPricingWage / WEEKS_PER_YEAR)
-      * CURRENT_LAW_UI_REPLACEMENT_RATE
-      * Math.min(52, CURRENT_LAW_UI_DURATION_WEEKS);
-    const incrementalBenefit = Math.max(0, annualBenefit - currentLawAnnualBenefit);
-    enhancedUIAddition = incrementalBenefit * totalUnemployment;
+    // Mini-stage 3 (the duration pool): ENTITLEMENT-WEEKS replace the Stage-H structural
+    // annualization clamp where the pool exists. A cohort d years into joblessness has
+    // consumed 52·d weeks of its entitlement: payable(dur, d) = min(52, max(0, dur − 52·d)).
+    // Multi-year entitlements now pay honestly across years (nordic's 78 weeks: 52 then 26
+    // then 0); the retired stock-average form paid EVERY jobless person the full annual
+    // amount EVERY year — the over-payment this stage retires (the pre-registered D mover).
+    // The frictional (non-pool) unemployed are short-spell: cohort-0 payables.
+    const payable = (durWeeks: number, d: number) => Math.min(52, Math.max(0, durWeeks - 52 * d));
+    const shares = poolDurationSharesInput;
+    const poolFactorE = shares
+      ? shares.reduce((a, sh, d) => a + sh * payable(ui.durationWeeks, d), 0)
+      : payable(ui.durationWeeks, 0);
+    const poolFactorCL = shares
+      ? shares.reduce((a, sh, d) => a + sh * payable(CURRENT_LAW_UI_DURATION_WEEKS, d), 0)
+      : payable(CURRENT_LAW_UI_DURATION_WEEKS, 0);
+    // Per-person increment over current law (the netting discipline unchanged; $0 at
+    // current-law settings for fresh cohorts, monotone in added generosity).
+    const perPerson = (wage: number, fE: number, fCL: number) => Math.max(
+      0,
+      (wage / WEEKS_PER_YEAR) * replRate * fE - (wage / WEEKS_PER_YEAR) * CURRENT_LAW_UI_REPLACEMENT_RATE * fCL,
+    );
+    const poolWage = displacedPoolWage > 0 ? displacedPoolWage : averageWage;
+    enhancedUIAddition =
+        perPerson(poolWage, poolFactorE, poolFactorCL) * displacedInPool
+      + perPerson(averageWage, payable(ui.durationWeeks, 0), payable(CURRENT_LAW_UI_DURATION_WEEKS, 0)) * frictionalInPool;
     transferAddition += enhancedUIAddition;
 
     // Retraining bonus (always incremental — not part of baseline)
@@ -338,6 +395,8 @@ export function computeTransferPolicyEffect(
   if (config.retraining.enabled) {
     const rt = config.retraining;
     const stipend = interpolatePolicy(rt.stipendMonthly, year);
+    // Stage H cap ruling: min(12, ·) is the same structural annualization bound as the
+    // enhanced-UI 52-week cap (a year holds 12 stipend-months). See the note there.
     const annualStipend = stipend * Math.min(12, rt.durationMonths);
     // Only a fraction of displaced workers are in retraining at any given time
     const inRetraining = displacedWorkers * config.retraining.participationRate;
@@ -381,6 +440,16 @@ export function computePolicyEffects(
   displacedPoolWage: number,
   aiGDPContribution?: number,     // Phase 5g: for UBI productivity indexing
   startYearAiGDP?: number,        // Phase 5g: AI GDP at index start year
+  /** Stage H addendum (A-6): prior-year realized endogenous AI corporate profits (dollars);
+   *  the equity/profit-sharing payout base, exposed as aiProfitPayoutBase for the attribution
+   *  assertion (the uiPricingWage pattern). */
+  laggedAiProfits: number = 0,
+  /** Mini-stage 3: the searching pool's duration shares (index = years jobless) — the
+   *  entitlement-weeks pricing input. Absent (unit fixtures) = all cohort-0. */
+  poolDurationSharesInput?: number[],
+  /** The indexation factor (see computeTransferPolicyEffect): the t−1 dampened COLA factor for
+   *  transfer indexation. Absent ⇒ the raw price level (unit fixtures). */
+  colaIndexationFactor?: number,
 ): PolicyEffects {
   // Wage channel
   const wageChannelAddition = computeWagePolicyEffect(
@@ -389,7 +458,7 @@ export function computePolicyEffects(
 
   // Asset channel
   const { assetAddition: assetChannelAddition, updatedFundSize, swfAnnualContribution } = computeAssetPolicyEffect(
-    config, year, previousFundSize, population,
+    config, year, previousFundSize, population, laggedAiProfits,
   );
 
   // Transfer channel
@@ -402,6 +471,8 @@ export function computePolicyEffects(
     config, year, population, totalUnemployment, averageWage, priceLevel, displacedWorkers,
     displacedPoolCount, displacedPoolWage,
     aiGDPContribution, startYearAiGDP,
+    poolDurationSharesInput,
+    colaIndexationFactor,
   );
 
   const totalPolicyIncome = wageChannelAddition + assetChannelAddition + transferChannelAddition;
@@ -432,6 +503,7 @@ export function computePolicyEffects(
     swfAnnualContribution, // billions — for downstream display/CSV
     requiredAssetOwnership,
     requiredTransferLevel,
+    aiProfitPayoutBase: laggedAiProfits, // A-6: the consumed payout base, exposed for the attribution assertion
   };
 }
 

@@ -74,9 +74,10 @@ export function TaxPolicyControls() {
   );
 
   // AI Cost Structure
-  const inferenceChange = useSimulationStore(
-    (s) => s.config.aiCostParams?.inferenceAnnualChange ?? DEFAULT_INFERENCE_ANNUAL_CHANGE,
-  );
+  // DEPRECATED (Stage H): dead dial — inferenceAnnualChange (Audit B-5); manufacturing/energy sliders below are LIVE (Cheaper score + deflation channel), keep them.
+  // const inferenceChange = useSimulationStore(
+  //   (s) => s.config.aiCostParams?.inferenceAnnualChange ?? DEFAULT_INFERENCE_ANNUAL_CHANGE,
+  // );
   const mfgChange = useSimulationStore(
     (s) => s.config.aiCostParams?.manufacturingAnnualChange ?? DEFAULT_MANUFACTURING_ANNUAL_CHANGE,
   );
@@ -212,7 +213,8 @@ export function TaxPolicyControls() {
       {/* Section 3: AI Cost Structure */}
       <div className="space-y-3">
         <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider">AI Cost Structure</p>
-        <Slider
+        {/* DEPRECATED (Stage H): dead dial — inferenceAnnualChange (Audit B-5 deprecated inference-cost slider); the manufacturing/energy sliders below are LIVE and stay; config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+        {/* <Slider
           label="Inference Cost Change"
           value={inferenceChange}
           min={-0.80}
@@ -221,7 +223,7 @@ export function TaxPolicyControls() {
           color={CONTROL_COLOR}
           onChange={handleAiCost('inferenceAnnualChange')}
           formatValue={(v) => `${(v * 100).toFixed(0)}%/yr`}
-        />
+        /> */}
         <Slider
           label="Manufacturing Cost Change"
           value={mfgChange}

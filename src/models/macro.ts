@@ -81,7 +81,7 @@ import {
   G_OBLIGATION_SHARE,
   G_REVENUE_SENSITIVE_SHARE,
   BASELINE_GOVT_SPENDING_2025,
-  BASELINE_CONSUMPTION_2025,
+  // BASELINE_CONSUMPTION_2025, // DEPRECATED (H3 ruling 2): the frozen-2025 absorption benchmark retired — the zero-AI twin is the benchmark
   DEFERRABLE_CONSUMPTION_SHARE,
   DEFLATION_MIDPOINT,
   DEFLATION_STEEPNESS,
@@ -93,6 +93,12 @@ import {
   BASELINE_SHELTER_CPI_WEIGHT,
   // Stage 1: sectoral price architecture
   AI_EXPOSED_CPI_WEIGHT,
+  // Production Program Stage 3 — the buildout import-content offset (MS2, ruling vi)
+  BUILDOUT_IMPORT_CONTENT_DEFAULT,
+  // Production Program Stage 2 — elasticity-based absorption (order item 4)
+  DEFAULT_ABSORPTION_ELASTICITY_AI_EXPOSED,
+  DEFAULT_ABSORPTION_ELASTICITY_LABOR_SERVICES,
+  DEFAULT_ABSORPTION_ELASTICITY_FOOD_ENERGY,
   LABOR_SERVICES_CPI_WEIGHT,
   FOOD_ENERGY_CPI_WEIGHT,
   DEFAULT_AI_DEFLATION_PASSTHROUGH,
@@ -144,6 +150,9 @@ import {
   MIN_PE,
   DEFAULT_AI_PE_SENSITIVITY,
   DEFAULT_TRADITIONAL_PE_SENSITIVITY,
+  MAX_AI_SECTOR_PE,
+  MAX_TRADITIONAL_SECTOR_PE,
+  EQUITY_VALUATION_EARNINGS_FLOOR,
   BASE_REALIZATION_RATE,
   REALIZATION_SENSITIVITY,
   MIN_REALIZATION_RATE,
@@ -182,7 +191,11 @@ import {
   DEFAULT_ASSET_SHARE_DRIFT_RATE,
   // Stage 7: residual corporate profits
   DEFAULT_OTHER_COSTS_SHARE,
+  AI_ENERGY_WEDGE_SEAM_SHARE, // Stage 5A (A3): the residual carve-out
+
   DEFAULT_AI_SECTOR_LABOR_SHARE,
+  // Production Program Stage 1 — Channel 1 (the buildout)
+  AI_CAPEX_BASELINE_SHARE,
   DEFAULT_RENT_SHARING_ELASTICITY,
   DEFAULT_SECULAR_PROFIT_DRIFT_RATE,
   // Stage 6.5: stock-flow housing
@@ -196,6 +209,8 @@ import {
   DEFAULT_EMBODIED_CAPACITY_GAIN,
   DEFAULT_HOUSING_DEPRECIATION_RATE,
   DEFAULT_LAND_SHARE,
+  LAND_SHARE_DIVISION_FLOOR,
+  DEFAULT_INSTITUTIONAL_BUYER_RATE,
   DEFAULT_CONSTRUCTION_LABOR_SHARE,
   DEFAULT_LAND_INCOME_BETA,
   DEFAULT_LAND_SCARCITY_ELASTICITY,
@@ -224,8 +239,12 @@ import {
   DEFAULT_DOWNWARD_STICKINESS_RATIO,
   DEFAULT_DEMOGRAPHIC_HOUSING_ELASTICITY,
 } from './constants';
-// Phase 10.A Bug #B fix: floored inference cost curve (shared with computeCheaperScore).
-import { computeInferenceCostFactor } from './bfcs';
+// RETIRED (mini-stage 1): computeInferenceCostFactor retired with the global tokens-per-task
+// schedule; the deflation channel consumes clusterAiCostIndex (the one assembly, aiCost.ts).
+// import { computeInferenceCostFactor } from './bfcs';
+// Mini-stage 1: the one realized-cost assembly (fixture-fallback pricing only in this file).
+import { computeAiCostFraction } from './aiCost';
+import { DEFAULT_CREDIT_DEFLATION_IMPULSE_SENSITIVITY, DEFAULT_CREDIT_DEFLATION_PERSISTENCE, DEFAULT_CREDIT_DEFLATION_NOISE_FLOOR } from './constants';
 // Local constants for deprecated functions (removed from constants.ts in Phase 5h)
 const AI_DEFLATION_COEFFICIENT = 0.03;
 const MARGINAL_PROPENSITY_TO_CONSUME = 0.73;
@@ -261,11 +280,40 @@ function getSectorPrefix(clusterId: string): string {
  * @param intensityOverrides - Optional per-cluster deflation intensity overrides [0, 1]
  * @returns Sector-weighted AI deflation rate (positive number)
  */
+/**
+ * THE PASS-THROUGH LAW — the banded credit-deflation form (pure; the ratified
+ * checkpoint §3.2). Tightening BELOW the noise floor runs the retained level law
+ * verbatim (the band: baseline identity + the capped sub-crisis stance drag);
+ * tightening ABOVE the floor emits only through the impulse kernel
+ * J(t) = ΔT_sig/GR_PEAK + κ·J(t−1) — CHANGES emit, plateaus decay, easing reflates
+ * (symmetric). Continuous and monotone at the boundary: the level component caps as
+ * the impulse takes over.
+ */
+export function computeCreditDeflationContribution(
+  tightening: number,
+  prevTightening: number,
+  prevImpulseState: number,
+  dials: { levelSensitivity: number; impulseSensitivity: number; persistence: number; noiseFloor: number },
+): { contribution: number; impulseState: number } {
+  const tSub = Math.min(tightening, dials.noiseFloor);
+  const tSig = Math.max(0, tightening - dials.noiseFloor);
+  const prevTSig = Math.max(0, prevTightening - dials.noiseFloor);
+  const impulseState = (tSig - prevTSig) / CONSUMER_TIGHTENING_GR_PEAK
+    + dials.persistence * prevImpulseState;
+  const contribution = -(tSub / CONSUMER_TIGHTENING_GR_PEAK) * dials.levelSensitivity
+    - dials.impulseSensitivity * impulseState;
+  return { contribution, impulseState };
+}
+
 export function computeSectorWeightedDeflation(
   clusterResults: ClusterDisplacementResult[],
   year: number,
   intensityOverrides?: Record<string, number>,
   clusterDeploymentTypes?: Map<string, DeploymentType>,
+  /** RETIRED (mini-stage 1): the channel no longer assembles its own cost index — it
+   *  consumes clusterAiCostIndex (the one realized-cost object, aiCost.ts), resolving the
+   *  audit's B-3/C-5 basis divergence (the old inline assembly ignored supply-chain
+   *  multipliers). Param kept positionally per the no-delete rule; unread. */
   aiCostParams?: AICostParams,
   augmentationByCluster?: Map<string, number>,
   effectiveProductivityByCluster?: Map<string, number>,
@@ -276,7 +324,11 @@ export function computeSectorWeightedDeflation(
   clusterCheaperByCluster?: Map<string, number>,
   /** Phase 10.A Bug #A fix: augmentationMultiplier from config (for perWorkerBoost). */
   augmentationMultiplierInput?: number,
-): { total: number; byConsumption: Record<ConsumptionSector, number> } {
+  /** Mini-stage 1: the per-cluster employment-weighted realized AI cost index — the ONE
+   *  assembly (aiCost.ts), computed in the simulation loop from per-role arrival/surplus
+   *  state, INCLUDING supply-chain multipliers. */
+  clusterAiCostIndex?: Map<string, number>,
+): { total: number; byConsumption: Record<ConsumptionSector, number>; levelReplacement: number; levelAugmentation: number } {
   // Stage 1.5: returns the economy-wide scalar (back-compat: monetization + the aiDeflationRate output)
   // AND the per-consumption-sector deflation RATE (each = CPI-weighted avg of its clusters' deflation,
   // normalized within sector). The macro composite routes each sector's rate × that sector's passthrough.
@@ -291,6 +343,12 @@ export function computeSectorWeightedDeflation(
   }
 
   let totalDeflation = 0;
+  // THE PASS-THROUGH LAW: this function now returns the savings LEVEL objects — the
+  // same CPI-weighted arithmetic as before, un-clamped — and computeMacro emits the
+  // deflation FLOW as their first difference (flows derive from changes, never
+  // levels). The per-leg split (replacement/augmentation) is traced per ruling 4.
+  let levelReplacement = 0;
+  let levelAugmentation = 0;
   // Stage 1.5: accumulate per-consumption-sector contributions + weights for within-sector normalization.
   const secContribution: Record<ConsumptionSector, number> = { aiExposed: 0, laborServices: 0, foodEnergy: 0, shelter: 0 };
   const secWeight: Record<ConsumptionSector, number> = { aiExposed: 0, laborServices: 0, foodEnergy: 0, shelter: 0 };
@@ -313,18 +371,22 @@ export function computeSectorWeightedDeflation(
         ? augOutput / (baseline * result.averageWage) : 0;
     }
 
-    // 3-component cost index (inference via FLOORED CURVE — Phase 10.A Bug #B fix;
-    // manufacturing/energy retain exponential decay, out of scope for this rework).
-    const deployType = clusterDeploymentTypes?.get(result.clusterId) ?? 'software';
-    const comp = (aiCostParams?.composition?.[deployType]
-      ?? AI_COST_COMPOSITION[deployType] ?? AI_COST_COMPOSITION['software'])!;
-    const mfgChange = aiCostParams?.manufacturingAnnualChange ?? DEFAULT_MANUFACTURING_ANNUAL_CHANGE;
-    const engChange = aiCostParams?.energyAnnualChange ?? DEFAULT_ENERGY_ANNUAL_CHANGE;
-
-    const inferenceFactor = computeInferenceCostFactor(yearsSinceStart, aiCostParams?.tokenCostCurve, aiCostParams?.tokenUsageMultiplier);
-    const costIndex = comp.inference * inferenceFactor
-      + comp.manufacturing * Math.exp(mfgChange * yearsSinceStart)
-      + comp.energy * Math.exp(engChange * yearsSinceStart);
+    // Mini-stage 1: the cluster's realized AI cost index comes from THE ONE ASSEMBLY
+    // (aiCost.ts, via the simulation loop's per-role arrival/surplus state) — the SAME
+    // object the Cheaper score prices from, INCLUDING supply-chain multipliers (the
+    // audit's B-3/C-5 basis divergence resolved: under a supply shock the deployer's
+    // cost and the consumer-price channel now move together; sector passthrough dials
+    // downstream carry the incidence split). Fallback 1.0 (= the 2025 anchor level) only
+    // when the loop supplied no index (unit-test fixtures).
+    // RETIRED inline assembly (the pre-mini-stage-1 second basis; kept per no-delete):
+    //   const deployType = clusterDeploymentTypes?.get(result.clusterId) ?? 'software';
+    //   const comp = (aiCostParams?.composition?.[deployType]
+    //     ?? AI_COST_COMPOSITION[deployType] ?? AI_COST_COMPOSITION['software'])!;
+    //   const mfgChange = aiCostParams?.manufacturingAnnualChange ?? DEFAULT_MANUFACTURING_ANNUAL_CHANGE;
+    //   const engChange = aiCostParams?.energyAnnualChange ?? DEFAULT_ENERGY_ANNUAL_CHANGE;
+    //   const inferenceFactor = computeInferenceCostFactor(yearsSinceStart, aiCostParams?.tokenCostCurve, aiCostParams?.tokenUsageMultiplier);
+    //   const costIndex = comp.inference * inferenceFactor + comp.manufacturing * exp(...) + comp.energy * exp(...);
+    const costIndex = clusterAiCostIndex?.get(result.clusterId) ?? 1.0;
 
     // Phase 10.A Bug #A fix — two-channel deflation:
     //
@@ -361,6 +423,8 @@ export function computeSectorWeightedDeflation(
     const clusterCPIWeight = (SECTOR_CPI_WEIGHTS[prefix] ?? 0.01) / clustersInGroup;
 
     totalDeflation += clusterCPIWeight * sectorDeflation;
+    levelReplacement += clusterCPIWeight * replacementDeflation * deflationIntensity;
+    levelAugmentation += clusterCPIWeight * augmentationDeflation * deflationIntensity;
 
     // Stage 1.5: route this cluster's CPI-weighted deflation to its consumption sector.
     const cs = clusterConsumptionSector(result.clusterId);
@@ -368,15 +432,18 @@ export function computeSectorWeightedDeflation(
     secWeight[cs] += clusterCPIWeight;
   }
 
-  // Per-sector deflation RATE = CPI-weighted average of that sector's clusters (normalized within sector).
+  // THE PASS-THROUGH LAW: per-sector savings LEVELS (normalized within sector as
+  // before, UN-clamped — the retired max(0,·) clamps belonged to the level-as-rate
+  // reading; the flows are signed first differences and de-adoption legitimately
+  // reflates). The per-leg totals ride alongside (ruling 4).
   const byConsumption: Record<ConsumptionSector, number> = {
-    aiExposed: secWeight.aiExposed > 0 ? Math.max(0, secContribution.aiExposed / secWeight.aiExposed) : 0,
-    laborServices: secWeight.laborServices > 0 ? Math.max(0, secContribution.laborServices / secWeight.laborServices) : 0,
-    foodEnergy: secWeight.foodEnergy > 0 ? Math.max(0, secContribution.foodEnergy / secWeight.foodEnergy) : 0,
-    shelter: secWeight.shelter > 0 ? Math.max(0, secContribution.shelter / secWeight.shelter) : 0,
+    aiExposed: secWeight.aiExposed > 0 ? secContribution.aiExposed / secWeight.aiExposed : 0,
+    laborServices: secWeight.laborServices > 0 ? secContribution.laborServices / secWeight.laborServices : 0,
+    foodEnergy: secWeight.foodEnergy > 0 ? secContribution.foodEnergy / secWeight.foodEnergy : 0,
+    shelter: secWeight.shelter > 0 ? secContribution.shelter / secWeight.shelter : 0,
   };
 
-  return { total: Math.max(0, totalDeflation), byConsumption };
+  return { total: totalDeflation, byConsumption, levelReplacement, levelAugmentation };
 }
 
 /**
@@ -1155,7 +1222,7 @@ export function computeHousingWealthEffect(
   foreclosureRateAggregate: number,
   adjustedCreditTighteningRatio: number,
   housingWealthMPC: number,
-  institutionalBuyerRate: number = 0.40,
+  institutionalBuyerRate: number = DEFAULT_INSTITUTIONAL_BUYER_RATE, // Stage H: by-reference (was a 0.40 literal)
   rentalDemandSensitivity: number = 0.50,
 ): { housingWealthDrag: number; homePriceChangeRate: number } {
   // A2. Institutional demand absorbs some foreclosure supply
@@ -1330,7 +1397,8 @@ export function computeHousingBlock(args: {
   rentOccupancyElasticity: number; rentCostAnchorWeight: number;
   opexPassthrough: number; rentDownwardRigidity: number;
   rentIncomeElasticity: number; prevAfterTaxIncomeGrowth: number;
-  diagSpotBuilderPrice?: boolean;
+  // RETIRED (CO-D2, R3b): diagSpotBuilderPrice — use builderPriceMode 'spot'.
+  // diagSpotBuilderPrice?: boolean;
   // L9c
   builderPriceMode?: 'spot' | 'trend-aware' | 'adaptive';
   prevBuilderTrendGrowth: number; prevHomePriceChangeRate: number;
@@ -1445,8 +1513,12 @@ export function computeHousingBlock(args: {
   if (kappa > 0) {
     // L9 disposition 4: the 0.05 floor RETIRED — any path leaning on it was ruled a finding,
     // and the free-disposal guard (P ≥ (1−s)·CC) is the standing detector of infeasible paths.
+    // DIVISION-BY-ZERO HAZARD (audit H679): landShare divides the E-11 residual below; a
+    // hand-edited scenario with landShare = 0 (the field had no clamp) would divide by zero.
+    // Defensive floor here + the validateConfig entry clamp; inert at the default 0.40.
+    const landShareSafe = Math.max(LAND_SHARE_DIVISION_FLOOR, a.landShare);
     const residualTarget =
-      (a.prevHomePriceIndex - (1 - a.landShare) * a.prevConstructionCost) / a.landShare;
+      (a.prevHomePriceIndex - (1 - landShareSafe) * a.prevConstructionCost) / landShareSafe;
     const gLstar = a.prevLandResidualTarget > 0
       ? residualTarget / a.prevLandResidualTarget - 1
       : 0;
@@ -1513,8 +1585,12 @@ export function computeHousingBlock(args: {
   // deviations from trend decay at the same λ (the 2022-23 cadence calibration preserved).
   // trendG = an H=10 EMA of realized ΔP (H reuses the standing expectations horizon).
   // Modes: 'spot' (perceived = P) / 'trend-aware' (default) / 'adaptive' (the pre-L9c smoother —
-  // the chronic-under-build world stays representable). diagSpotBuilderPrice ≡ legacy 'spot'.
-  const builderMode = a.diagSpotBuilderPrice ? 'spot' : (a.builderPriceMode ?? 'trend-aware');
+  // the chronic-under-build world stays representable).
+  // RETIRED (CO-D2 conversion, R3b): diagSpotBuilderPrice ≡ builderPriceMode 'spot' —
+  // the REAL dial expresses the same machinery; the diagnostic override was redundant.
+  // Poles at ~/.atlas-referents/co-d2/diagSpotBuilderPrice/ (incl. the llag-faithful
+  // zero-AI form). const builderMode = a.diagSpotBuilderPrice ? 'spot' : (...);
+  const builderMode = a.builderPriceMode ?? 'trend-aware';
   const builderTrendGrowth = a.isFirstYear
     ? a.prevBuilderTrendGrowth
     : (1 - 1 / BUILDER_TREND_HORIZON_YEARS) * a.prevBuilderTrendGrowth
@@ -1835,6 +1911,9 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     automationDividend: inputAutomationDividend = 0,
     augmentationProfitBoost: inputAugmentationProfitBoost = 0,
     creditDeflationSensitivity = DEFAULT_CREDIT_DEFLATION_SENSITIVITY,
+    creditDeflationImpulseSensitivity = DEFAULT_CREDIT_DEFLATION_IMPULSE_SENSITIVITY,
+    creditDeflationPersistence = DEFAULT_CREDIT_DEFLATION_PERSISTENCE,
+    creditDeflationNoiseFloor = DEFAULT_CREDIT_DEFLATION_NOISE_FLOOR,
     scarcityInflation: inputScarcityInflation = 0,
     transferInflation: inputTransferInflation = 0,
     // Phase 7: monetization-based inflation (preferred over transferInflation when available)
@@ -1931,6 +2010,7 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   let businessCredit: { businessCreditMultiplier: number; businessCreditTightening: number; profitCoverageRatio: number };
   let creditTighteningRate: number;
   let creditDeflationContribution: number;
+  let creditImpulseStateOut = 0; // the pass-through impulse kernel state J
 
   const hasBaselineCaptures = (inputs.baselineRealHouseholdIncome ?? 0) > 0
     && (inputs.baselineCorporateProfits ?? 0) > 0;
@@ -2039,8 +2119,24 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     // ceiling — a GR-level tightening produces the same deflation pressure it always did
     // (rate 1.0 = one GR-unit); Depression-scale tightening can reach rate 2.0. Normalizing by
     // the new ceiling would have silently halved sub-saturation deflation pressure.
-    creditTighteningRate = consumerCredit.consumerCreditTightening / CONSUMER_TIGHTENING_GR_PEAK;
-    creditDeflationContribution = -creditTighteningRate * creditDeflationSensitivity;
+    // THE PASS-THROUGH LAW (ratified): the banded impulse form — the level law
+    // survives verbatim only below the measured noise floor; above it, CHANGES emit
+    // through the κ-kernel, plateaus decay, easing reflates. The pure function
+    // carries the arithmetic (unit-tested by the PT batteries).
+    const credit = computeCreditDeflationContribution(
+      consumerCredit.consumerCreditTightening,
+      previousMacro?.consumerCreditTightening ?? 0,
+      previousMacro?.creditDeflationImpulseState ?? 0,
+      {
+        levelSensitivity: creditDeflationSensitivity,
+        impulseSensitivity: creditDeflationImpulseSensitivity,
+        persistence: creditDeflationPersistence,
+        noiseFloor: creditDeflationNoiseFloor,
+      },
+    );
+    creditTighteningRate = Math.min(consumerCredit.consumerCreditTightening, creditDeflationNoiseFloor) / CONSUMER_TIGHTENING_GR_PEAK;
+    creditDeflationContribution = credit.contribution;
+    creditImpulseStateOut = credit.impulseState;
   }
 
   // Demand feedback: rolling 5-year average comparison (Phase 1 overhaul)
@@ -2056,19 +2152,19 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // === FIX 4: Price level — P(0) = 1.0 exactly, accumulate starting at t=1 ===
   // Use sector-weighted deflation when available (from simulation.ts cluster results),
   // fall back to blended 3-component cost model.
-  const aiDeflationRate_raw = sectorWeightedDeflationRate ?? (() => {
-    // Phase 10.A Bug #B fix: inference component via floored curve (matches computeCheaperScore
-    // and computeSectorWeightedDeflation). Manufacturing/energy retain exponential.
-    const t = year - DEFAULT_START_YEAR;
-    const comp = AI_COST_COMPOSITION['software']!;
-    const mfg = inputs.aiCostParams?.manufacturingAnnualChange ?? DEFAULT_MANUFACTURING_ANNUAL_CHANGE;
-    const eng = inputs.aiCostParams?.energyAnnualChange ?? DEFAULT_ENERGY_ANNUAL_CHANGE;
-    const inferenceFactor = computeInferenceCostFactor(t, inputs.aiCostParams?.tokenCostCurve, inputs.aiCostParams?.tokenUsageMultiplier);
-    const costSavings = Math.max(0, 1 - (
-      comp.inference * inferenceFactor
-      + comp.manufacturing * Math.exp(mfg * t)
-      + comp.energy * Math.exp(eng * t)
-    ));
+  // THE PASS-THROUGH LAW: the input carries the savings LEVEL; the emitted deflation
+  // RATE is its first difference (year 0 differences against the zero seam).
+  const aiSavingsLevelTotal_now = sectorWeightedDeflationRate ?? undefined;
+  const aiDeflationRate_raw = (aiSavingsLevelTotal_now !== undefined
+    ? aiSavingsLevelTotal_now - (previousMacro?.aiSavingsLevelTotal ?? 0)
+    : undefined) ?? (() => {
+    // Fixture-only fallback (the simulation always supplies sectorWeightedDeflationRate).
+    // Mini-stage 1: priced from THE ONE ASSEMBLY (aiCost.ts) at the frontier pole
+    // (arrival null, surplus 0 — the conservative default for a fixture with no per-role
+    // arrival state). The retired inline assembly is preserved in git history (6c831b7).
+    const costSavings = Math.max(0, 1 - computeAiCostFraction(
+      year, 'software', null, 0, inputs.aiCostParams,
+    ).fraction);
     return Math.max(0, AI_DEFLATION_COEFFICIENT * automationCoverage * (1 + costSavings));
   })();
 
@@ -2161,8 +2257,17 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // service robotics→labor-services) reaches prices only through the LOW embodied passthroughs
   // (regulation/supply-management gated). Direct computeMacro callers (no routing) fall back to the
   // scalar in AI-exposed only — so unit tests and zero-AI match Stage 1.
-  const secDefl = inputs.sectorDeflationByConsumption
-    ?? { aiExposed: aiDeflationRate, laborServices: 0, foodEnergy: 0, shelter: 0 };
+  // THE PASS-THROUGH LAW: per-sector flows = first differences of the per-sector
+  // savings levels (signed; de-adoption reflates). Fixture fallback keeps the scalar.
+  const secLevels = inputs.sectorDeflationByConsumption;
+  const secDefl = secLevels
+    ? {
+        aiExposed: secLevels.aiExposed - (previousMacro?.aiSavingsLevelAiExposed ?? 0),
+        laborServices: secLevels.laborServices - (previousMacro?.aiSavingsLevelLaborServices ?? 0),
+        foodEnergy: secLevels.foodEnergy - (previousMacro?.aiSavingsLevelFoodEnergy ?? 0),
+        shelter: secLevels.shelter - (previousMacro?.aiSavingsLevelShelter ?? 0),
+      }
+    : { aiExposed: aiDeflationRate, laborServices: 0, foodEnergy: 0, shelter: 0 };
   const laborServicesPassthrough = inputs.laborServicesPassthrough ?? DEFAULT_LABOR_SERVICES_PASSTHROUGH;
   const foodEnergyPassthrough = inputs.foodEnergyPassthrough ?? DEFAULT_FOOD_ENERGY_PASSTHROUGH;
   const shelterPassthrough = inputs.shelterPassthrough ?? DEFAULT_SHELTER_PASSTHROUGH;
@@ -2190,10 +2295,15 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // all-items series (≈2.22%), not to all-items itself (which already contains shelter's premium).
   // All-items consumers (the credit bar, the anchor inits, nominal-trend slots) keep baseInflationRate.
   const nonShelterBase = inputs.nonShelterBaseInflation ?? NON_SHELTER_BASE_INFLATION;
-  const aiExposedInflation = nonShelterBase + broadGoodsPressure - aiExposedDeflation;
-  const laborServicesInflation = nonShelterBase + broadGoodsPressure
+  // Stage 3 MS4 (Channel 3): the R&D productivity flow — Δln(RD_stock) × the cited
+  // elasticity, SIGNED (de-accumulation reflates; a frozen stock emits nothing — the
+  // pass-through law) — applied uniformly across the three non-shelter sectors (the
+  // broadGoodsPressure pattern; shelter keeps its own stock-flow model).
+  const rdTfpDeflation = inputs.aiRdDeflationFlow ?? 0;
+  const aiExposedInflation = nonShelterBase + broadGoodsPressure - aiExposedDeflation - rdTfpDeflation;
+  const laborServicesInflation = nonShelterBase + broadGoodsPressure - rdTfpDeflation
     + laborCostShare * (wageRateDeviation - laborServicesEmbodiedErosion);
-  const foodEnergyInflation = nonShelterBase + broadGoodsPressure - foodEnergyDeflation;
+  const foodEnergyInflation = nonShelterBase + broadGoodsPressure - foodEnergyDeflation - rdTfpDeflation;
 
   // netInflation kept for back-compat (= AI-exposed/goods-bucket-equivalent) and demand-drag isolation.
   const netInflation = aiExposedInflation;
@@ -2201,7 +2311,7 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // ═══ STAGE 6.5: STOCK-FLOW HOUSING (replaces the Phase-5i additive shelter stack) ═══
   const shelterWeight = inputs.shelterCPIWeight ?? BASELINE_SHELTER_CPI_WEIGHT;
   const inputForeclosureRate = inputs.foreclosureRateAggregate ?? 0;
-  const instBuyerRate = inputs.institutionalBuyerRate ?? 0.40;
+  const instBuyerRate = inputs.institutionalBuyerRate ?? DEFAULT_INSTITUTIONAL_BUYER_RATE; // Stage H: by-reference (was a ?? 0.40 literal, one of five copies)
   const avgHomeownership = inputs.dynamicHomeownership
     ? inputs.dynamicHomeownership.reduce((a, b) => a + b, 0) / inputs.dynamicHomeownership.length
     : BASELINE_HOMEOWNERSHIP;
@@ -2249,7 +2359,7 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     opexPassthrough: inputs.opexPassthrough ?? DEFAULT_OPEX_PASSTHROUGH,
     rentDownwardRigidity: inputs.rentDownwardRigidity ?? DEFAULT_RENT_DOWNWARD_RIGIDITY,
     rentIncomeElasticity: inputs.rentIncomeElasticity ?? DEFAULT_RENT_INCOME_ELASTICITY,
-    diagSpotBuilderPrice: inputs.diagSpotBuilderPrice,
+    // RETIRED (CO-D2, R3b): diagSpotBuilderPrice threading — the mode dial carries it.
     builderPriceMode: inputs.builderPriceMode,
     prevBuilderTrendGrowth: previousMacro?.builderTrendGrowth ?? BUILDER_TREND_GROWTH_INIT_2025,
     prevHomePriceChangeRate: inputs.prevHomePriceChangeRate ?? 0,
@@ -2508,35 +2618,85 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
 
   // ── Component 2: AI Capital Gains (dynamic P/E) ──
   // P/E = BASE_PE_ZERO_GROWTH + sensitivity × earnings growth rate (no max(0) clamp — let MIN_PE floor).
+  // D1 fix (re-ruled 2026-08-14), two scoped guards, both REPORTED via trace flags:
+  //   F3 — the scoped earnings floor: strictly NEGATIVE profit inputs (reachable
+  //        through the Stage-7 signed sector identity) are floored at the cited
+  //        positive-earnings bound for VALUATION only, so a loss-to-profit swing is
+  //        never capitalized as earnings growth. Zeros (pre-adoption) and positive
+  //        values pass through untouched — bit-identical on all-positive paths.
+  //   F2 — the cited-range clamp: each sector P/E cannot leave the range its own
+  //        constants cite (MAX_AI_SECTOR_PE / MAX_TRADITIONAL_SECTOR_PE, derived
+  //        arithmetic from the constants' documented extremes).
+  // Ruling 2 (the sector discount term, D1 ship stage): the leg's zero-growth anchor
+  // carries its OWN cited calm discount (BASE_PE_ZERO_GROWTH 10× ≈ 10% — the
+  // constant's citation), so the live risk-free cancels by construction and the leg
+  // gains exactly the ONE producer's crisis excess (the F1a dynamic ERP component):
+  //   PE_0 = 1 / (1/B + c), computed as B / (1 + B·c)
+  // — bit-exactly B at c = 0 (the reciprocal-of-reciprocal form is refused for its
+  // ULP poison on the calm path). Strictly decreasing in c; the F2 ceilings stay the
+  // outer clamp.
+  const erpCrisisComponentIn = inputs.erpCrisisComponent ?? 0;
+  const sectorZeroGrowthPE = BASE_PE_ZERO_GROWTH
+    / (1 + BASE_PE_ZERO_GROWTH * erpCrisisComponentIn);
   const prevAIProfits = previousMacro?.aiCorporateProfits ?? 0;
   const twoYearsAgoAIProfits = previousMacro?.prevAICorporateProfits ?? 0;
-  const aiProfitGrowthRate = prevAIProfits > 0
-    ? (prevAIProfits - twoYearsAgoAIProfits) / prevAIProfits
+  const prevAIProfitsV = prevAIProfits < 0 ? EQUITY_VALUATION_EARNINGS_FLOOR : prevAIProfits;
+  const twoYearsAgoAIProfitsV = twoYearsAgoAIProfits < 0 ? EQUITY_VALUATION_EARNINGS_FLOOR : twoYearsAgoAIProfits;
+  const aiProfitGrowthRate = prevAIProfitsV > 0
+    ? (prevAIProfitsV - twoYearsAgoAIProfitsV) / prevAIProfitsV
     : 0;
-  const aiSectorPE = Math.max(MIN_PE,
-    BASE_PE_ZERO_GROWTH + aiPESensitivity * aiProfitGrowthRate);
-  const aiProfitGrowthDollar = prevAIProfits - twoYearsAgoAIProfits;
+  const aiSectorPEUnclamped = Math.max(MIN_PE,
+    sectorZeroGrowthPE + aiPESensitivity * aiProfitGrowthRate);
+  const aiSectorPE = Math.min(MAX_AI_SECTOR_PE, aiSectorPEUnclamped);
+  const aiProfitGrowthDollar = prevAIProfitsV - twoYearsAgoAIProfitsV;
   const aiMarketCapChange = aiProfitGrowthDollar * aiSectorPE;
+  // ═══ STAGE 3 MS3 — THE IMPLIED AI MARKET CAP LEVEL (owner ruling v) ═══
+  // The model-implied AI-sector valuation the equity-issuance leg prices against:
+  // the D1-GUARDED sector P/E (zero-growth anchor + the F2 cited-range ceiling —
+  // the guards above) × the realized AI profit base it was formed on. DERIVED, never
+  // authored; identically 0 on the zero-AI path (profits 0). One producer — the
+  // issuance leg consumes it at t−1 via previousMacro.
+  const aiMarketCapImplied = aiSectorPE * prevAIProfitsV;
 
   // ── Component 3: Traditional Capital Gains ──
   const prevTradProfits = previousMacro?.traditionalCorporateProfits ?? 0;
   const twoYearsAgoTradProfits = previousMacro?.prevTraditionalCorporateProfits ?? 0;
-  const tradProfitGrowthRate = prevTradProfits > 0
-    ? (prevTradProfits - twoYearsAgoTradProfits) / prevTradProfits
+  const prevTradProfitsV = prevTradProfits < 0 ? EQUITY_VALUATION_EARNINGS_FLOOR : prevTradProfits;
+  const twoYearsAgoTradProfitsV = twoYearsAgoTradProfits < 0 ? EQUITY_VALUATION_EARNINGS_FLOOR : twoYearsAgoTradProfits;
+  const tradProfitGrowthRate = prevTradProfitsV > 0
+    ? (prevTradProfitsV - twoYearsAgoTradProfitsV) / prevTradProfitsV
     : 0;
-  const traditionalSectorPE = Math.max(MIN_PE,
-    BASE_PE_ZERO_GROWTH + tradPESensitivity * tradProfitGrowthRate);
-  const tradProfitGrowthDollar = prevTradProfits - twoYearsAgoTradProfits;
+  const tradSectorPEUnclamped = Math.max(MIN_PE,
+    sectorZeroGrowthPE + tradPESensitivity * tradProfitGrowthRate);
+  const traditionalSectorPE = Math.min(MAX_TRADITIONAL_SECTOR_PE, tradSectorPEUnclamped);
+  const tradProfitGrowthDollar = prevTradProfitsV - twoYearsAgoTradProfitsV;
   const tradMarketCapChange = tradProfitGrowthDollar * traditionalSectorPE;
+
+  // The D1 trace flags (F2/F3) — engagement is reported, never silent.
+  const sectorEarningsFloorEngaged = prevAIProfits < 0 || twoYearsAgoAIProfits < 0
+    || prevTradProfits < 0 || twoYearsAgoTradProfits < 0;
+  const sectorPEClampEngaged = aiSectorPEUnclamped > MAX_AI_SECTOR_PE
+    || tradSectorPEUnclamped > MAX_TRADITIONAL_SECTOR_PE;
 
   // ── Endogenous Realization Rate ──
   // Responds to blended market performance. IRS historical range: 4% (2008-09) to 12% (2021 boom).
-  const aiMarketWeight = previousMacro?.aiGDPContributionPct ?? 0;
-  // Phase 7: Use equity module's marketReturn when available (replaces profit-growth proxy)
-  const blendedMarketPerformance = inputMarketReturn !== undefined
-    ? Math.max(-0.5, Math.min(0.5, inputMarketReturn))
-    : Math.max(-0.5, Math.min(0.5,
-        aiMarketWeight * aiProfitGrowthRate + (1 - aiMarketWeight) * tradProfitGrowthRate));
+  // H3 rider F6b — the aiMarketWeight profit-growth-proxy arm RETIRED (converted to loud):
+  // LIVENESS: simulation.ts passes fm.equityMarket.marketReturn unconditionally (no optional
+  // chain — the loop would throw earlier if fiscalMonetary were ever unset), so the fallback
+  // arm was structurally dead on the simulation path; only direct unit-test callers could
+  // reach it. Missing input now throws instead of silently riding the dead proxy.
+  // The retired arm, kept per the no-delete rule:
+  //   const aiMarketWeight = previousMacro?.aiGDPContributionPct ?? 0;
+  //   ... : Math.max(-0.5, Math.min(0.5,
+  //         aiMarketWeight * aiProfitGrowthRate + (1 - aiMarketWeight) * tradProfitGrowthRate));
+  if (inputMarketReturn === undefined) {
+    throw new Error(
+      'computeMacro: marketReturn is missing — the equity module return is the one live blend '
+      + 'basis (H3 rider F6b retired the dead profit-growth-proxy arm). Pass inputs.marketReturn '
+      + '(the simulation loop always does).',
+    );
+  }
+  const blendedMarketPerformance = Math.max(-0.5, Math.min(0.5, inputMarketReturn));
   const capitalGainsRealizationRate = Math.max(MIN_REALIZATION_RATE,
     Math.min(MAX_REALIZATION_RATE,
       BASE_REALIZATION_RATE * (1 + REALIZATION_SENSITIVITY * blendedMarketPerformance)));
@@ -2706,6 +2866,8 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   let computedRealIncomeGrowthRate = 0;
   let computedMortgageRateChange = 0;
   let investmentRealization = 1.0; // Investment Demand Constraint — set in else branch
+  let investmentRateDampening = 1.0; // H3: borrowing-rate dampening on the investment entry (set in else branch)
+  let buildoutImportLeakage = 0; // Stage 3 MS2: the buildout import offset (set in else branch; 0 at year 0 and machine-dormant)
   // Phase 5-tax: Investment capacity variables — declared here so accessible in return object
   let creditCapacity = BASELINE_CREDIT_FUNDED;
   let investmentCapacity = BASELINE_RETAINED_EARNINGS + BASELINE_CREDIT_FUNDED;
@@ -2819,8 +2981,30 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     const rawAiInvBoost = productionInputs?.aiInvestmentBoost ?? 0;
     const aiInvDemand = rawAiInvBoost * investmentRealization;
 
-    // Unified credit gate — ONE gate for ALL investment
-    const totalInvestmentDemand = (tradInvDemand + aiInvDemand) * businessCredit.businessCreditMultiplier;
+    // ═══ PRODUCTION PROGRAM STAGE 1 — THE BASELINE CAPEX PARTITION (delta form) ═══
+    // The BEA-calibrated baseline investment ratio already CONTAINS the observed 2025
+    // AI buildout (premises A.6); the endogenous buildout machine (Channel 1) must be
+    // additive WITHOUT double-count. The delta form: subtract the baseline-embedded AI
+    // capex path (the observed seam share riding the same demand factor the baseline
+    // rides) and add the machine's pre-gate demand. Machine not live (undefined) ⇒
+    // delta is EXACTLY 0 ⇒ bit-identity (PB-1 Leg A; X + 0 is IEEE-exact).
+    // THE ZERO-AI TWIN SEMANTICS (ratification A2 — source code and records only):
+    // the zero-AI reference is "a world in which the AI buildout never happened" —
+    // its machine demand is 0, so its delta is −(the baseline-embedded AI capex path):
+    // the ruled level shift PB-1 Leg B records as the §10 A-component.
+    const buildoutBaselineDemand = prevNominalGDP
+      * (inputs.aiBuildoutBaselineShare ?? AI_CAPEX_BASELINE_SHARE) * tradDemandFactor;
+    const buildoutDelta = inputs.aiBuildoutInvestmentDemand !== undefined
+      ? inputs.aiBuildoutInvestmentDemand - buildoutBaselineDemand
+      : 0;
+
+    // Unified credit gate — ONE gate for ALL investment (the buildout delta rides it:
+    // no bypass — checkpoint §1.1). Stage 3 MS4: the AI-era R&D demand (Channel 3)
+    // joins as its own addend — a DISTINCT NIPA category (intellectual-property
+    // investment) from the buildout's physical capex and the ledger's AI-produced
+    // capital goods (the declared three-way partition; RB-4 Leg A).
+    const aiRdDemand = inputs.aiRdSpendDemand ?? 0;
+    const totalInvestmentDemand = (tradInvDemand + buildoutDelta + aiInvDemand + aiRdDemand) * businessCredit.businessCreditMultiplier;
 
     // ═══ INVESTMENT CAPACITY (supply side) ═══
     // Use captured year-0 credit-funded baseline when available. BASELINE_CREDIT_FUNDED uses
@@ -2845,8 +3029,10 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     // Baseline corporate borrowing rate ≈ 10Y (4.3%) + BBB spread (1.5%) ≈ 5.8%
     if (inputCorporateBorrowingRate !== undefined) {
       const BASELINE_CORP_RATE_APPROX = 0.058;
-      const rateDampening = Math.max(0.3, 1 - 0.15 * Math.max(0, inputCorporateBorrowingRate - BASELINE_CORP_RATE_APPROX));
-      adjustedInvestment *= rateDampening;
+      // H3: hoisted so the realized AI investment entry (the split metric) rides the SAME
+      // full multiplier chain as the actual GDP entry.
+      investmentRateDampening = Math.max(0.3, 1 - 0.15 * Math.max(0, inputCorporateBorrowingRate - BASELINE_CORP_RATE_APPROX));
+      adjustedInvestment *= investmentRateDampening;
     }
 
     // ═══ CREDIT DEPENDENCE ═══
@@ -2862,7 +3048,21 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     // Net exports (handled separately — see Change 9)
     const rawAiNXBoost = productionInputs?.aiNetExportBoost ?? 0;
     const aiNXBoost = rawAiNXBoost * investmentRealization;
-    const adjustedNetExports = prevNominalGDP * NET_EXPORTS_GDP_FRACTION + aiNXBoost;
+    // ═══ STAGE 3 MS2 — THE BUILDOUT IMPORT-CONTENT OFFSET (owner ruling vi) ═══
+    // NIPA accounting: imported equipment counts in I at full value and offsets in NX.
+    // The leakage applies to the MACHINE's realized spend ABOVE the baseline-embedded
+    // path (max(0, buildoutDelta) through the same gate chain the investment entry
+    // rides) at the allocation-weighted cited import-content share; the baseline-
+    // embedded path's imports live inside the baseline NX calibration (constants.ts,
+    // BUILDOUT_IMPORT_CONTENT_SHARE — the boundary and the registered twin-side
+    // asymmetry are stated there). delta ≤ 0 ⇒ 0 (year-0 seam and the zero-AI twin
+    // are bit-silent — RB-2 Leg C).
+    // reason for assignment-not-declaration: hoisted (the telemetry stamp reads it)
+    buildoutImportLeakage = Math.max(0, buildoutDelta)
+      * businessCredit.businessCreditMultiplier * capacityGate * investmentRateDampening
+      * (inputs.aiBuildoutImportShare ?? BUILDOUT_IMPORT_CONTENT_DEFAULT);
+    const adjustedNetExports = prevNominalGDP * NET_EXPORTS_GDP_FRACTION + aiNXBoost
+      - buildoutImportLeakage;
 
     // Government spending: obligation-based decomposition (Phase 3b)
     // ~80% obligation-driven (federal mandatory + discretionary): grows with inflation,
@@ -2903,18 +3103,66 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   const capacityUtilization = potentialGDP > 0
     ? Math.min(1.0, gdpReal / potentialGDP) : 1.0;
 
-  // Phase 3b: Unrealized AI output — demand absorption metric.
+  // Phase 3b → H3 ruling 2: Unrealized AI output — demand absorption.
   // Measures how much AI consumer goods production goes unsold due to insufficient demand.
-  // demandHealthRatio compares REAL consumption (consumption/priceLevel) to BASELINE_CONSUMPTION_2025:
-  // when real consumption drops (mass unemployment → less spending), AI goods can't find buyers.
-  // With UBI: consumption rises → demandHealthRatio rises → more AI goods absorbed → less unrealized.
-  // This is a REPORTING metric only — does NOT feed back into GDP or other computations.
+  // demandHealthRatio benchmarks REAL consumption (consumption/priceLevel) against the
+  // SAME-YEAR ZERO-AI COUNTERFACTUAL consumption (inputs.counterfactualRealConsumption —
+  // the engine's own zero-AI twin run; see runSimulation): the gap AI-era demand has opened
+  // against the path demand would have taken WITHOUT AI. The retired benchmark was the
+  // FROZEN 2025 level (BASELINE_CONSUMPTION_2025), which real consumption exceeds on every
+  // plausible path by the time production exists — the clamp read exactly 1.0 in every
+  // production year of every scenario (the audit's F3 inertness proof, now the before-pole).
+  // With UBI: consumption rises toward its zero-AI path → more AI goods absorbed.
+  // F6a CORRECTED (the false comment retired): absorption DOES feed back into GDP — the
+  // liveness chain: aiGoodsAbsorbed → aiGDPContribution → aiCorporateProfits → next-year
+  // previousMacro.aiCorporateProfits → aiMarketCapChange → aiCapitalGains →
+  // aggregateAssetIncome → consumption → GDP, plus capitalGainsTax. The old text
+  // ("REPORTING metric only — does NOT feed back") was false.
   const aiSupplyCapacity = aiConsumerPotential;
   const realConsumption = priceLevel > 0 ? consumption / priceLevel : 0;
-  const demandHealthRatio = BASELINE_CONSUMPTION_2025 > 0
-    ? Math.min(1.0, realConsumption / BASELINE_CONSUMPTION_2025)
+  const counterfactualC = inputs.counterfactualRealConsumption;
+  if (aiSupplyCapacity > 0 && counterfactualC === undefined) {
+    // The loud guard (the enforcement-over-reading law): AI consumer potential with no
+    // benchmark means the twin wiring broke — never silently fall back to a stale basis.
+    throw new Error(
+      'computeMacro: counterfactualRealConsumption is missing while AI consumer potential > 0 — '
+      + 'the absorption benchmark is the zero-AI twin (H3 ruling 2). Thread the twin consumption '
+      + 'through MacroInputs; a silent fallback benchmark is not allowed.',
+    );
+  }
+  const demandHealthRatio = counterfactualC !== undefined && counterfactualC > 0
+    ? Math.min(1.0, realConsumption / counterfactualC)
     : 1.0;
-  const aiGoodsAbsorbed = aiSupplyCapacity * demandHealthRatio;
+  // ═══ PRODUCTION PROGRAM STAGE 2 — ELASTICITY-BASED ABSORPTION (order item 4) ═══
+  // The twin-benchmark architecture is PRESERVED (demandHealthRatio above); the cited
+  // demand elasticities JOIN it: the AI-attributable sector price flows (the Δ-form
+  // pass-through terms computed above — signed; de-adoption reflates) call forth
+  // quantity ΔQ_s = C_s × ε_s × deflationFlow_s per non-shelter consumption sector
+  // (shelter EXCLUDED by declared boundary: its AI price channel is the housing
+  // supply response — Stage 6.5). C_s = real consumption × the sector's CPI weight
+  // (the consumption-share proxy, declared). Elasticity magnitudes cited at their
+  // constants (EPA NCEE 21-05; RAND HIE; Andreyeva et al. 2010 + Hughes modern fuel).
+  // What elasticity does not absorb remains honestly unrealized (surfaced below).
+  // The pre-elasticity DISCARD form, kept per the no-delete rule:
+  //   const aiGoodsAbsorbed = aiSupplyCapacity * demandHealthRatio;
+  const epsAiExposed = inputs.absorptionElasticityAiExposed ?? DEFAULT_ABSORPTION_ELASTICITY_AI_EXPOSED;
+  const epsLaborServices = inputs.absorptionElasticityLaborServices ?? DEFAULT_ABSORPTION_ELASTICITY_LABOR_SERVICES;
+  const epsFoodEnergy = inputs.absorptionElasticityFoodEnergy ?? DEFAULT_ABSORPTION_ELASTICITY_FOOD_ENERGY;
+  // The AI-attributable consumer-price FLOWS per sector, as they enter the sector
+  // inflations above (aiExposedDeflation; foodEnergyDeflation; the labor-services
+  // erosion enters via laborCostShare — the same factor applies here).
+  const aiElasticityAbsorbed = aiSupplyCapacity > 0
+    ? realConsumption * (
+        (inputs.aiExposedCPIWeight ?? AI_EXPOSED_CPI_WEIGHT) * epsAiExposed * aiExposedDeflation
+        + (inputs.laborServicesCPIWeight ?? LABOR_SERVICES_CPI_WEIGHT) * epsLaborServices
+          * laborCostShare * laborServicesEmbodiedErosion
+        + (inputs.foodEnergyCPIWeight ?? FOOD_ENERGY_CPI_WEIGHT) * epsFoodEnergy * foodEnergyDeflation
+      )
+    : 0;
+  const aiGoodsAbsorbed = Math.max(0, Math.min(
+    aiSupplyCapacity,
+    aiSupplyCapacity * demandHealthRatio + aiElasticityAbsorbed,
+  ));
   const unrealizedAIOutput = Math.max(0, aiSupplyCapacity - aiGoodsAbsorbed);
   const aiCapacityUtilization = aiSupplyCapacity > 0
     ? aiGoodsAbsorbed / aiSupplyCapacity
@@ -3068,12 +3316,42 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     cyclePhase = 'MONETARY_COLLAPSE';
   }
 
-  // === Phase 5g: AI GDP Contribution ===
-  // Total AI addition to GDP: investment boost + absorbed consumer goods + net export boost
+  // === Phase 5g → H3: the AI revenue basis (RETIRED FROM DISPLAY) ===
+  // aiGDPContribution is the INTERNAL basis feeding aiCorporateProfits and the UBI
+  // productivity indexing — raw investment leg + absorbed consumer goods + raw net-export
+  // leg. It is NOT "AI's addition to GDP" (the raw legs enter GDP only post-realization;
+  // the absorbed leg reaches GDP only through the profits channel) — display consumers use
+  // the H3 split metrics below. Composition deliberately unchanged (the pins: rulings 2/3
+  // move it only through the absorbed leg and the vintage valuation).
   const aiGDPContribution = (productionInputs?.aiInvestmentBoost ?? 0)
     + aiGoodsAbsorbed
     + (productionInputs?.aiNetExportBoost ?? 0);
   const aiGDPContributionPct = gdpNominal > 0 ? aiGDPContribution / gdpNominal : 0;
+
+  // ═══ H3 RULING 1 — THE SPLIT (one producer each) ═══
+  // (a) REALIZED AI SHARE OF GDP: strictly the AI dollars that ENTERED GDP this year.
+  //     Investment leg × investmentRealization × businessCreditMultiplier × capacityGate ×
+  //     the borrowing-rate dampening — the full multiplier chain the actual investment entry
+  //     rides (adjustedInvestment above); net-export leg × investmentRealization (its exact
+  //     entry in adjustedNetExports). The consumer leg counts ONLY as absorbed-AND-ADDED,
+  //     which is ZERO direct entry under the ruled architecture (absorbed goods reach GDP
+  //     through the profits channel only — stated). Nominal over nominal: commensurable by
+  //     construction (battery H3-B1 asserts numerator ≤ its GDP entries, every year).
+  const aiRealizedInvestmentEntry = isFirstYear ? 0
+    : (productionInputs?.aiInvestmentBoost ?? 0) * investmentRealization
+      * businessCredit.businessCreditMultiplier * capacityGate * investmentRateDampening;
+  const aiRealizedNetExportEntry = isFirstYear ? 0
+    : (productionInputs?.aiNetExportBoost ?? 0) * investmentRealization;
+  const aiRealizedGDPContribution = aiRealizedInvestmentEntry + aiRealizedNetExportEntry;
+  const aiRealizedShareOfGDP = gdpNominal > 0 ? aiRealizedGDPContribution / gdpNominal : 0;
+  // (b) AI OUTPUT POTENTIAL: total production expansion (real 2025$, vintage-valued) over
+  //     REAL GDP — the honest name for what the retired 24.9%-class headline measured.
+  const aiOutputPotentialShare = gdpReal > 0
+    ? (productionInputs?.aiAdditionalOutput ?? 0) / gdpReal
+    : 0;
+  // Stage 2 (Channel 2): the VA-anchored potential CEILING, surfaced (the §0 contract;
+  // QB-1 asserts emission ≤ ceiling). 0 when the ledger passes none (zero-AI, tests).
+  const aiPotentialCeiling = productionInputs?.aiPotentialCeiling ?? 0;
 
   // ═══ STAGE 7: RESIDUAL CORPORATE PROFITS (Phase 10.B core; OD-5 checkpoint ratified) ═══
   // corporateProfits = GDP − wageBill − nonCorporateIncome − otherCosts. Margins are OUTPUTS.
@@ -3102,30 +3380,57 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
   // AI/traditional split (Q-3: AI bears proportionate otherCosts — conservative on AI profits since
   // AI-sector CFC plausibly exceeds the average; per-sector multiplier = registered refinement):
   const aiSectorLaborShareVal = inputs.aiSectorLaborShare ?? DEFAULT_AI_SECTOR_LABOR_SHARE;
-  const aiCorporateProfits = aiGDPContribution * (1 - aiSectorLaborShareVal) * (1 - otherCostsShare);
+  // ═══ PRODUCTION PROGRAM STAGE 1 — THE AI-PROFITS RE-BASE (premises A.8a, both defects) ═══
+  // The retired basis accrued profits on the RAW pre-realization investment/net-export
+  // legs (revenue never sold into GDP) and mixed REAL-VINTAGE ledger units into the
+  // nominal income side (~34% understatement at 2047 prices). The honest basis:
+  // realized revenue in NOMINAL units — the realized GDP entries (nominal at entry)
+  // plus the absorbed consumer leg converted at the price level. Which-change measured
+  // and recorded in the Stage-1 report; claim re-stamps at the Stage-5 ceremony.
+  // DEPRECATED (the raw-basis form, kept per the no-delete rule):
+  //   const aiCorporateProfits = aiGDPContribution * (1 - aiSectorLaborShareVal) * (1 - otherCostsShare);
+  const aiRevenueRealizedNominal = aiRealizedGDPContribution + aiGoodsAbsorbed * priceLevel;
+  // ═══ STAGE 5A (A3 + E2) — ENERGY OPEX IN AI PROFITS (the ratified energy design)
+  // The power bill becomes explicit: profits = revenue × (1 − labor share) ×
+  // (1 − otherCostsShareExEnergy) − energyOpex, with the residual CARVED OUT so no
+  // dollar counts twice — otherCostsShareExEnergy removes the economy-average
+  // wedge's implicit energy content (AI_ENERGY_WEDGE_SEAM_SHARE, cited-class ~1% of
+  // GDP) exactly where the explicit opex line lands. Year-0 profits bit-identical
+  // (E3: the seam's realized AI revenue and opex are both zero). The deployer-side
+  // energy indices (DEPLOYMENT_COST_COMPOSITION / the SC energy-price channel)
+  // price the TRANSACTION'S OTHER SIDE (adoption economics) — no shared dollar.
+  // The E2 wire: energyOpex carries the supply-chain energy-PRICE shock, so a
+  // war-class spike squeezes AI margins → Financeable(t+1) → I_AI (the L10
+  // modifier — the finance–profits loop gains an energy-cost term, no new cycle).
+  // DEPRECATED (the pre-5A wedge-only form, kept per the no-delete rule):
+  //   const aiCorporateProfits = aiRevenueRealizedNominal * (1 - aiSectorLaborShareVal) * (1 - otherCostsShare);
+  // The carve-out and the opex line are ONE instrument and travel together: both
+  // engage only when the loop passes the opex input (the live machine, 2026+);
+  // absent ⇒ the retired form's arithmetic exactly (unit tests, the seam year,
+  // and the zero-AI path stay bit-identical by construction).
+  const energyOpexLive = inputs.aiEnergyOpex !== undefined;
+  const energyOpex = energyOpexLive ? Math.max(0, inputs.aiEnergyOpex!) : 0;
+  const otherCostsShareExEnergy = energyOpexLive
+    ? Math.max(0, otherCostsShare - AI_ENERGY_WEDGE_SEAM_SHARE)
+    : otherCostsShare;
+  const aiCorporateProfits = aiRevenueRealizedNominal * (1 - aiSectorLaborShareVal) * (1 - otherCostsShareExEnergy)
+    - energyOpex;
   const traditionalCorporateProfits = corporateProfits - aiCorporateProfits;  // SIGNED — no floor
   const profitGDPRatio = gdpNominal > 0 ? corporateProfits / gdpNominal : 0;
 
-  // ═══ AI Cost Indices (Phase 5-tax) ═══
-  const t_years = year - DEFAULT_START_YEAR;
-  const aiCostP = inputs.aiCostParams;
-  const infChange = aiCostP?.inferenceAnnualChange ?? DEFAULT_INFERENCE_ANNUAL_CHANGE;
-  const mfgChange = aiCostP?.manufacturingAnnualChange ?? DEFAULT_MANUFACTURING_ANNUAL_CHANGE;
-  const engChange = aiCostP?.energyAnnualChange ?? DEFAULT_ENERGY_ANNUAL_CHANGE;
-  const inferenceCostIndex = Math.exp(infChange * t_years);
-  const manufacturingCostIndex = Math.exp(mfgChange * t_years);
-  const energyCostIndex = Math.exp(engChange * t_years);
-
-  // Blended across deployment mix (using equal-weighted average of all deployment types)
-  const deploymentTypes: DeploymentType[] = ['software', 'hybrid', 'autonomous_vehicle', 'robotics'];
-  const blendedAiCostIndex = deploymentTypes.reduce((sum, dt) => {
-    const c = (aiCostP?.composition?.[dt] ?? AI_COST_COMPOSITION[dt] ?? AI_COST_COMPOSITION['software'])!;
-    return sum + (1 / deploymentTypes.length) * (
-      c.inference * inferenceCostIndex +
-      c.manufacturing * manufacturingCostIndex +
-      c.energy * energyCostIndex
-    );
-  }, 0);
+  // RETIRED (mini-stage 1): the Phase-5-tax AI cost indices — inferenceCostIndex rode the
+  // DEPRECATED exp(inferenceAnnualChange·t) leg (÷78,000 by 2050 vs the live ÷104; Audit
+  // B-5's third diagnostic site), publishing a second cost basis beside the live economics.
+  // The one realized-cost object's diagnostics replace them (MacroOutput.
+  // impliedAggregateTokensPerTask + aggregateFrontierWeight + deployerRealizedSavings,
+  // recorded simulation-side). Kept per the no-delete rule:
+  //   const t_years = year - DEFAULT_START_YEAR;
+  //   const aiCostP = inputs.aiCostParams;
+  //   const infChange = aiCostP?.inferenceAnnualChange ?? DEFAULT_INFERENCE_ANNUAL_CHANGE;
+  //   const inferenceCostIndex = Math.exp(infChange * t_years);
+  //   const manufacturingCostIndex = Math.exp(mfgChange * t_years);
+  //   const energyCostIndex = Math.exp(engChange * t_years);
+  //   const blendedAiCostIndex = equal-weighted Σ over deployment types of comp·indices;
 
   // ═══ Import Dependence (Phase 5-tax, FIX 4) ═══
   const totalAIOutput = productionInputs?.aiAdditionalOutput ?? 0;
@@ -3171,6 +3476,35 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     // Phase 5g: AI GDP Contribution
     aiGDPContribution,
     aiGDPContributionPct,
+    // H3 ruling 1 — the split metrics (one producer each)
+    aiRealizedShareOfGDP,
+    aiRealizedGDPContribution,
+    aiOutputPotentialShare,
+    aiPotentialCeiling,
+    // Stage 3 MS3 (ruling v): the implied AI market cap + the crisis-ERP echo (the
+    // ONE producer's value, echoed so the t−1 issuance window can read it — the
+    // buildout-telemetry echo pattern; no second producer).
+    aiMarketCapImplied,
+    erpCrisisComponent: inputs.erpCrisisComponent ?? 0,
+    // Stage 3 MS4 (Channel 3): the realized R&D spend (the same unified gate chain
+    // every investment entry rides) + the flow echo; the STOCK is set by the loop
+    // post-advance (the buildout-state pattern).
+    aiRdSpend: isFirstYear ? 0
+      : (inputs.aiRdSpendDemand ?? 0)
+        * businessCredit.businessCreditMultiplier * capacityGate * investmentRateDampening,
+    aiRdDeflationFlow: inputs.aiRdDeflationFlow ?? 0,
+    // Production Program Stage 1 — the buildout telemetry surface (checkpoint §0):
+    // the plan's telemetry with the REALIZED investment stamped post the same
+    // credit/capacity/rate chain every investment entry rides.
+    buildout: inputs.buildoutTelemetry === undefined ? undefined : {
+      ...inputs.buildoutTelemetry,
+      investmentRealized: isFirstYear ? inputs.buildoutTelemetry.investmentRealized
+        : (inputs.aiBuildoutInvestmentDemand ?? 0)
+          * businessCredit.businessCreditMultiplier * capacityGate * investmentRateDampening,
+      // Stage 3 MS2 (ruling vi): the import offset surfaced (the §0 contract).
+      importShare: inputs.aiBuildoutImportShare ?? BUILDOUT_IMPORT_CONTENT_DEFAULT,
+      importLeakage: buildoutImportLeakage,
+    },
     revenuePressure,
     automationAcceleration,
     isDepression,
@@ -3220,6 +3554,7 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     aiNetExportBoost: productionInputs?.aiNetExportBoost ?? 0,
     aiConsumerGoodsPotential: aiConsumerPotential,
     unrealizedAIOutput,
+    aiElasticityAbsorbed,
     aiGoodsAbsorbed,
     aiCapacityUtilization,
     // Worker augmentation channel
@@ -3248,6 +3583,8 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     capitalGainsRealizationRate,
     aiSectorPE,
     traditionalSectorPE,
+    sectorPEClampEngaged,
+    sectorEarningsFloorEngaged,
     prevAICorporateProfits: previousMacro?.aiCorporateProfits ?? aiCorporateProfits,
     prevTraditionalCorporateProfits: previousMacro?.traditionalCorporateProfits ?? traditionalCorporateProfits,
     // Phase 5g Change 6: Corporate Profits
@@ -3258,6 +3595,16 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     // Phase 5g Batch C: Price level decomposition
     minWageCostPush: inputMinWageCostPush,
     creditDeflationContribution,
+    // THE PASS-THROUGH LAW: the level/state objects (next year's differencing base)
+    // + ruling 4's per-leg trace.
+    aiSavingsLevelTotal: aiSavingsLevelTotal_now ?? 0,
+    aiSavingsLevelAiExposed: secLevels?.aiExposed ?? 0,
+    aiSavingsLevelLaborServices: secLevels?.laborServices ?? 0,
+    aiSavingsLevelFoodEnergy: secLevels?.foodEnergy ?? 0,
+    aiSavingsLevelShelter: secLevels?.shelter ?? 0,
+    aiSavingsLevelReplacement: inputs.aiSavingsLevelReplacement ?? 0,
+    aiSavingsLevelAugmentation: inputs.aiSavingsLevelAugmentation ?? 0,
+    creditDeflationImpulseState: creditImpulseStateOut,
     scarcityInflation: inputScarcityInflation,
     // Phase 5g Step 12: Labor supply response (placeholders — overridden by simulation.ts)
     voluntaryWithdrawalRate: 0,
@@ -3334,11 +3681,23 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     profitFundedRatio,
     creditFundedRatio,
     corporateCashAccumulation,
-    // AI Cost Indices
-    blendedAiCostIndex,
-    inferenceCostIndex,
-    manufacturingCostIndex,
-    energyCostIndex,
+    // RETIRED (mini-stage 1): the Phase-5-tax cost indices (deprecated-basis diagnostics;
+    // Audit B-5). Successors: impliedAggregateTokensPerTask / aggregateFrontierWeight /
+    // deployerRealizedSavings, recorded simulation-side from the one realized-cost object.
+    // blendedAiCostIndex,
+    // inferenceCostIndex,
+    // manufacturingCostIndex,
+    // energyCostIndex,
+    // Mini-stage 1: simulation-side authoritative (placeholders here — the loop overrides)
+    deployerRealizedSavings: inputAutomationDividend,
+    impliedAggregateTokensPerTask: 1,
+    aggregateFrontierWeight: 1,
+    // Mini-stage 3: simulation-side authoritative (placeholders here)
+    laborForceExitedStock: 0,
+    u3UnemploymentRate: unemploymentRate,
+    employmentToPopulation: 0,
+    longTermJoblessShare: 0,
+    meanJoblessDurationYears: 0,
     // Supply Chain
     importDependence,
     // Phase 9: Supply chain resilience defaults (overridden when supply chain module active)
@@ -3353,11 +3712,15 @@ export function computeMacro(inputs: MacroInputs): MacroOutput {
     dynamicTrainingCompChips: 0,
     dynamicTrainingCompEnergy: 0,
     dynamicTrainingCompDC: 0,
-    effectiveComputeDeclineRate: -0.45,
+    frontierStock: 1, // MS1: overridden by the simulation loop's SC block (the one producer)
+    effectiveCostTime: 0, // flywheel MS: the cost clock — overridden by the simulation loop (the one producer)
+    cascadeDeclineRateDiagnostic: -0.45,
     deploymentMultiplierCompute: 1,
     deploymentMultiplierPhysical: 1,
     deploymentMultiplierEnergy: 1,
-    automationDividend: inputAutomationDividend,
+    // RETIRED (mini-stage 1): automationDividend — replaced by deployerRealizedSavings above
+    // (the honest-basis successor; Audit B-4 resolved).
+    // automationDividend: inputAutomationDividend,
     // Phase 8 Fix 5: Housing model and wage growth outputs
     homePriceIndex: computedHomePriceIndex,
     affordabilityDeviation: computedAffordabilityDeviation,

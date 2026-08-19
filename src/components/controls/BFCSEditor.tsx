@@ -58,7 +58,7 @@ function buildMaxThresholdOverrides(): Record<string, Record<string, { better: n
   return overrides;
 }
 
-export function BFCSEditor() {
+export function BFCSEditor({ hideClusterSelect = false }: { hideClusterSelect?: boolean } = {}) {
   const selectedClusterId = useSimulationStore((s) => s.selectedClusterId);
   const setSelectedCluster = useSimulationStore((s) => s.setSelectedCluster);
   const resetClusterBFCS = useSimulationStore((s) => s.resetClusterBFCS);
@@ -114,7 +114,8 @@ export function BFCSEditor() {
         </button>
       </div>
 
-      {/* Cluster selector */}
+      {/* Cluster selector (hidden when the host page IS the cluster) */}
+      {!hideClusterSelect && (
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <label className="text-text-secondary text-[11px] font-medium">
@@ -150,6 +151,7 @@ export function BFCSEditor() {
           ))}
         </select>
       </div>
+      )}
 
       {/* Expanded cluster editor */}
       <AnimatePresence initial={false}>

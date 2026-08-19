@@ -1,4 +1,4 @@
-/** STAGE 8 — the §6 assertions (+ the S8 riders). */
+/** The quintile measurement layer's assertions. */
 import { describe, it, expect } from 'vitest';
 import { computeQuintileSeries, vintageKernel, quintileConservationResidual, quintileTransferIncome, decomposePolicyCash } from '../quintileCWI';
 import { computeDisplacedIncidence } from '../uiIncidence';
@@ -11,6 +11,37 @@ import { transformOEWSToBaselines, createOtherClusterBaseline } from '@/services
 import { DEFAULT_ROLE_ESTIMATION_CONFIG } from '@/data/roleEstimation';
 import type { CapabilityVectorId } from '@/types';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+
+// THE REFERENT-DURABILITY ROW (successor program, Stage 0): the pinned referents live at the
+// DURABLE path — /tmp is purged between sessions and has already cost one regeneration (the
+// close-out record). Regeneration protocol unchanged: sequential single-file vitest invocation
+// of audit-scenarios.test.ts (FS-5 item 0), fingerprinted in meta.json.
+// Mini-stage 3 (the labor layer): D ADVANCED on the pre-registered entitlement mover;
+// A and C BYTE-IDENTICAL to ms1-cost (cmp — the additive-fields discipline). Chain:
+// baseline → fs4b → fs6f → ms1-cost → ms3-labor; attribution in MINISTAGE3_REPORT.md.
+// H3 (the AI-GDP metric rework): C and D ADVANCED on exactly the two pre-named channels
+// (absorption re-benchmarked to the zero-AI twin; trigger-time vintage valuation — both
+// entering via the aiCorporateProfits-fed legs); A verified BYTE-IDENTICAL (cmp) to the
+// ms3-labor pin. Chain extended → h3; attribution in .archive/housekeeping/H3_REPORT.md.
+// STAGE-1 INTERIM RE-POINT (attributed): s1-interim is a DRIFT GUARD, not a chain
+// advance — d1 remains the law's referent; A's movement is a recorded finding (PB-1
+// Leg B) awaiting the single approved re-baseline (see
+// ~/.atlas-referents/s1-interim/meta.json + STAGE1_REPORT.md).
+// STAGE-2 INTERIM RE-POINT (attributed; the same drift-guard construct): s2-interim
+// — A verified BYTE-IDENTICAL to s1-interim at capture (sequential + cmp); C/D move
+// by the ruled Stage-2 instruments (decomposed in STAGE2_REPORT.md); d1 remains the
+// law's referent until the approved re-baseline (machine-local reference pins).
+// STAGE-3 INTERIM RE-POINT (attributed; the same construct): s3-interim — A verified
+// byte-identical through Stage 3 at capture (sequential + cmp); C/D move by the ruled
+// Stage-3 instruments (STAGE3_REPORT.md decomposes); d1 remains the law's referent.
+// STAGE-4 INTERIM RE-POINT (attributed; the same construct): s4-interim — A verified
+// STAGE-5A INTERIM RE-POINT (attributed; the same construct): s5a-interim — A verified
+// byte-identical at capture (sequential + cmp); C/D move by the ONE ruled Stage-5A
+// instrument (the adopted energy build; the maintainer's working records decompose).
+// byte-identical to s1/s2/s3-interim at capture; C/D moved by the ruled Stage-4
+// instruments (STAGE4_REPORT.md decomposes); d1 remains the law's referent.
+const REFERENT_DIR = `${homedir()}/.atlas-referents/s5a-interim`;
 
 describe('Stage 8 — the quintile measurement layer', () => {
   it('the CEX rows normalize to 1 and the income-source shares conserve (S8-R1/R2a)', () => {
@@ -51,9 +82,9 @@ describe('Stage 8 — the quintile measurement layer', () => {
       // FS-5 item-0 rider (mechanized): the referent must carry the sequential-procedure
       // fingerprint — a referent produced by a parallel multi-file invocation has no meta.json
       // and fails HERE with this message, not as a mystery 4th-decimal drift.
-      const meta = JSON.parse(readFileSync('/tmp/atlas-audit-fs6f/meta.json', 'utf8')) as { procedure: string };
+      const meta = JSON.parse(readFileSync(`${REFERENT_DIR}/meta.json`, 'utf8')) as { procedure: string };
       expect(meta.procedure).toContain('sequential');
-      const base = JSON.parse(readFileSync('/tmp/atlas-audit-fs6f/A.trace.json', 'utf8')) as Array<Record<string, number>>;
+      const base = JSON.parse(readFileSync(`${REFERENT_DIR}/A.trace.json`, 'utf8')) as Array<Record<string, number>>;
       for (const b of [base[3]!, base[15]!, base[25]!]) {
         const y = tlA.years.find(x => x.year === b.year)!;
         expect(y.macro.gdpNominal).toBe(b.gdpNominal);
@@ -74,9 +105,12 @@ describe('Stage 8 — the quintile measurement layer', () => {
     });
 
     it('S8-R2(c) CONSERVATION: the quintiles reconstruct the aggregate by source, every year, both scenarios', () => {
+      // H2: the residual now carries the derived wage shares, so the incidence is threaded
+      // through — the guard must exercise the construction the series actually ships.
       for (const tl of [tlA, tlC]) {
+        const inc = new Map(computeDisplacedIncidence(tl.years).map(r => [r.year, r]));
         for (const y of tl.years) {
-          expect(Math.abs(quintileConservationResidual(y))).toBeLessThan(1e-9);
+          expect(Math.abs(quintileConservationResidual(y, inc.get(y.year)))).toBeLessThan(1e-9);
         }
       }
     });
@@ -205,8 +239,8 @@ describe('Stage 8 — the quintile measurement layer', () => {
       // fix mini-stage (FS-1b's F1 moved C as documented in FS1B_REPORT — the snapshot chain
       // carries the attribution); the current C referent = the post-FS-1b snapshot.
       const REFERENT: Record<string, string> = {
-        A: '/tmp/atlas-audit-fs6f/A.trace.json',  // ADVANCED per the A-referent protocol (2nd application): the FS-6f ruled fixes moved A — (1) the observed-anchor re-inheritance (the silent-fallback retirement exposed the fiscal-monetary family riding fallback estimates: debt $38.514T, 10Y 4.53%, BBB 94bp, profits $3.917T, SP500 7267) + (2) the tech_qa renormalization (≈1e-8-relative). Full battery + attribution in FS6F_REPORT; prior pin = -fs4b/ (chain: baseline → fs4b → fs6f)
-        C: '/tmp/atlas-audit-fs6f/C.trace.json',  // ADVANCED with the ruled FS-6f fixes, two rows separately measured (the intermediate snapshot -fs6f-fred/ isolates them): FRED re-anchoring (UE 2035 +0.68pp, terminal ≡) + tech_qa routing (UE 2035 −0.94pp, terminal −0.18pp; the synthetic 3.10M QA baseline retired). Attribution in FS6F_REPORT
+        A: `${REFERENT_DIR}/A.trace.json`,  // ADVANCED per the A-referent protocol (2nd application): the FS-6f ruled fixes moved A — (1) the observed-anchor re-inheritance (the silent-fallback retirement exposed the fiscal-monetary family riding fallback estimates: debt $38.514T, 10Y 4.53%, BBB 94bp, profits $3.917T, SP500 7267) + (2) the tech_qa renormalization (≈1e-8-relative). Full battery + attribution in FS6F_REPORT; prior pin = -fs4b/ (chain: baseline → fs4b → fs6f)
+        C: `${REFERENT_DIR}/C.trace.json`,  // ADVANCED with the ruled FS-6f fixes, two rows separately measured (the intermediate snapshot -fs6f-fred/ isolates them): FRED re-anchoring (UE 2035 +0.68pp, terminal ≡) + tech_qa routing (UE 2035 −0.94pp, terminal −0.18pp; the synthetic 3.10M QA baseline retired). Attribution in FS6F_REPORT
       };
       for (const [name, tl] of [['A', tlA], ['C', tlC]] as const) {
         const base = JSON.parse(readFileSync(REFERENT[name]!, 'utf8')) as Array<Record<string, number>>;

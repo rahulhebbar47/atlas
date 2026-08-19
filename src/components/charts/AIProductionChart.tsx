@@ -2,9 +2,9 @@
  * ATLAS AI Production & Absorption Chart
  *
  * Extracted from EconomicsView for reuse in Overview.
- * Shows AI output potential (bars) vs demand absorption (lines).
- * The gap between potential and absorbed is the "demand gap" —
- * AI produces more than the economy can consume.
+ * Shows total AI output potential (bars; H3 rider F7 — the bar renders the TOTAL its
+ * label names) vs consumer-goods demand absorption (lines: the consumer slice absorbed
+ * against the zero-AI consumption benchmark, and the unrealized remainder).
  */
 
 import {
@@ -34,16 +34,16 @@ export function AIProductionChart() {
           <ReferenceLine x={currentYear} stroke="rgba(232, 236, 244, 0.3)" strokeWidth={1} />
 
           <Bar dataKey="aiAdditionalOutput" fill="rgba(212, 160, 60, 0.15)" stroke="#D4A03C" strokeWidth={0.5} name="AI Output Potential" />
-          <Line type="monotone" dataKey="aiGoodsAbsorbed" stroke="#22C55E" strokeWidth={2} dot={false} name="Goods Absorbed" />
-          <Line type="monotone" dataKey="unrealizedAIOutput" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Unrealized Output" />
+          <Line type="monotone" dataKey="aiGoodsAbsorbed" stroke="#22C55E" strokeWidth={2} dot={false} name="Consumer Goods Absorbed" />
+          <Line type="monotone" dataKey="unrealizedAIOutput" stroke="#EF4444" strokeWidth={1.5} strokeDasharray="4 4" dot={false} name="Consumer Goods Unrealized" />
 
           <Tooltip content={<AIProductionTooltip />} />
         </ComposedChart>
       </ResponsiveContainer>
       <div className="flex items-center gap-6 mt-3 pl-16">
         <LegendItem color="#D4A03C" label="AI Output Potential" />
-        <LegendItem color="#22C55E" label="Absorbed by Demand" />
-        <LegendItem color="#EF4444" label="Unrealized" dashed />
+        <LegendItem color="#22C55E" label="Consumer Goods Absorbed" />
+        <LegendItem color="#EF4444" label="Consumer Goods Unrealized" dashed />
       </div>
     </Card>
   );
@@ -56,9 +56,9 @@ function AIProductionTooltip({ active, payload, label }: {
 }) {
   if (!active || !payload) return null;
   const meta: Record<string, { name: string; color: string }> = {
-    aiAdditionalOutput: { name: 'AI Output', color: '#D4A03C' },
-    aiGoodsAbsorbed: { name: 'Absorbed', color: '#22C55E' },
-    unrealizedAIOutput: { name: 'Unrealized', color: '#EF4444' },
+    aiAdditionalOutput: { name: 'AI Output Potential', color: '#D4A03C' },
+    aiGoodsAbsorbed: { name: 'Consumer Absorbed', color: '#22C55E' },
+    unrealizedAIOutput: { name: 'Consumer Unrealized', color: '#EF4444' },
   };
   return (
     <div className="bg-bg-card border border-border rounded-[8px] px-3 py-2 shadow-none">

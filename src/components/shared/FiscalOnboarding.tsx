@@ -4,12 +4,11 @@
  * Tooltip-style walkthrough for first-time visitors to the Fiscal tab.
  * Positioned tooltips point to key UI elements using data-tour-id attributes.
  *
- * 5 steps:
- *   1. Fiscal Response Profile — preset selector
- *   2. Dimension Sliders — customize section
- *   3. Parameter Dashboard — mini-chart grid
+ * 4 steps (pre-push finalization rewrite; the retired set is recorded above TOUR_STEPS):
+ *   1. The Fiscal Response — view header
+ *   2. Parameter Dashboard — mini-chart grid
+ *   3. Parameter Trajectory — detail chart
  *   4. Compare Profiles — compare button
- *   5. Scenario Templates — templates section
  *
  * Persists completion to localStorage. Does not re-show after dismissal.
  */
@@ -21,7 +20,7 @@ import { useSimulationStore } from '@/stores/simulationStore';
 // Tour Steps
 // ============================================================
 
-interface TourStep {
+export interface TourStep {
   /** data-tour-id attribute value of the target element. */
   targetId: string;
   title: string;
@@ -30,41 +29,50 @@ interface TourStep {
   position: 'top' | 'bottom' | 'left' | 'right';
 }
 
-const TOUR_STEPS: TourStep[] = [
+// Rewritten at the pre-push finalization (2026-08): the old tour's first two steps targeted
+// the preset selector and dimension sliders, which moved OFF this tab into the Advanced
+// surface (the steps silently auto-skipped via the target-not-found path), and its color
+// legend was wrong (the baseline line is gold; user overrides are amber — gray is the
+// default-source dot). The templates step pointed into another surface's collapsed section.
+// Exported so the strings enter the permanent user-visible vocabulary sweep (r3c-batteries).
+// The retired steps, kept per the no-delete rule:
+//   { targetId: 'fiscal-preset-selector', title: 'Fiscal Response Profile', description:
+//     'Choose a fiscal philosophy that determines how the government responds to AI-driven
+//     economic changes. Each preset configures spending, taxes, and monetary policy.', ... },
+//   { targetId: 'fiscal-dimensions', title: 'Dimension Sliders', description: 'Fine-tune the
+//     five response dimensions: spending cuts, tax increases, monetary accommodation, safety
+//     net expansion, and implementation speed.', ... },
+//   { targetId: 'scenario-templates', title: 'Scenario Templates', description: 'Load
+//     pre-built scenarios that combine a fiscal profile with specific policy interventions
+//     to explore questions like "What if we adopt Nordic-style transfers?"', ... },
+export const TOUR_STEPS: TourStep[] = [
   {
-    targetId: 'fiscal-preset-selector',
-    title: 'Fiscal Response Profile',
+    targetId: 'fiscal-header',
+    title: 'The Fiscal Response',
     description:
-      'Choose a fiscal philosophy that determines how the government responds to AI-driven economic changes. Each preset configures spending, taxes, and monetary policy.',
-    position: 'right',
-  },
-  {
-    targetId: 'fiscal-dimensions',
-    title: 'Dimension Sliders',
-    description:
-      'Fine-tune the five response dimensions: spending cuts, tax increases, monetary accommodation, safety net expansion, and implementation speed.',
-    position: 'right',
+      'This view tracks the government side of the simulation under the selected response profiles. The fiscal and central-bank profiles are chosen with the policy packages in the left panel, or tuned dimension by dimension on the Advanced tab.',
+    position: 'bottom',
   },
   {
     targetId: 'parameter-grid',
     title: 'Parameter Dashboard',
     description:
-      'Each card shows how a parameter evolves over time. Gray = baseline, blue = autopilot adjustment, gold = your overrides. Click any card for a detailed trajectory chart.',
+      'Each card tracks one fiscal parameter over time. The dot shows where its value comes from — gray for the baseline default, blue when the automatic response has adjusted it, amber when you have overridden it. Click any card for the full trajectory.',
+    position: 'top',
+  },
+  {
+    targetId: 'trajectory-chart',
+    title: 'Parameter Trajectory',
+    description:
+      'The selected parameter drawn across the full simulation — the baseline path, automatic adjustments, and your overrides, year by year.',
     position: 'top',
   },
   {
     targetId: 'profile-compare-button',
     title: 'Compare Profiles',
     description:
-      'Compare two fiscal philosophies side-by-side to see how different response strategies lead to different economic outcomes.',
+      'Compare two response strategies side by side to see how different fiscal philosophies shape the same AI trajectory.',
     position: 'bottom',
-  },
-  {
-    targetId: 'scenario-templates',
-    title: 'Scenario Templates',
-    description:
-      'Load pre-built scenarios that combine a fiscal profile with specific policy interventions to explore questions like "What if we adopt Nordic-style transfers?"',
-    position: 'right',
   },
 ];
 

@@ -1,0 +1,34 @@
+{
+  "releaseId": "release_2026_06_26",
+  "datasetRepo": "Anthropic/EconomicIndex",
+  "sourceCommitSha": "2ea58ff75e4247d26810c37f10c179edc2466cac",
+  "fetchedAt": "2026-08-03T20:17:07.052Z",
+  "license": "Data: CC-BY 4.0; code: MIT",
+  "files": [
+    {
+      "path": "release_2026_06_26/data/aei_1p_api_2026-06-26.csv",
+      "bytes": 77282477,
+      "sha256": "62197f003e001945ad130c2f26f5e07f3fda45ff41644df91444b04fd524a19f"
+    },
+    {
+      "path": "release_2026_06_26/data/aei_claude_ai_2026-06-26.csv",
+      "bytes": 219174671,
+      "sha256": "f974b358bce0e5a8417510c61da4342234cd0de9d9d0b62acf4c6dbcf8ec7b68"
+    },
+    {
+      "path": "release_2026_06_26/data_documentation.md",
+      "bytes": 7397,
+      "sha256": "1a01eeb7d34250b192aa9c906098bea1db971644e6bdb04497d87b7a4ed141a5"
+    },
+    {
+      "path": "labor_market_impacts/job_exposure.csv",
+      "bytes": 37176,
+      "sha256": "4f0a3adf5feeb2ec5f5d02ab18cc5e851a2a4b8470bde84c0c9335017be12d68"
+    },
+    {
+      "path": "labor_market_impacts/task_penetration.csv",
+      "bytes": 1889822,
+      "sha256": "85bee872db1d55d3e9a7f4e89da5ae4a5d59aa8ec875d728fbf4b7d820984616"
+    }
+  ]
+}

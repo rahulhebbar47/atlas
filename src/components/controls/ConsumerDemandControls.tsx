@@ -169,7 +169,8 @@ export function ConsumerDemandControls() {
         <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider">Deflation Response</p>
         <Slider label="Deferrable Spending" value={deferrableShare} min={0.1} max={0.5} step={0.01} color={CONTROL_COLOR} onChange={handleDeferrable} formatValue={(v) => `${(v * 100).toFixed(0)}%`} />
         <Slider label="Deflation Deferral Midpoint" value={deflationMidpoint} min={0.01} max={0.15} step={0.01} color={CONTROL_COLOR} onChange={handleDeflationMidpoint} formatValue={(v) => `${(v * 100).toFixed(0)}%`} />
-        <Slider label="Deflation Deferral Steepness" value={deflationSteepness} min={5} max={100} step={5} color={CONTROL_COLOR} onChange={handleDeflationSteepness} formatValue={(v) => v.toFixed(0)} />
+        {/* Stage H: range aligned to the documented 10-80 (the UI 5-100 was the outlier; load-time clamps snap to 10-80, so out-of-band slider values silently mutated on scenario round-trip) */}
+        <Slider label="Deflation Deferral Steepness" value={deflationSteepness} min={10} max={80} step={5} color={CONTROL_COLOR} onChange={handleDeflationSteepness} formatValue={(v) => v.toFixed(0)} />
       </div>
     </div>
   );

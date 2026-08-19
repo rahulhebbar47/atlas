@@ -185,21 +185,46 @@ describe('computeCheaperScore', () => {
   const roboticsCluster = createRoboticsCluster();
   const role = createMockRole();
 
-  it('increases over time as AI costs decline', () => {
-    const scoreEarly = computeCheaperScore(DEFAULT_START_YEAR, role, softwareCluster);
-    const scoreLater = computeCheaperScore(DEFAULT_START_YEAR + 10, role, softwareCluster);
+  // Mini-stage 1 re-spec: with the frontier-intensity layer (aiCost.ts), default pricing
+  // (arrival=null) pays perToken(t)×M_f(t) — DEARER than 2025 early, so Cheaper 0-clamps;
+  // monotone improvement is the property of the arrival-anchored fixed-capability curve.
+  it('is 0-clamped early under frontier pricing, and increases over time once arrival-anchored', () => {
+    // Frontier pole (defaults): the token-intensity premium (M_f(1) = 20) makes frontier AI
+    // work far more expensive than the 2025 anchor — Cheaper clamps to 0 in the early window.
+    expect(computeCheaperScore(DEFAULT_START_YEAR + 1, role, softwareCluster)).toBe(0);
+    expect(computeCheaperScore(DEFAULT_START_YEAR + 5, role, softwareCluster)).toBe(0);
 
-    expect(scoreLater).toBeGreaterThan(scoreEarly);
+    // Arrival-anchored (Better arrived 2025, surplus 0.5): the role's work migrates onto the
+    // fixed-capability curve, which collapses along the cited per-token decay → Cheaper rises.
+    const early = computeCheaperScore(
+      DEFAULT_START_YEAR + 10, role, softwareCluster,
+      undefined, undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 0.5,
+    );
+    const later = computeCheaperScore(
+      DEFAULT_START_YEAR + 25, role, softwareCluster,
+      undefined, undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 0.5,
+    );
+    expect(early).toBeGreaterThan(0);
+    expect(later).toBeGreaterThan(early);
   });
 
+  // Mini-stage 1 re-spec: at DEFAULT_START_YEAR+5 under frontier pricing both scores 0-clamp;
+  // tested at +10 in the arrival-anchored regime where both are interior — software's
+  // inference-dominated cost (0.85 weight) rides the collapsed fixed-capability curve while
+  // robotics is dominated by slower manufacturing/energy decays.
   it('increases faster for software deployment than robotics deployment', () => {
-    // At the same future year, software should have a higher cheaper score
-    // because physicalCostMultiplier for software is 1.0 vs 0.5 for robotics
-    const futureYear = DEFAULT_START_YEAR + 5;
+    const futureYear = DEFAULT_START_YEAR + 10;
 
-    const softwareCheaper = computeCheaperScore(futureYear, role, softwareCluster);
-    const roboticsCheaper = computeCheaperScore(futureYear, role, roboticsCluster);
+    const softwareCheaper = computeCheaperScore(
+      futureYear, role, softwareCluster,
+      undefined, undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 0.5,
+    );
+    const roboticsCheaper = computeCheaperScore(
+      futureYear, role, roboticsCluster,
+      undefined, undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 0.5,
+    );
 
+    expect(roboticsCheaper).toBeGreaterThan(0); // both interior — the comparison is real
     expect(softwareCheaper).toBeGreaterThan(roboticsCheaper);
   });
 });
@@ -329,6 +354,9 @@ describe('checkThresholdsMet', () => {
 describe('checkAdoptionTrigger', () => {
   const cluster = createMockCluster();
 
+  // Mini-stage 1 re-spec: at +10 under frontier pricing Cheaper 0-clamps (< the 0.1 threshold),
+  // so the trigger cannot fire; tested at +20 with an early arrival + surplus so Cheaper is
+  // interior and the all-four-thresholds logic is exercised for real.
   it('combines BFCS score computation with threshold checking', () => {
     // Use a role with very low thresholds and high capability scores
     // so the trigger fires
@@ -337,7 +365,10 @@ describe('checkAdoptionTrigger', () => {
     });
     const highScores = uniformScores(0.9);
 
-    const result = checkAdoptionTrigger(cluster, easyRole, DEFAULT_START_YEAR + 10, highScores);
+    const result = checkAdoptionTrigger(
+      cluster, easyRole, DEFAULT_START_YEAR + 20, highScores,
+      undefined, undefined, undefined, 0, undefined, 1.0, DEFAULT_START_YEAR, 0.5,
+    );
 
     expect(result).toHaveProperty('triggered');
     expect(result).toHaveProperty('scores');

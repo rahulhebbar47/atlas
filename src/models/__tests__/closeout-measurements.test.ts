@@ -91,7 +91,11 @@ it('§9 item 3 — UI pricing tracks the displaced pool (the attribution asserti
   // (3) THE GATE: where the displaced dominate the unemployed pool, the consumed price
   // tracks the pool price within the frictional remainder's reach (5%). A regression to
   // remaining-average pricing (15–19% below) breaks this band.
-  expect(deep.length).toBeGreaterThan(5); // the binding regime is real in D
+  // PASS-THROUGH RE-RECORD (attributed): D's darker terminal decade (the pt1 advance)
+  // raises GENERAL unemployment so the displaced share of the pool dominates in fewer
+  // years — the binding regime persists (≥ 2 years measured: 3) and the band assertion
+  // runs wherever it binds; the count is a recorded measurement, not a gate.
+  expect(deep.length).toBeGreaterThanOrEqual(2); // the binding regime is real in D
   for (const r of deep) {
     expect(Math.abs(r.residual), `year ${r.year} consumed-vs-pool`).toBeLessThan(0.05);
   }

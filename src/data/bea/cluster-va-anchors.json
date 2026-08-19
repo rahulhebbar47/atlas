@@ -1,0 +1,1094 @@
+{
+ "source": "BLS National Employment Matrix 2024-34 (matrix.xlsx, fetched via browser 2026-08-17 from bls.gov/emp/ind-occ-matrix/matrix.xlsx; raw table committed at src/data/bls/nem-matrix-2024-34.xlsx) x BEA GDP-by-Industry value added 2025 (src/data/bea/industry-gdp.json)",
+ "fetchedAt": "2026-08-17",
+ "method": {
+  "attribution": "VA_cluster = SUM_g VA_g x (E_cluster,g / E_g): each BEA industry group g's value added attributed to a cluster in proportion to the cluster's share of the group's NEM wage-and-salary employment (occupation Line-item x industry Line-item cells; industry totals from occupation 00-0000 rows).",
+  "partition": "68 BEA leaf industry groups; leaf VA sums to $30,762.3B vs GDP $30,762.1B (partition validated). NAICS-2022 -> BEA mapping incl. renumbered information sector (513 publishing, 516-519 -> 514), retail 455 -> BEA 452, postal 491 -> GFE, government 9991/9992/9993 -> GFGN/GSLG.",
+  "exclusions": "Self-employed workers (NEM TE1100, 9,906k jobs, 6.52% of NEM employment) carry no industry VA attribution \u2014 excluded, stated. Housing VA (HS, imputed rent) has no NEM employment and is attributed to no cluster.",
+  "refinement": "Wage-bill-weighted attribution (occupations differ in pay) is the registered upgrade; employment-share weighting is the honest first anchor."
+ },
+ "sigmaSanity": {
+  "sumClusterVABillions": 11374.5,
+  "economyVABillions": 30762.3,
+  "sharePct": 37.0,
+  "clusterEmploymentCoveragePct": 46.1,
+  "verdict": "PASS - no over-counting; VA share (37.0%) below employment coverage (46.1%), consistent with cluster skew toward lower-VA-per-worker industries. The A1 aggregation battery gets this as its data leg."
+ },
+ "unanchoredClusters": {
+  "gov_federal": "no SOC codes by design; output market is government VA (GFGN/GFGD) - Stage-2 assignment by construction",
+  "gov_state_local": "no SOC codes by design; output market is GSLG/GSLE - Stage-2 assignment by construction",
+  "other_uncategorized": "residual cluster - Stage-2 defines its anchor default"
+ },
+ "clusters": {
+  "ag_equipment": {
+   "vaAnchorBillions": 12.0,
+   "nemEmploymentThousands": 63.4,
+   "top3IndustryGroups": [
+    [
+     "111CA",
+     67.5
+    ],
+    [
+     "42",
+     15.1
+    ],
+    [
+     "113FF",
+     4.1
+    ]
+   ],
+   "top3SharePct": 86.7,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 7.3,
+   "socsMissingFromNEM": []
+  },
+  "ag_farm_labor": {
+   "vaAnchorBillions": 120.8,
+   "nemEmploymentThousands": 714.8,
+   "top3IndustryGroups": [
+    [
+     "111CA",
+     80.9
+    ],
+    [
+     "42",
+     3.8
+    ],
+    [
+     "4A0",
+     2.5
+    ]
+   ],
+   "top3SharePct": 87.2,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 6.3,
+   "socsMissingFromNEM": []
+  },
+  "construction_electricians": {
+   "vaAnchorBillions": 148.1,
+   "nemEmploymentThousands": 800.4,
+   "top3IndustryGroups": [
+    [
+     "23",
+     73.5
+    ],
+    [
+     "561",
+     3.3
+    ],
+    [
+     "GSLG",
+     2.3
+    ]
+   ],
+   "top3SharePct": 79.1,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 7.9,
+   "socsMissingFromNEM": []
+  },
+  "construction_general": {
+   "vaAnchorBillions": 313.3,
+   "nemEmploymentThousands": 2272.7,
+   "top3IndustryGroups": [
+    [
+     "23",
+     60.5
+    ],
+    [
+     "561",
+     2.7
+    ],
+    [
+     "GSLG",
+     1.6
+    ]
+   ],
+   "top3SharePct": 64.8,
+   "mappingQuality": "moderate",
+   "selfEmployedUnmappedPct": 28.7,
+   "socsMissingFromNEM": []
+  },
+  "construction_hvac": {
+   "vaAnchorBillions": 76.0,
+   "nemEmploymentThousands": 415.2,
+   "top3IndustryGroups": [
+    [
+     "23",
+     74.1
+    ],
+    [
+     "42",
+     3.1
+    ],
+    [
+     "61",
+     3.0
+    ]
+   ],
+   "top3SharePct": 80.2,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 4.9,
+   "socsMissingFromNEM": []
+  },
+  "construction_plumbers": {
+   "vaAnchorBillions": 95.0,
+   "nemEmploymentThousands": 479.8,
+   "top3IndustryGroups": [
+    [
+     "23",
+     76.2
+    ],
+    [
+     "GSLG",
+     2.8
+    ],
+    [
+     "561",
+     2.0
+    ]
+   ],
+   "top3SharePct": 81.0,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 8.2,
+   "socsMissingFromNEM": []
+  },
+  "creative_design": {
+   "vaAnchorBillions": 60.9,
+   "nemEmploymentThousands": 350.1,
+   "top3IndustryGroups": [
+    [
+     "5412OP",
+     27.6
+    ],
+    [
+     "42",
+     5.0
+    ],
+    [
+     "4A0",
+     4.9
+    ]
+   ],
+   "top3SharePct": 37.5,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 28.8,
+   "socsMissingFromNEM": []
+  },
+  "creative_marketing": {
+   "vaAnchorBillions": 261.0,
+   "nemEmploymentThousands": 1101.8,
+   "top3IndustryGroups": [
+    [
+     "5412OP",
+     19.6
+    ],
+    [
+     "55",
+     7.2
+    ],
+    [
+     "61",
+     6.6
+    ]
+   ],
+   "top3SharePct": 33.4,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 5.6,
+   "socsMissingFromNEM": []
+  },
+  "creative_media": {
+   "vaAnchorBillions": 36.8,
+   "nemEmploymentThousands": 243.3,
+   "top3IndustryGroups": [
+    [
+     "5412OP",
+     14.2
+    ],
+    [
+     "532RL",
+     5.5
+    ],
+    [
+     "514",
+     5.5
+    ]
+   ],
+   "top3SharePct": 25.2,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 51.4,
+   "socsMissingFromNEM": []
+  },
+  "creative_writing": {
+   "vaAnchorBillions": 42.3,
+   "nemEmploymentThousands": 240.4,
+   "top3IndustryGroups": [
+    [
+     "5412OP",
+     13.7
+    ],
+    [
+     "513",
+     8.3
+    ],
+    [
+     "514",
+     7.9
+    ]
+   ],
+   "top3SharePct": 29.9,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 41.8,
+   "socsMissingFromNEM": []
+  },
+  "edu_admin": {
+   "vaAnchorBillions": 18.1,
+   "nemEmploymentThousands": 612.0,
+   "top3IndustryGroups": [
+    [
+     "61",
+     94.5
+    ],
+    [
+     "GFGN",
+     1.1
+    ],
+    [
+     "GSLG",
+     1.1
+    ]
+   ],
+   "top3SharePct": 96.7,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 1.8,
+   "socsMissingFromNEM": []
+  },
+  "edu_support": {
+   "vaAnchorBillions": 61.6,
+   "nemEmploymentThousands": 1516.5,
+   "top3IndustryGroups": [
+    [
+     "61",
+     82.7
+    ],
+    [
+     "624",
+     10.7
+    ],
+    [
+     "GSLG",
+     3.8
+    ]
+   ],
+   "top3SharePct": 97.2,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 0.2,
+   "socsMissingFromNEM": []
+  },
+  "edu_teachers": {
+   "vaAnchorBillions": 59.4,
+   "nemEmploymentThousands": 2492.5,
+   "top3IndustryGroups": [
+    [
+     "61",
+     99.4
+    ],
+    [
+     "GSLG",
+     0.1
+    ],
+    [
+     "624",
+     0.1
+    ]
+   ],
+   "top3SharePct": 99.6,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 0.4,
+   "socsMissingFromNEM": [
+    "25-1099"
+   ]
+  },
+  "finance_accounting": {
+   "vaAnchorBillions": 668.4,
+   "nemEmploymentThousands": 2914.1,
+   "top3IndustryGroups": [
+    [
+     "5412OP",
+     21.0
+    ],
+    [
+     "GSLG",
+     6.4
+    ],
+    [
+     "23",
+     5.9
+    ]
+   ],
+   "top3SharePct": 33.3,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 5.4,
+   "socsMissingFromNEM": []
+  },
+  "finance_banking": {
+   "vaAnchorBillions": 270.5,
+   "nemEmploymentThousands": 655.9,
+   "top3IndustryGroups": [
+    [
+     "521CI",
+     86.2
+    ],
+    [
+     "61",
+     3.0
+    ],
+    [
+     "55",
+     2.7
+    ]
+   ],
+   "top3SharePct": 91.9,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 1.1,
+   "socsMissingFromNEM": []
+  },
+  "finance_insurance": {
+   "vaAnchorBillions": 36.4,
+   "nemEmploymentThousands": 115.6,
+   "top3IndustryGroups": [
+    [
+     "524",
+     93.9
+    ],
+    [
+     "55",
+     2.8
+    ],
+    [
+     "521CI",
+     0.9
+    ]
+   ],
+   "top3SharePct": 97.6,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 0.0,
+   "socsMissingFromNEM": [
+    "13-2022"
+   ]
+  },
+  "finance_trading": {
+   "vaAnchorBillions": 127.6,
+   "nemEmploymentThousands": 400.5,
+   "top3IndustryGroups": [
+    [
+     "523",
+     23.6
+    ],
+    [
+     "521CI",
+     14.5
+    ],
+    [
+     "55",
+     11.8
+    ]
+   ],
+   "top3SharePct": 49.9,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 5.1,
+   "socsMissingFromNEM": []
+  },
+  "food_fast_food": {
+   "vaAnchorBillions": 232.9,
+   "nemEmploymentThousands": 1948.8,
+   "top3IndustryGroups": [
+    [
+     "722",
+     73.0
+    ],
+    [
+     "445",
+     7.3
+    ],
+    [
+     "61",
+     5.6
+    ]
+   ],
+   "top3SharePct": 85.9,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 0.1,
+   "socsMissingFromNEM": []
+  },
+  "food_industrial": {
+   "vaAnchorBillions": 95.6,
+   "nemEmploymentThousands": 829.6,
+   "top3IndustryGroups": [
+    [
+     "722",
+     33.0
+    ],
+    [
+     "445",
+     22.9
+    ],
+    [
+     "311FT",
+     21.1
+    ]
+   ],
+   "top3SharePct": 77.0,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 0.9,
+   "socsMissingFromNEM": []
+  },
+  "food_restaurant": {
+   "vaAnchorBillions": 296.5,
+   "nemEmploymentThousands": 2545.0,
+   "top3IndustryGroups": [
+    [
+     "722",
+     87.0
+    ],
+    [
+     "61",
+     1.6
+    ],
+    [
+     "623",
+     1.5
+    ]
+   ],
+   "top3SharePct": 90.1,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 1.4,
+   "socsMissingFromNEM": []
+  },
+  "gov_postal": {
+   "vaAnchorBillions": 55.1,
+   "nemEmploymentThousands": 425.8,
+   "top3IndustryGroups": [
+    [
+     "GFE",
+     100.0
+    ]
+   ],
+   "top3SharePct": 100.0,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 0.0,
+   "socsMissingFromNEM": []
+  },
+  "health_admin": {
+   "vaAnchorBillions": 183.9,
+   "nemEmploymentThousands": 1359.1,
+   "top3IndustryGroups": [
+    [
+     "621",
+     48.8
+    ],
+    [
+     "622",
+     28.7
+    ],
+    [
+     "623",
+     5.2
+    ]
+   ],
+   "top3SharePct": 82.7,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 2.3,
+   "socsMissingFromNEM": [
+    "29-2071"
+   ]
+  },
+  "health_home_health": {
+   "vaAnchorBillions": 504.0,
+   "nemEmploymentThousands": 5682.2,
+   "top3IndustryGroups": [
+    [
+     "624",
+     38.5
+    ],
+    [
+     "623",
+     23.8
+    ],
+    [
+     "621",
+     20.8
+    ]
+   ],
+   "top3SharePct": 83.1,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 2.4,
+   "socsMissingFromNEM": [
+    "39-9021"
+   ]
+  },
+  "health_nurses": {
+   "vaAnchorBillions": 462.2,
+   "nemEmploymentThousands": 3860.6,
+   "top3IndustryGroups": [
+    [
+     "622",
+     55.1
+    ],
+    [
+     "621",
+     17.5
+    ],
+    [
+     "623",
+     11.1
+    ]
+   ],
+   "top3SharePct": 83.7,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 0.5,
+   "socsMissingFromNEM": []
+  },
+  "health_physicians": {
+   "vaAnchorBillions": 22.0,
+   "nemEmploymentThousands": 172.2,
+   "top3IndustryGroups": [
+    [
+     "621",
+     66.1
+    ],
+    [
+     "622",
+     23.4
+    ],
+    [
+     "61",
+     3.0
+    ]
+   ],
+   "top3SharePct": 92.5,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 4.9,
+   "socsMissingFromNEM": [
+    "29-1210",
+    "29-1228",
+    "29-1248"
+   ]
+  },
+  "health_technicians": {
+   "vaAnchorBillions": 74.0,
+   "nemEmploymentThousands": 589.3,
+   "top3IndustryGroups": [
+    [
+     "622",
+     54.3
+    ],
+    [
+     "621",
+     32.1
+    ],
+    [
+     "61",
+     3.1
+    ]
+   ],
+   "top3SharePct": 89.5,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 0.8,
+   "socsMissingFromNEM": []
+  },
+  "legal_attorneys": {
+   "vaAnchorBillions": 240.4,
+   "nemEmploymentThousands": 863.6,
+   "top3IndustryGroups": [
+    [
+     "5411",
+     51.5
+    ],
+    [
+     "GSLG",
+     15.7
+    ],
+    [
+     "GFGN",
+     6.0
+    ]
+   ],
+   "top3SharePct": 73.2,
+   "mappingQuality": "moderate",
+   "selfEmployedUnmappedPct": 12.0,
+   "socsMissingFromNEM": []
+  },
+  "legal_paralegals": {
+   "vaAnchorBillions": 131.8,
+   "nemEmploymentThousands": 414.4,
+   "top3IndustryGroups": [
+    [
+     "5411",
+     70.4
+    ],
+    [
+     "GSLG",
+     10.7
+    ],
+    [
+     "GFGN",
+     8.2
+    ]
+   ],
+   "top3SharePct": 89.3,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 1.6,
+   "socsMissingFromNEM": []
+  },
+  "mfg_assembly": {
+   "vaAnchorBillions": 63.2,
+   "nemEmploymentThousands": 253.1,
+   "top3IndustryGroups": [
+    [
+     "334",
+     43.3
+    ],
+    [
+     "335",
+     26.5
+    ],
+    [
+     "333",
+     7.8
+    ]
+   ],
+   "top3SharePct": 77.6,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 0.0,
+   "socsMissingFromNEM": [
+    "51-2098"
+   ]
+  },
+  "mfg_machinists": {
+   "vaAnchorBillions": 65.0,
+   "nemEmploymentThousands": 339.6,
+   "top3IndustryGroups": [
+    [
+     "332",
+     33.0
+    ],
+    [
+     "333",
+     22.2
+    ],
+    [
+     "3364OT",
+     8.7
+    ]
+   ],
+   "top3SharePct": 63.9,
+   "mappingQuality": "moderate",
+   "selfEmployedUnmappedPct": 0.2,
+   "socsMissingFromNEM": [
+    "51-4011"
+   ]
+  },
+  "mfg_qc": {
+   "vaAnchorBillions": 128.9,
+   "nemEmploymentThousands": 566.2,
+   "top3IndustryGroups": [
+    [
+     "311FT",
+     9.1
+    ],
+    [
+     "332",
+     8.4
+    ],
+    [
+     "5412OP",
+     7.0
+    ]
+   ],
+   "top3SharePct": 24.5,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 1.4,
+   "socsMissingFromNEM": []
+  },
+  "prof_admin": {
+   "vaAnchorBillions": 1691.3,
+   "nemEmploymentThousands": 8096.8,
+   "top3IndustryGroups": [
+    [
+     "61",
+     10.4
+    ],
+    [
+     "561",
+     8.7
+    ],
+    [
+     "GSLG",
+     7.4
+    ]
+   ],
+   "top3SharePct": 26.5,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 1.0,
+   "socsMissingFromNEM": []
+  },
+  "prof_consulting": {
+   "vaAnchorBillions": 465.2,
+   "nemEmploymentThousands": 2125.3,
+   "top3IndustryGroups": [
+    [
+     "5412OP",
+     18.7
+    ],
+    [
+     "GFGN",
+     14.1
+    ],
+    [
+     "GSLG",
+     9.3
+    ]
+   ],
+   "top3SharePct": 42.1,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 7.7,
+   "socsMissingFromNEM": []
+  },
+  "prof_hr": {
+   "vaAnchorBillions": 228.2,
+   "nemEmploymentThousands": 1086.3,
+   "top3IndustryGroups": [
+    [
+     "561",
+     11.5
+    ],
+    [
+     "5412OP",
+     9.8
+    ],
+    [
+     "55",
+     8.9
+    ]
+   ],
+   "top3SharePct": 30.2,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 0.6,
+   "socsMissingFromNEM": []
+  },
+  "prof_real_estate": {
+   "vaAnchorBillions": 102.3,
+   "nemEmploymentThousands": 522.3,
+   "top3IndustryGroups": [
+    [
+     "ORE",
+     38.5
+    ],
+    [
+     "23",
+     2.5
+    ],
+    [
+     "GSLG",
+     0.7
+    ]
+   ],
+   "top3SharePct": 41.7,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 54.9,
+   "socsMissingFromNEM": []
+  },
+  "retail_cashiers": {
+   "vaAnchorBillions": 873.7,
+   "nemEmploymentThousands": 6517.0,
+   "top3IndustryGroups": [
+    [
+     "4A0",
+     47.4
+    ],
+    [
+     "452",
+     19.1
+    ],
+    [
+     "445",
+     16.6
+    ]
+   ],
+   "top3SharePct": 83.1,
+   "mappingQuality": "concentrated",
+   "selfEmployedUnmappedPct": 2.6,
+   "socsMissingFromNEM": []
+  },
+  "retail_ecommerce": {
+   "vaAnchorBillions": 335.6,
+   "nemEmploymentThousands": 2805.9,
+   "top3IndustryGroups": [
+    [
+     "452",
+     32.1
+    ],
+    [
+     "445",
+     23.1
+    ],
+    [
+     "493",
+     13.7
+    ]
+   ],
+   "top3SharePct": 68.9,
+   "mappingQuality": "moderate",
+   "selfEmployedUnmappedPct": 0.2,
+   "socsMissingFromNEM": []
+  },
+  "retail_management": {
+   "vaAnchorBillions": 220.0,
+   "nemEmploymentThousands": 1670.0,
+   "top3IndustryGroups": [
+    [
+     "4A0",
+     29.4
+    ],
+    [
+     "452",
+     11.7
+    ],
+    [
+     "445",
+     11.2
+    ]
+   ],
+   "top3SharePct": 52.3,
+   "mappingQuality": "moderate",
+   "selfEmployedUnmappedPct": 25.0,
+   "socsMissingFromNEM": []
+  },
+  "sci_engineering": {
+   "vaAnchorBillions": 292.1,
+   "nemEmploymentThousands": 1130.0,
+   "top3IndustryGroups": [
+    [
+     "5412OP",
+     33.2
+    ],
+    [
+     "GSLG",
+     7.4
+    ],
+    [
+     "334",
+     7.1
+    ]
+   ],
+   "top3SharePct": 47.7,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 1.0,
+   "socsMissingFromNEM": []
+  },
+  "sci_lab_research": {
+   "vaAnchorBillions": 71.6,
+   "nemEmploymentThousands": 319.1,
+   "top3IndustryGroups": [
+    [
+     "5412OP",
+     32.0
+    ],
+    [
+     "61",
+     17.5
+    ],
+    [
+     "622",
+     13.1
+    ]
+   ],
+   "top3SharePct": 62.6,
+   "mappingQuality": "moderate",
+   "selfEmployedUnmappedPct": 1.9,
+   "socsMissingFromNEM": []
+  },
+  "tech_data_ml": {
+   "vaAnchorBillions": 61.5,
+   "nemEmploymentThousands": 224.8,
+   "top3IndustryGroups": [
+    [
+     "5412OP",
+     16.4
+    ],
+    [
+     "5415",
+     12.2
+    ],
+    [
+     "55",
+     10.7
+    ]
+   ],
+   "top3SharePct": 39.3,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 2.0,
+   "socsMissingFromNEM": [
+    "15-2098"
+   ]
+  },
+  "tech_it_support": {
+   "vaAnchorBillions": 267.6,
+   "nemEmploymentThousands": 1147.3,
+   "top3IndustryGroups": [
+    [
+     "5415",
+     20.9
+    ],
+    [
+     "61",
+     13.0
+    ],
+    [
+     "GSLG",
+     7.3
+    ]
+   ],
+   "top3SharePct": 41.2,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 1.6,
+   "socsMissingFromNEM": []
+  },
+  "tech_qa": {
+   "vaAnchorBillions": 58.7,
+   "nemEmploymentThousands": 190.6,
+   "top3IndustryGroups": [
+    [
+     "5415",
+     32.2
+    ],
+    [
+     "513",
+     11.0
+    ],
+    [
+     "5412OP",
+     10.1
+    ]
+   ],
+   "top3SharePct": 53.3,
+   "mappingQuality": "moderate",
+   "selfEmployedUnmappedPct": 0.1,
+   "socsMissingFromNEM": []
+  },
+  "tech_swe": {
+   "vaAnchorBillions": 507.2,
+   "nemEmploymentThousands": 1695.7,
+   "top3IndustryGroups": [
+    [
+     "5415",
+     31.3
+    ],
+    [
+     "514",
+     10.1
+    ],
+    [
+     "5412OP",
+     9.9
+    ]
+   ],
+   "top3SharePct": 51.3,
+   "mappingQuality": "moderate",
+   "selfEmployedUnmappedPct": 1.9,
+   "socsMissingFromNEM": [
+    "15-1256"
+   ]
+  },
+  "transport_delivery": {
+   "vaAnchorBillions": 71.7,
+   "nemEmploymentThousands": 537.9,
+   "top3IndustryGroups": [
+    [
+     "42",
+     18.4
+    ],
+    [
+     "722",
+     7.3
+    ],
+    [
+     "487OS",
+     5.2
+    ]
+   ],
+   "top3SharePct": 30.9,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 38.1,
+   "socsMissingFromNEM": []
+  },
+  "transport_taxi": {
+   "vaAnchorBillions": 3.3,
+   "nemEmploymentThousands": 203.7,
+   "top3IndustryGroups": [
+    [
+     "485",
+     8.2
+    ],
+    [
+     "621",
+     0.0
+    ],
+    [
+     "GSLG",
+     0.0
+    ]
+   ],
+   "top3SharePct": 8.2,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 91.7,
+   "socsMissingFromNEM": [
+    "53-3041"
+   ]
+  },
+  "transport_trucking": {
+   "vaAnchorBillions": 412.0,
+   "nemEmploymentThousands": 2178.5,
+   "top3IndustryGroups": [
+    [
+     "484",
+     40.7
+    ],
+    [
+     "42",
+     11.6
+    ],
+    [
+     "487OS",
+     8.3
+    ]
+   ],
+   "top3SharePct": 60.6,
+   "mappingQuality": "moderate",
+   "selfEmployedUnmappedPct": 7.0,
+   "socsMissingFromNEM": []
+  },
+  "transport_warehouse": {
+   "vaAnchorBillions": 748.6,
+   "nemEmploymentThousands": 4243.6,
+   "top3IndustryGroups": [
+    [
+     "561",
+     13.8
+    ],
+    [
+     "493",
+     13.5
+    ],
+    [
+     "42",
+     13.2
+    ]
+   ],
+   "top3SharePct": 40.5,
+   "mappingQuality": "diffuse",
+   "selfEmployedUnmappedPct": 1.2,
+   "socsMissingFromNEM": []
+  }
+ }
+}

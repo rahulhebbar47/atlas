@@ -18,10 +18,11 @@ import { Slider } from '@/components/shared/Slider';
 import {
   BASELINE_GDP_GROWTH_RATE,
   TRADITIONAL_INVESTMENT_GDP_FRACTION,
-  DEFAULT_AI_PROFIT_MARGIN,
-  DEFAULT_TRADITIONAL_PROFIT_MARGIN,
+  // DEPRECATED (Stage H): dead dials — aiProfitMargin / traditionalProfitMargin / aiProfitGrowthRate are voided (macro.ts:3096-3097) / reader retired; controls removed below.
+  // DEFAULT_AI_PROFIT_MARGIN,
+  // DEFAULT_TRADITIONAL_PROFIT_MARGIN,
   BASELINE_CORPORATE_RETENTION_RATE,
-  DEFAULT_AI_PROFIT_GROWTH_RATE,
+  // DEFAULT_AI_PROFIT_GROWTH_RATE,
   DEFAULT_AI_PRODUCTION_INVESTMENT_FRACTION,
   DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION,
   DEFAULT_NEW_JOB_WAGE_FRACTION,
@@ -33,26 +34,27 @@ import {
 /** Blue accent for investment & corporate controls */
 const CONTROL_COLOR = '#3B82F6';
 
-/** AI profit growth rate slider mapping: slider position → internal value */
-const PROFIT_GROWTH_MAP = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.5, 8.0, 10.0];
-
-function profitGrowthToSlider(internal: number): number {
-  let closest = 1;
-  let minDist = Math.abs(PROFIT_GROWTH_MAP[0]! - internal);
-  for (let i = 1; i < PROFIT_GROWTH_MAP.length; i++) {
-    const dist = Math.abs(PROFIT_GROWTH_MAP[i]! - internal);
-    if (dist < minDist) {
-      minDist = dist;
-      closest = i + 1;
-    }
-  }
-  return closest;
-}
-
-function sliderToProfitGrowth(slider: number): number {
-  const idx = Math.max(0, Math.min(PROFIT_GROWTH_MAP.length - 1, slider - 1));
-  return PROFIT_GROWTH_MAP[idx]!;
-}
+// DEPRECATED (Stage H): helpers for the dead aiProfitGrowthRate dial (voided at macro.ts:3096-3097); control removed below.
+// /** AI profit growth rate slider mapping: slider position → internal value */
+// const PROFIT_GROWTH_MAP = [0.5, 1.0, 1.5, 2.0, 3.0, 4.0, 5.0, 6.5, 8.0, 10.0];
+//
+// function profitGrowthToSlider(internal: number): number {
+//   let closest = 1;
+//   let minDist = Math.abs(PROFIT_GROWTH_MAP[0]! - internal);
+//   for (let i = 1; i < PROFIT_GROWTH_MAP.length; i++) {
+//     const dist = Math.abs(PROFIT_GROWTH_MAP[i]! - internal);
+//     if (dist < minDist) {
+//       minDist = dist;
+//       closest = i + 1;
+//     }
+//   }
+//   return closest;
+// }
+//
+// function sliderToProfitGrowth(slider: number): number {
+//   const idx = Math.max(0, Math.min(PROFIT_GROWTH_MAP.length - 1, slider - 1));
+//   return PROFIT_GROWTH_MAP[idx]!;
+// }
 
 export function InvestmentCorporateControls() {
   // Investment Demand
@@ -65,9 +67,10 @@ export function InvestmentCorporateControls() {
   const consumerDemandInvSens = useSimulationStore(
     (s) => s.config.consumerDemandInvestmentSensitivity ?? 50,
   );
-  const creditInvRespSens = useSimulationStore(
-    (s) => s.config.creditInvestmentResponseSensitivity ?? 50,
-  );
+  // DEPRECATED (Stage H): dead dial — creditInvestmentResponseSensitivity (Phase-6 deprecation, readers commented out); deadness enforced by stageH-honesty.test.ts.
+  // const creditInvRespSens = useSimulationStore(
+  //   (s) => s.config.creditInvestmentResponseSensitivity ?? 50,
+  // );
   const tradInvDemandSens = useSimulationStore(
     (s) => s.config.traditionalInvestmentDemandSensitivity ?? 30,
   );
@@ -76,18 +79,19 @@ export function InvestmentCorporateControls() {
   );
 
   // Corporate & Profits
-  const aiProfitMargin = useSimulationStore(
-    (s) => s.config.aiProfitMargin ?? DEFAULT_AI_PROFIT_MARGIN,
-  );
-  const tradProfitMargin = useSimulationStore(
-    (s) => s.config.traditionalProfitMargin ?? DEFAULT_TRADITIONAL_PROFIT_MARGIN,
-  );
+  // DEPRECATED (Stage H): dead dials — aiProfitMargin / traditionalProfitMargin voided at macro.ts:3096-3097; aiProfitGrowthRate reader retired; deadness enforced by stageH-honesty.test.ts.
+  // const aiProfitMargin = useSimulationStore(
+  //   (s) => s.config.aiProfitMargin ?? DEFAULT_AI_PROFIT_MARGIN,
+  // );
+  // const tradProfitMargin = useSimulationStore(
+  //   (s) => s.config.traditionalProfitMargin ?? DEFAULT_TRADITIONAL_PROFIT_MARGIN,
+  // );
   const corporateRetention = useSimulationStore(
     (s) => s.config.corporateRetentionRate ?? BASELINE_CORPORATE_RETENTION_RATE,
   );
-  const aiProfitGrowth = useSimulationStore(
-    (s) => s.config.aiProfitGrowthRate ?? DEFAULT_AI_PROFIT_GROWTH_RATE,
-  );
+  // const aiProfitGrowth = useSimulationStore(
+  //   (s) => s.config.aiProfitGrowthRate ?? DEFAULT_AI_PROFIT_GROWTH_RATE,
+  // );
 
   // AI Production
   const investFrac = useSimulationStore(
@@ -126,10 +130,11 @@ export function InvestmentCorporateControls() {
     (value: number) => updateConfig((c) => ({ ...c, consumerDemandInvestmentSensitivity: value })),
     [updateConfig],
   );
-  const handleCreditInvRespSens = useCallback(
-    (value: number) => updateConfig((c) => ({ ...c, creditInvestmentResponseSensitivity: value })),
-    [updateConfig],
-  );
+  // DEPRECATED (Stage H): dead-dial handler — creditInvestmentResponseSensitivity control removed below; config field kept (no-delete rule).
+  // const handleCreditInvRespSens = useCallback(
+  //   (value: number) => updateConfig((c) => ({ ...c, creditInvestmentResponseSensitivity: value })),
+  //   [updateConfig],
+  // );
   const handleTradInvDemandSens = useCallback(
     (value: number) => updateConfig((c) => ({ ...c, traditionalInvestmentDemandSensitivity: value })),
     [updateConfig],
@@ -140,22 +145,23 @@ export function InvestmentCorporateControls() {
   );
 
   // Corporate handlers
-  const handleAiProfitMargin = useCallback(
-    (value: number) => updateConfig((c) => ({ ...c, aiProfitMargin: value })),
-    [updateConfig],
-  );
-  const handleTradProfitMargin = useCallback(
-    (value: number) => updateConfig((c) => ({ ...c, traditionalProfitMargin: value })),
-    [updateConfig],
-  );
+  // DEPRECATED (Stage H): dead-dial handlers — aiProfitMargin / traditionalProfitMargin / aiProfitGrowthRate controls removed below; config fields kept (no-delete rule).
+  // const handleAiProfitMargin = useCallback(
+  //   (value: number) => updateConfig((c) => ({ ...c, aiProfitMargin: value })),
+  //   [updateConfig],
+  // );
+  // const handleTradProfitMargin = useCallback(
+  //   (value: number) => updateConfig((c) => ({ ...c, traditionalProfitMargin: value })),
+  //   [updateConfig],
+  // );
   const handleRetention = useCallback(
     (value: number) => updateConfig((c) => ({ ...c, corporateRetentionRate: value })),
     [updateConfig],
   );
-  const handleProfitGrowth = useCallback(
-    (value: number) => updateConfig((c) => ({ ...c, aiProfitGrowthRate: sliderToProfitGrowth(value) })),
-    [updateConfig],
-  );
+  // const handleProfitGrowth = useCallback(
+  //   (value: number) => updateConfig((c) => ({ ...c, aiProfitGrowthRate: sliderToProfitGrowth(value) })),
+  //   [updateConfig],
+  // );
 
   // AI Production handlers
   const handleInvest = useCallback(
@@ -222,7 +228,8 @@ export function InvestmentCorporateControls() {
           onChange={handleConsumerDemandInvSens}
           formatValue={(v) => v.toFixed(0)}
         />
-        <Slider
+        {/* DEPRECATED (Stage H): dead dial — creditInvestmentResponseSensitivity is a Phase-6 deprecation with its readers commented out; config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+        {/* <Slider
           label="Credit Inv. Response Sens."
           value={creditInvRespSens}
           min={0}
@@ -231,7 +238,7 @@ export function InvestmentCorporateControls() {
           color={CONTROL_COLOR}
           onChange={handleCreditInvRespSens}
           formatValue={(v) => v.toFixed(0)}
-        />
+        /> */}
         <Slider
           label="Trad. Inv. Demand Sens."
           value={tradInvDemandSens}
@@ -257,7 +264,8 @@ export function InvestmentCorporateControls() {
       {/* Subcategory: Corporate & Profits */}
       <div className="space-y-3">
         <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider">Corporate & Profits</p>
-        <Slider
+        {/* DEPRECATED (Stage H): dead dials — aiProfitMargin / traditionalProfitMargin are voided at macro.ts:3096-3097 and aiProfitGrowthRate's reader is retired; config fields kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+        {/* <Slider
           label="AI Profit Margin"
           value={aiProfitMargin}
           min={0.05}
@@ -266,8 +274,8 @@ export function InvestmentCorporateControls() {
           color={CONTROL_COLOR}
           onChange={handleAiProfitMargin}
           formatValue={(v) => `${(v * 100).toFixed(0)}%`}
-        />
-        <Slider
+        /> */}
+        {/* <Slider
           label="Traditional Profit Margin"
           value={tradProfitMargin}
           min={0.02}
@@ -276,7 +284,7 @@ export function InvestmentCorporateControls() {
           color={CONTROL_COLOR}
           onChange={handleTradProfitMargin}
           formatValue={(v) => `${(v * 100).toFixed(0)}%`}
-        />
+        /> */}
         <Slider
           label="Corporate Retention"
           value={corporateRetention}
@@ -287,7 +295,7 @@ export function InvestmentCorporateControls() {
           onChange={handleRetention}
           formatValue={(v) => v.toFixed(2)}
         />
-        <Slider
+        {/* <Slider
           label="AI Market Power"
           value={profitGrowthToSlider(aiProfitGrowth)}
           min={1}
@@ -296,7 +304,7 @@ export function InvestmentCorporateControls() {
           color={CONTROL_COLOR}
           onChange={handleProfitGrowth}
           formatValue={(v) => `${sliderToProfitGrowth(v).toFixed(1)}x`}
-        />
+        /> */}
       </div>
 
       {/* Subcategory: AI Production */}

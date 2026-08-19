@@ -22,12 +22,17 @@ import type { DashboardView } from '@/types';
 const NAV_TABS: Array<{ label: string; view: DashboardView }> = [
   { label: 'Overview', view: 'overview' },
   { label: 'Occupations', view: 'occupations' },
+  // R3a' (the redesign): the 'Worldviews' tab RETIRED — the worldview surface IS the left sidebar now.
+  { label: 'Advanced', view: 'advanced' },
   { label: 'Policy', view: 'policy' },
   { label: 'Fiscal', view: 'fiscal' },
   { label: 'Economics', view: 'economics' },
   { label: 'Monetary', view: 'monetary' },
   { label: 'Methodology', view: 'methodology' },
-  { label: 'Predictions', view: 'predictions' },
+  // Owner order 2026-08-11: the Predictions tab is PARKED, not retired — the owner
+  // intends to bring it back. The view component and its 'predictions' DashboardView
+  // value stay intact; uncomment this line to restore the tab.
+  // { label: 'Predictions', view: 'predictions' },
 ];
 
 export function Header() {

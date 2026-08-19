@@ -1,0 +1,260 @@
+{
+  "source": "BEA NIPA Table 5.3.5 (Private Fixed Investment by Type)",
+  "seriesOrTable": "NIPA T50305, Frequency A",
+  "fetchedAt": "2026-08-17T18:17:42.643Z",
+  "notes": "Billions of current dollars by line number. Inputs to the I_AI_observed baseline capex partition (production program, checkpoint §1.1): information-processing equipment, computers & peripheral, software, and structures lines.",
+  "byYear": {
+    "2024": {
+      "1": {
+        "description": "Private fixed investment",
+        "valueBillions": 5205.774
+      },
+      "2": {
+        "description": "Nonresidential",
+        "valueBillions": 4022.935
+      },
+      "3": {
+        "description": "Structures",
+        "valueBillions": 934.799
+      },
+      "4": {
+        "description": "Commercial and health care",
+        "valueBillions": 277.353
+      },
+      "5": {
+        "description": "Manufacturing",
+        "valueBillions": 234.837
+      },
+      "6": {
+        "description": "Power and communication",
+        "valueBillions": 164.777
+      },
+      "7": {
+        "description": "Mining exploration, shafts, and wells",
+        "valueBillions": 96.938
+      },
+      "8": {
+        "description": "Other structures",
+        "valueBillions": 160.894
+      },
+      "9": {
+        "description": "Equipment",
+        "valueBillions": 1484.254
+      },
+      "10": {
+        "description": "Information processing equipment",
+        "valueBillions": 501.141
+      },
+      "11": {
+        "description": "Computers and peripheral equipment",
+        "valueBillions": 178.731
+      },
+      "12": {
+        "description": "Other",
+        "valueBillions": 322.41
+      },
+      "13": {
+        "description": "Industrial equipment",
+        "valueBillions": 318.968
+      },
+      "14": {
+        "description": "Transportation equipment",
+        "valueBillions": 339.261
+      },
+      "15": {
+        "description": "Other equipment",
+        "valueBillions": 324.884
+      },
+      "16": {
+        "description": "Intellectual property products",
+        "valueBillions": 1603.882
+      },
+      "17": {
+        "description": "Software",
+        "valueBillions": 692.996
+      },
+      "18": {
+        "description": "Research and development",
+        "valueBillions": 796.45
+      },
+      "19": {
+        "description": "Entertainment, literary, and artistic originals",
+        "valueBillions": 114.436
+      },
+      "20": {
+        "description": "Residential",
+        "valueBillions": 1182.839
+      },
+      "21": {
+        "description": "Structures",
+        "valueBillions": 1161.399
+      },
+      "22": {
+        "description": "Permanent site",
+        "valueBillions": 558.457
+      },
+      "23": {
+        "description": "Single family",
+        "valueBillions": 433.492
+      },
+      "24": {
+        "description": "Multifamily",
+        "valueBillions": 124.965
+      },
+      "25": {
+        "description": "Other structures",
+        "valueBillions": 602.942
+      },
+      "26": {
+        "description": "Equipment",
+        "valueBillions": 21.44
+      },
+      "27": {
+        "description": "Private fixed investment in structures",
+        "valueBillions": 2096.198
+      },
+      "28": {
+        "description": "Private fixed investment in new structures",
+        "valueBillions": 1879
+      },
+      "29": {
+        "description": "Nonresidential structures",
+        "valueBillions": 894.551
+      },
+      "30": {
+        "description": "Residential structures",
+        "valueBillions": 984.449
+      },
+      "31": {
+        "description": "Private fixed investment in information processing equipment and software",
+        "valueBillions": 1194.137
+      }
+    },
+    "2025": {
+      "1": {
+        "description": "Private fixed investment",
+        "valueBillions": 5443.48
+      },
+      "2": {
+        "description": "Nonresidential",
+        "valueBillions": 4250.804
+      },
+      "3": {
+        "description": "Structures",
+        "valueBillions": 893.43
+      },
+      "4": {
+        "description": "Commercial and health care",
+        "valueBillions": 264.481
+      },
+      "5": {
+        "description": "Manufacturing",
+        "valueBillions": 219.492
+      },
+      "6": {
+        "description": "Power and communication",
+        "valueBillions": 167.991
+      },
+      "7": {
+        "description": "Mining exploration, shafts, and wells",
+        "valueBillions": 84.814
+      },
+      "8": {
+        "description": "Other structures",
+        "valueBillions": 156.652
+      },
+      "9": {
+        "description": "Equipment",
+        "valueBillions": 1643.718
+      },
+      "10": {
+        "description": "Information processing equipment",
+        "valueBillions": 626.606
+      },
+      "11": {
+        "description": "Computers and peripheral equipment",
+        "valueBillions": 270.729
+      },
+      "12": {
+        "description": "Other",
+        "valueBillions": 355.877
+      },
+      "13": {
+        "description": "Industrial equipment",
+        "valueBillions": 340.831
+      },
+      "14": {
+        "description": "Transportation equipment",
+        "valueBillions": 352.301
+      },
+      "15": {
+        "description": "Other equipment",
+        "valueBillions": 323.981
+      },
+      "16": {
+        "description": "Intellectual property products",
+        "valueBillions": 1713.656
+      },
+      "17": {
+        "description": "Software",
+        "valueBillions": 754.773
+      },
+      "18": {
+        "description": "Research and development",
+        "valueBillions": 843.283
+      },
+      "19": {
+        "description": "Entertainment, literary, and artistic originals",
+        "valueBillions": 115.6
+      },
+      "20": {
+        "description": "Residential",
+        "valueBillions": 1192.676
+      },
+      "21": {
+        "description": "Structures",
+        "valueBillions": 1170.917
+      },
+      "22": {
+        "description": "Permanent site",
+        "valueBillions": 532.707
+      },
+      "23": {
+        "description": "Single family",
+        "valueBillions": 417.89
+      },
+      "24": {
+        "description": "Multifamily",
+        "valueBillions": 114.817
+      },
+      "25": {
+        "description": "Other structures",
+        "valueBillions": 638.21
+      },
+      "26": {
+        "description": "Equipment",
+        "valueBillions": 21.759
+      },
+      "27": {
+        "description": "Private fixed investment in structures",
+        "valueBillions": 2064.347
+      },
+      "28": {
+        "description": "Private fixed investment in new structures",
+        "valueBillions": 1846.384
+      },
+      "29": {
+        "description": "Nonresidential structures",
+        "valueBillions": 855.404
+      },
+      "30": {
+        "description": "Residential structures",
+        "valueBillions": 990.98
+      },
+      "31": {
+        "description": "Private fixed investment in information processing equipment and software",
+        "valueBillions": 1381.38
+      }
+    }
+  }
+}

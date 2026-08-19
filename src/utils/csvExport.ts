@@ -12,6 +12,7 @@ import type { SimulationTimeline, SimulationYearOutput, ClusterDisplacementResul
 import { OCCUPATION_CLUSTERS, OCCUPATION_CLUSTER_MAP } from '@/data/occupationClusters';
 import { computeWeightedCapability } from '@/models/capabilities';
 import { SECTOR_DEFLATION_INTENSITY, AI_PRODUCTIVITY_MULTIPLIER_BY_DEPLOYMENT } from '@/models/constants';
+import { DEFAULT_FISCAL_POLICY_PRESET } from '@/models/fiscalResponseProfiles';
 import { downloadCSV } from '@/utils/export';
 import { interpolatePolicy } from '@/utils/policyInterpolation';
 
@@ -69,11 +70,13 @@ function buildHeaders(): string[] {
     'consumption', 'investment', 'government_spending',
   );
 
-  // G. Consumer Welfare Index + AI GDP Contribution (8)
+  // G. Consumer Welfare Index + AI metrics (11) — H3 ruling 1: the split metrics carry the
+  // display semantics; ai_gdp_contribution(_pct) remain as the internal revenue basis columns.
   headers.push(
     'consumer_welfare_index', 'cwi_growth_rate', 'cwi_acceleration', 'cycle_phase',
     'median_cwi', 'median_cwi_growth_rate',
     'ai_gdp_contribution', 'ai_gdp_contribution_pct',
+    'ai_realized_gdp_contribution', 'ai_realized_share_of_gdp', 'ai_output_potential_share',
   );
 
   // H. Depression (2)
@@ -176,10 +179,15 @@ function buildHeaders(): string[] {
     'corporate_cash_accumulation',
   );
 
-  // J11. AI Cost Indices (Phase 5-tax) — 4 columns
+  // J11. Realized-cost diagnostics (mini-stage 1) — 2 columns (replaced the 4 retired
+  // deprecated-basis cost-index columns; the emergent tokens-per-task path is an OUTPUT)
+  // + Mini-stage 3: 5 jobless-measure columns — the two honest measures (headline
+  // unemployment_rate stays BROAD-consistent elsewhere in the export; u3 excludes
+  // discouragement exits from numerator and denominator) and the policymaker displays.
   headers.push(
-    'blended_ai_cost_index', 'inference_cost_index',
-    'manufacturing_cost_index', 'energy_cost_index',
+    'implied_aggregate_tokens_per_task', 'aggregate_frontier_weight',
+    'u3_unemployment_rate', 'labor_force_exited_stock', 'employment_to_population',
+    'long_term_jobless_share', 'mean_jobless_duration_years',
   );
 
   // J12. Supply Chain (Phase 5-tax + Phase 9) — 16 columns
@@ -189,10 +197,10 @@ function buildHeaders(): string[] {
     'cumulative_delay_generative', 'cumulative_delay_agentic', 'cumulative_delay_embodied',
     'supply_chain_cost_push', 'cascade_backlog',
     'dynamic_training_comp_chips', 'dynamic_training_comp_energy', 'dynamic_training_comp_dc',
-    'effective_compute_decline_rate',
+    'cascade_decline_rate_diagnostic',
     'deployment_multiplier_compute', 'deployment_multiplier_physical', 'deployment_multiplier_energy',
     'cost_pass_through_rate', 'adoption_drag_multiplier',
-    'automation_dividend',
+    'deployer_realized_savings',
   );
 
   // K. Policy Effects (10)
@@ -367,11 +375,12 @@ function buildRow(
     macro.consumption, macro.investment, macro.governmentSpending,
   );
 
-  // G. Consumer Welfare Index + AI GDP Contribution
+  // G. Consumer Welfare Index + AI metrics (H3: the split metrics appended)
   row.push(
     macro.consumerWelfareIndex, macro.cwiGrowthRate, macro.cwiAcceleration, macro.cyclePhase,
     macro.medianCWI, macro.medianCWIGrowthRate,
     macro.aiGDPContribution, macro.aiGDPContributionPct,
+    macro.aiRealizedGDPContribution, macro.aiRealizedShareOfGDP, macro.aiOutputPotentialShare,
   );
 
   // H. Depression
@@ -474,10 +483,13 @@ function buildRow(
     macro.corporateCashAccumulation,
   );
 
-  // J11. AI Cost Indices
+  // J11. Realized-cost diagnostics (mini-stage 1: the retired deprecated-basis cost
+  // indices are replaced by the one realized-cost object's emergent diagnostics)
+  // + Mini-stage 3: the two honest jobless measures and the policymaker displays
   row.push(
-    macro.blendedAiCostIndex, macro.inferenceCostIndex,
-    macro.manufacturingCostIndex, macro.energyCostIndex,
+    macro.impliedAggregateTokensPerTask, macro.aggregateFrontierWeight,
+    macro.u3UnemploymentRate, macro.laborForceExitedStock, macro.employmentToPopulation,
+    macro.longTermJoblessShare, macro.meanJoblessDurationYears,
   );
 
   // J12. Supply Chain
@@ -487,10 +499,10 @@ function buildRow(
     macro.cumulativeDelayGenerative, macro.cumulativeDelayAgentic, macro.cumulativeDelayEmbodied,
     macro.supplyChainCostPush, macro.cascadeBacklog,
     macro.dynamicTrainingCompChips, macro.dynamicTrainingCompEnergy, macro.dynamicTrainingCompDC,
-    macro.effectiveComputeDeclineRate,
+    macro.cascadeDeclineRateDiagnostic,
     macro.deploymentMultiplierCompute, macro.deploymentMultiplierPhysical, macro.deploymentMultiplierEnergy,
     macro.costPassThroughRate, macro.adoptionDragMultiplier,
-    macro.automationDividend,
+    macro.deployerRealizedSavings,
   );
 
   // K. Policy Effects
@@ -575,7 +587,8 @@ function buildRow(
 
   // L3. Fiscal Response (Phase 8a)
   row.push(
-    timeline.config.fiscalPolicyPreset ?? 'balanced_reduction',
+    // Stage H: fallback references the live default preset (was a stale 'balanced_reduction' copy)
+    timeline.config.fiscalPolicyPreset ?? DEFAULT_FISCAL_POLICY_PRESET,
     fm?.fiscal.consolidationIntensity ?? 0,
     fm?.fiscal.discretionaryMultiplier ?? 1,
     fm?.fiscal.obligationMultiplier ?? 1,
@@ -606,7 +619,8 @@ function buildRow(
     );
   } else {
     // Fallback: profile name + 22 zeros/empty for backward compat
-    row.push(timeline.config.fiscalPolicyPreset ?? 'balanced_reduction');
+    // Stage H: fallback references the live default preset (was a stale 'balanced_reduction' copy)
+    row.push(timeline.config.fiscalPolicyPreset ?? DEFAULT_FISCAL_POLICY_PRESET);
     for (let i = 0; i < 22; i++) row.push(0);
   }
 

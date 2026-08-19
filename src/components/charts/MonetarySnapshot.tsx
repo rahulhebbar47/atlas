@@ -12,7 +12,8 @@
 
 import { MetricCard } from '@/components/shared/MetricCard';
 import { useCurrentYearData } from '@/hooks/useSimulation';
-import { formatCurrency, formatPercent, formatNumber } from '@/utils/format';
+import { formatCurrency, formatPercent, formatNumber, clampPolicyRateForDisplay, isPEDisplayMeaningful } from '@/utils/format';
+import { useSimulationStore } from '@/stores/simulationStore';
 import type { FiscalMonetaryOutput } from '@/types/index';
 
 /**
@@ -43,6 +44,8 @@ function fmtNum(value: number, decimals: number = 1): string {
 
 export function MonetarySnapshot() {
   const yearData = useCurrentYearData();
+  // Display-hygiene rider: the ELB for the policy-rate display clamp (engine untouched).
+  const elb = useSimulationStore((s) => s.config.effectiveLowerBound) ?? -0.005;
 
   if (!yearData) return null;
 
@@ -145,7 +148,7 @@ export function MonetarySnapshot() {
           />
           <MetricCard
             label="Policy Rate"
-            value={fmtPct(federalReserve.policyRate)}
+            value={fmtPct(clampPolicyRateForDisplay(federalReserve.policyRate, elb))}
           />
           <MetricCard
             label="Fiscal Dominance"
@@ -225,7 +228,7 @@ export function MonetarySnapshot() {
           />
           <MetricCard
             label="P/E Ratio"
-            value={fmtNum(equityMarket.peRatio)}
+            value={isPEDisplayMeaningful(equityMarket.peRatio) ? fmtNum(equityMarket.peRatio) : '—'}
             className="opacity-75"
           />
           <MetricCard

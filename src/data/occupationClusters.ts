@@ -52,7 +52,11 @@ export const OCCUPATION_CLUSTERS: OccupationCluster[] = [
     id: 'tech_swe',
     name: 'Software Engineering',
     category: 'Technology',
-    socCodes: ['15-1252', '15-1253', '15-1254', '15-1256'],
+    // FS-6f backport (AEI pipeline stage, owner-ratified D4): '15-1253' removed —
+    // tech_qa owns it (it was double-listed; the fetch script was corrected at FS-6f,
+    // this canonical list was not). Liveness determination: cluster.socCodes has no
+    // runtime consumer (build/transform-only), so this is bit-zero on the simulation.
+    socCodes: ['15-1252', '15-1254', '15-1256'],
     roles: [
       {
         id: 'junior_mid',
@@ -719,7 +723,11 @@ export const OCCUPATION_CLUSTERS: OccupationCluster[] = [
       },
     ],
     capabilityRelevance: {
-      weights: capWeights({ generative: 0.45, agentic: 0.40, embodied: 0.15 }),
+      // STAGE-3 RULED APPLICATION (owner-ratified 2026-08-17): the custodial co-presence
+      // blocker is legal-physical and real (a classroom of minors cannot be supervised
+      // by software). [judged-partial]. The authored row, kept per the no-delete rule:
+      //   weights: capWeights({ generative: 0.45, agentic: 0.40, embodied: 0.15 }),
+      weights: capWeights({ generative: 0.35, agentic: 0.35, embodied: 0.30 }),
     },
     deploymentType: 'software',
     employmentMultiplier: 1.8,
@@ -1358,7 +1366,11 @@ export const OCCUPATION_CLUSTERS: OccupationCluster[] = [
       },
     ],
     capabilityRelevance: {
-      weights: capWeights({ generative: 0.20, agentic: 0.45, embodied: 0.35 }),
+      // STAGE-3 RULED APPLICATION (owner-ratified 2026-08-17): physical assembly work —
+      // the top O*NET score in the table (0.714). [data-anchored]. The authored row,
+      // kept per the no-delete rule:
+      //   weights: capWeights({ generative: 0.20, agentic: 0.45, embodied: 0.35 }),
+      weights: capWeights({ generative: 0.10, agentic: 0.35, embodied: 0.55 }),
     },
     deploymentType: 'robotics',
     employmentMultiplier: 2.4,
@@ -1491,7 +1503,11 @@ export const OCCUPATION_CLUSTERS: OccupationCluster[] = [
       },
     ],
     capabilityRelevance: {
-      weights: capWeights({ generative: 0.25, agentic: 0.60, embodied: 0.15 }),
+      // STAGE-3 RULED APPLICATION (owner-ratified 2026-08-17): modest correction — the
+      // composite's standing descriptors are context, not output content. [judged].
+      // The authored row, kept per the no-delete rule:
+      //   weights: capWeights({ generative: 0.25, agentic: 0.60, embodied: 0.15 }),
+      weights: capWeights({ generative: 0.20, agentic: 0.55, embodied: 0.25 }),
     },
     deploymentType: 'software',
     employmentMultiplier: 1.5,
@@ -1534,7 +1550,13 @@ export const OCCUPATION_CLUSTERS: OccupationCluster[] = [
       },
     ],
     capabilityRelevance: {
-      weights: capWeights({ generative: 0.40, agentic: 0.55, embodied: 0.05 }),
+      // STAGE-3 RULED APPLICATION (owner-ratified 2026-08-17; STAGE2_OWNER_TABLES.md §1):
+      // the authoring error corrected on SOC content (fulfillment/warehouse labor —
+      // physical handling blocks software substitution of the output). [data-anchored:
+      // the O*NET physical composite maps to automation mode here]. The authored row,
+      // kept per the no-delete rule:
+      //   weights: capWeights({ generative: 0.40, agentic: 0.55, embodied: 0.05 }),
+      weights: capWeights({ generative: 0.10, agentic: 0.30, embodied: 0.60 }),
     },
     deploymentType: 'robotics',
     employmentMultiplier: 1.8,
@@ -1868,7 +1890,11 @@ export const OCCUPATION_CLUSTERS: OccupationCluster[] = [
       },
     ],
     capabilityRelevance: {
-      weights: capWeights({ generative: 0.65, agentic: 0.20, embodied: 0.15 }),
+      // STAGE-3 RULED APPLICATION (owner-ratified 2026-08-17): minimal — the composite's
+      // camera/set descriptors reflect the legacy production process. [judged]. The
+      // authored row, kept per the no-delete rule:
+      //   weights: capWeights({ generative: 0.65, agentic: 0.20, embodied: 0.15 }),
+      weights: capWeights({ generative: 0.60, agentic: 0.20, embodied: 0.20 }),
     },
     deploymentType: 'software',
     employmentMultiplier: 2.0,

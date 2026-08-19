@@ -132,7 +132,7 @@ where:
 
 - `ai_cost_fraction(t)` is the composition-weighted AI cost index (inference, manufacturing,
   and energy components; dimensionless, anchored to 1.0 in 2025; nominal). The component
-  curves and their user dials are specified in §4 (AI cost trajectories).
+  curves and their user dials are specified in §2.5 (AI cost trajectories).
 - `role_mean_wage(o, r)` is the role's mean annual wage in dollars from the BLS Occupational
   Employment and Wage Statistics survey (OEWS — the committed data the model loads; see §11),
   and `economy_mean_wage` is the economy-wide mean annual wage from the same source. Their
@@ -200,6 +200,124 @@ The **Cheaper** threshold `C*` depends on:
 ALL thresholds are user-adjustable per occupation cluster. The model provides informed defaults but the user can override any threshold to test scenarios like:
 - "What if regulators approve autonomous trucking at 100x safety instead of 1000x?"
 - "What if Optimus unit costs fall to $20k instead of $50k — how does that change C* for warehouse work?"
+
+### 2.5 AI Cost Trajectories — the Realized-Cost Object
+
+**What this is.** The cost of AI work has two regimes. Work at the capability frontier pays a
+large, persistent premium: frontier tasks consume many times more computation than a routine
+task (long reasoning chains, repeated agentic attempts, long context), and the observed record
+since 2023 shows that premium persisting rather than fading back to routine intensity. Once the
+frontier passes what a role requires, that role's work no longer needs frontier models: it
+migrates onto the price of the fixed capability level it needs, which collapses quickly after
+arrival. A role's realized AI cost blends the two regimes, and the blend shifts off the
+frontier as the frontier pulls further ahead of the role's requirement. One consequence is
+deliberate: the economy-wide average computation-per-task path is something the model reports
+as a result, never something anyone sets — it is high while much of the automated economy sits
+near the frontier and falls as work migrates off it.
+
+The specification. All cost indices are dimensionless and nominal, anchored at 1.0 in 2025;
+`t = year − 2025`:
+
+```
+per_token(t)     = floor + (1 − floor) × exp(−k × t^decayExponent)         -- 1.0 for t ≤ 0
+M_f(t)           = 1                              for t ≤ 0
+                 = level × (1 + growth)^(t−1)     for t ≥ 1                -- frontier token intensity
+frontier_cost(t) = per_token(t) × M_f(t)                                   -- frontier per-task cost
+
+t*(o, r)         = first year Better(o,r,t) ≥ B*(o,r)    -- the role's arrival year (latched;
+                                                            arrivals before 2025 clamp to 2025)
+fixed_cap(o,r,t) = frontier_cost(t*) × per_token(t − t*)                   -- arrival-anchored decay
+
+s(o, r, t)       = Better(o,r,t) − B*(o,r)                                 -- capability surplus (score units)
+w(s)             = 1 for s ≤ 0;  max(w_min, 2^(−s/σ)) for s > 0            -- migration weight
+inference(o,r,t) = fixed_cap + w × (frontier_cost − fixed_cap)             -- = frontier_cost before arrival
+
+ai_cost_fraction(o,r,t) = comp_inference     × inference(o,r,t)      × scm_inference
+                        + comp_manufacturing × exp(mfg_change × t)   × scm_manufacturing
+                        + comp_energy        × exp(energy_change × t) × scm_energy
+```
+
+Where:
+
+- `per_token(t)` is the cost per token of AI work at the frontier's own capability level, as a
+  fraction of the 2025 baseline. Defaults `floor = 0.001`, `k = 0.50`, `decayExponent = 0.7` —
+  calibrated to the observed inference-price decline record (Stanford AI Index class data);
+  user-adjustable (`aiCostParams.tokenCostCurve`).
+- `M_f(t)` is the frontier token-intensity multiple: how many times more tokens a frontier task
+  consumes than the 2025 single-shot baseline. `level` = 20 at the 2026 anchor — anchored to
+  the observed 2025–26 reasoning-model intensity jump; the supporting citation table is not yet
+  committed, so the value carries uncited status; user-adjustable
+  (`aiCostParams.frontierIntensityLevel`, range 1–100). `growth` = +0.05/yr — a stated
+  judgment, uncited. The arithmetic behind the range: absolute frontier per-task cost climbs
+  only when `growth` exceeds the per-token decline rate (roughly 26%/yr in the early window),
+  so the range top (+0.40) expresses a genuinely runaway-frontier world and the bottom (−0.15)
+  a world where frontier intensity itself compresses; user-adjustable
+  (`aiCostParams.frontierIntensityGrowth`, range −0.15 to +0.40). The single step from 1 to
+  `level` between 2025 and 2026 is the reduced form of the observed reasoning-model arrival.
+- `t*` is the role's arrival year: the first year its Better score crosses its Better
+  threshold. Before arrival the role has no fixed-capability price and its inference leg is the
+  frontier cost — the marginal adoption decision is frontier-priced by construction.
+- `fixed_cap` is the capability level's price at arrival — including its intensity component,
+  since distillation compresses reasoning chains along with per-token price — decaying along
+  the same per-token curve re-anchored at the arrival year. No separate fixed-capability
+  trajectory is introduced.
+- `w(s)` is the fraction of the role's work still frontier-priced at capability surplus `s`.
+  `σ` = 0.15 — the surplus at which frontier reliance halves; an uncited structural dial (the
+  layer's one genuinely new free parameter); user-adjustable (`aiCostParams.sigmaMigration`,
+  range 0.02–1.0). `w_min` = 0 — the always-frontier residue, the fraction of work that never
+  leaves frontier pricing; uncited, off by default; user-adjustable
+  (`aiCostParams.wMinFrontierFloor`, range 0–0.5).
+- `comp_*` is the deployment-type cost composition (inference / manufacturing / energy):
+  software 0.85 / 0.00 / 0.15, hybrid 0.55 / 0.20 / 0.25, autonomous vehicle 0.20 / 0.55 /
+  0.25, robotics 0.15 / 0.60 / 0.25 (`AI_COST_COMPOSITION` in `constants.ts`); per-type
+  override via `aiCostParams.composition`.
+- `mfg_change` = −0.10/yr and `energy_change` = −0.03/yr are the manufacturing and energy
+  exponential declines (uncited defaults; user-adjustable via
+  `aiCostParams.manufacturingAnnualChange` / `energyAnnualChange`).
+- `scm_*` are the supply-chain cost multipliers (1.0 outside supply-chain scenarios; §9.3).
+
+**One assembly.** This object is the model's only inference-cost assembly. Every consumer reads
+it: the Cheaper score's `ai_cost_fraction` (§2.2), the consumer-price deflation channel's
+per-cluster cost index (§5.3), the deployer-savings diagnostic, and the adoption state
+machine's re-hiring comparison (§3.5).
+
+**The emergent aggregate.** The economy-wide tokens-per-task path is an output, never an input:
+`impliedAggregateTokensPerTask` = the employment-weighted mean inference leg divided by
+`per_token(τ)`.
+
+**The cost clock — potential pace and funded realization.** The cost curves above describe
+how fast AI could get cheaper if the efficiency frontier stays fully funded. In reality that
+progress is paid for: revenue and investment fund the research and the capital that produce
+each year's cost decline, and an AI industry whose market has collapsed cannot keep buying
+progress at the same pace. The model carries this as an effective innovation time — the cost
+clock — that advances one year per calendar year while the frontier stock (§9's training-
+capacity state, which the same funding starvation drains) is at its full level, and more
+slowly while it is drained. Every cost leg above evaluates at the clock, not the calendar:
+
+```
+τ(2025) = 0
+τ(t)    = τ(t−1) + S(t)^φ_cost        -- S = the frontier stock (§9); φ_cost = frontierCostElasticity
+t_eff   = τ(t)                        -- replaces t in per_token, M_f, and the mfg/energy legs
+fixed_cap(o,r,t) = frontier_cost(τ(t*)) × per_token(τ(t) − τ(t*))   -- arrival anchored on the clock
+```
+
+On every funded path the stock is exactly 1, the clock advances exactly one year per year,
+and the realized curves are identical to the potential curves — the substitution is exact,
+not approximate. When the market's funding of AI collapses (the starvation gate, §9), the
+clock slows or stalls: costs stop falling at their crash-year level (they never rise through
+this channel), and when funding recovers the declines resume at the potential pace, reaching
+the same cost floor later. The dial `frontierCostElasticity` (default 1.0, range 0–3,
+uncited — no measured funding-to-efficiency elasticity exists) sets how strongly the drained
+stock slows the clock; 0 restores the calendar curves exactly.
+
+Implementation: `computeAiCostFraction`, `computeInferenceLeg`, `computeFrontierIntensity`,
+`computeMigrationWeight`, `computeTokenCostFactor` in `src/models/aiCost.ts` (the clock enters
+as the one `CostClock` argument); the clock itself accumulates in the simulation loop
+(`src/models/simulation.ts`, the flywheel block) and is reported per year as
+`effectiveCostTime`; defaults in `src/models/constants.ts` (`DEFAULT_FRONTIER_INTENSITY_LEVEL`,
+`DEFAULT_FRONTIER_INTENSITY_GROWTH`, `DEFAULT_SIGMA_MIGRATION`, `DEFAULT_W_MIN_FRONTIER_FLOOR`,
+`DEFAULT_TOKEN_COST_CURVE`, `DEFAULT_FRONTIER_COST_ELASTICITY`). Decision record:
+[the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 ---
 
@@ -288,6 +406,76 @@ clusterAugmentationOutput(o, t) = Σ_r remaining(o, r, t) × augAdoptionRate(o, 
 where `remaining(o, r, t) = baseline(o, r) × (1 − displacement(o, r, t))` and `augmentationMultiplier` is the user-adjustable per-worker productivity boost (default `DEFAULT_AUGMENTATION_MULTIPLIER = 2.0`, recalibrated upward from 0.20 in commit `537e4ee`).
 
 A parallel **head-count fraction** `augmentedHeadcountByCluster[o]` ∈ [0,1] is recorded for use in the sector-deflation pipeline (a pure fraction, independent of wage / score amplification).
+
+### 3.5 The Adoption State Machine — Growth, Freeze, Decline, Recovery
+
+**What this is.** Adoption is not a one-way latch. Once triggered, a role's automation grows
+along the adoption curve for as long as its economics hold. When conditions weaken only
+modestly, adoption holds still rather than reversing, because switching back carries real
+one-time costs. It declines in two distinct ways. When the capability itself — or an input it
+depends on — genuinely regresses, the firm has no choice: automation falls at full speed, and
+any staffing gap is realized as lost capacity rather than instant re-hiring — in the 2021–22
+chip shortage, constrained industries cut production; they did not smoothly substitute human
+labor back in. When continuing to run AI merely loses on price to
+re-hiring people from the displaced pool, the reversal is voluntary and proceeds only as fast
+as that pool can actually restaff. After any decline, re-engagement is slow: organizations cut
+quickly and rebuild slowly.
+
+The state machine, evaluated per role each year (this is the only adoption path — no separate
+scenario-gated variant exists):
+
+```
+bar_d = threshold_d × (1 − hysteresis_width)          -- the de-adoption bar, per BFCS dimension d
+
+GROWING                     all four BFCS gates met this year, no prior decline
+                            → rate = the §3.1–3.3 adoption value, unchanged
+FROZEN                      some gate fails, but every score ≥ its bar
+                            → rate holds at the prior year's value
+DECLINING (availability)    Better, Faster, or Safer < its bar
+                            → rate falls by de_adoption_rate per year, unthrottled
+DECLINING (cost)            rehire-basis Cheaper < its bar
+                            → rate falls by de_adoption_rate × fill_capacity per year
+RECOVERING                  gates met again after a decline
+                            → rate rises by at most re_adoption_rate per year
+                              until it catches the growth curve
+```
+
+Where:
+
+- `hysteresis_width` is the switching-cost band, a dimensionless fraction of each threshold. It
+  grows logarithmically with years since trigger:
+  `width = base + (max − base) × ln(1 + years) / ln(1 + cap_years)`. Cognitive deployments
+  (software, hybrid): base 0.05, maximum 0.25, cap_years 6. Embodied deployments (robotics,
+  autonomous vehicle): base 0.10, maximum 0.35, cap_years 5. Uncited structural dials; the
+  maxima are user-adjustable (`supplyChainConfig.hysteresisMaxCognitive` /
+  `hysteresisMaxEmbodied`), and the band is active on every path — the defaults apply when no
+  supply-chain configuration exists.
+- The rehire-basis Cheaper score is the §2.2 Cheaper score recomputed with the human-wage leg
+  replaced by the displaced pool's re-hiring wage (employability- and scarring-weighted, §4.5).
+  The comparison a reversing firm actually faces is "keep paying AI costs, or hire back from
+  the displaced pool" — hence the pool's wage, not the incumbent wage. When the pool is empty
+  the basis degrades to the incumbent wage.
+- `fill_capacity` ∈ [0, 1] = min(1, employable searching pool ÷ the restaffing the decline
+  would require), budgeted across roles within the year so total re-hiring can never exceed
+  the pool. Only the cost-triggered decline is throttled; the availability-forced decline is
+  not, because it implies no restaffing — the gap is capacity loss.
+- `de_adoption_rate` is in adoption-rate points per year: cognitive 0.10/yr, embodied 0.05/yr.
+  Uncited defaults, stated as such; user-adjustable (`deAdoptionRateCognitive`,
+  `deAdoptionRateEmbodied`).
+- `re_adoption_rate` is the recovery cap, expressed as a fraction of the class de-adoption
+  rate: default 0.5, hence 0.05/yr cognitive and 0.025/yr embodied. An uncited structural dial
+  encoding the cut-fast, rebuild-slow asymmetry; user-adjustable (`reAdoptionRate`).
+
+**The no-shock identity.** The growing state returns the §3.1–3.3 value raw — every modifier
+(competitive pressure, revenue pressure, tail asymmetry, per-cluster ceiling) intact, with no
+ratchet — so a run in which no gate ever fails reproduces the plain adoption path exactly.
+
+**Feedback surface.** The cost-triggered reversal closes a loop through the displaced pool
+(re-hiring wages, pool depletion); see FEEDBACK_LOOP_REFERENCE §12.
+
+Implementation: `computeUnifiedAdoptionState` in `src/models/adoption.ts`, invoked per role in
+the year loop (`src/models/simulation.ts`); the band width from `computeHysteresisWidth` in
+`src/models/supplyChain.ts`. Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 ---
 
@@ -449,6 +637,88 @@ Cluster outputs:
 
 **Healthcare — Administration**: Similar to education admin. High displacement target.
 
+### 4.5 The Displaced-Worker Duration Pool and the Two Jobless Measures
+
+**What this is.** Displaced workers are not an undifferentiated stock: time out of work changes
+what happens next. Some of the jobless stop searching and leave the measured labor force.
+Skills and hiring appeal decay with duration, so employers who re-hire reach for the recently
+displaced first. Those who do return earn less than they did before, and the discount deepens
+with time away. The pool also carries each cohort's unemployment-insurance clock, so a
+multi-year benefit promise pays out honestly across years instead of paying every jobless
+person the full annual amount every year. Because some of the jobless are no longer searching,
+the model reports joblessness two ways: a broad rate counting everyone of working age without
+work, and a narrower searcher-only rate consistent with the official headline measure.
+
+**The pool.** The displaced stock (direct plus allocated second-order displacement — the same
+basis as the incidence layer, §11) is held as eleven annual duration cohorts: index
+`d = 0…9` years since displacement, with `d = 10` terminal ("ten or more"). Each cohort carries
+a head count, its average wage at displacement (the vintage), and its remaining
+unemployment-insurance entitlement in weeks. The pool advances once per simulated year, in a
+fixed order:
+
+```
+1. AGE        every cohort shifts one year older; entitlements draw down 52 weeks
+2. EXIT       per-cohort discouragement hazard = exit_base × (1 + exit_slope × d)
+              moves workers from the searching pool to the exited stock (exits do not re-enter)
+3. RECONCILE  the searching pool is matched to the current displaced stock:
+              growth enters cohort 0 at the current displaced average wage with a fresh
+              entitlement; shrinkage (re-hiring) draws the recent cohorts first
+
+Conservation: searching + exited ≡ the displaced stock, every year.
+```
+
+- `exit_base` = 0.05/yr and `exit_slope` = 0.3 per duration-year. Anchor: Current Population
+  Survey (CPS) unemployment-to-nonparticipation flows; the citation table is not yet
+  committed, so the values carry uncited status. User-adjustable (`exitBase`,
+  `exitDurationSlope`).
+- Employability after `d` jobless years = `(1 − atrophy_rate)^d` = 0.90^d at the default
+  `atrophy_rate` = 0.10/yr. Anchor: Kroft–Lange–Notowidigdo callback-rate decay with
+  unemployment duration; uncited pending its table. User-adjustable (`atrophyRate`).
+- Re-entry wage factor = `1 − min(0.25, scarring_rate × d)`, with `scarring_rate` = 0.02/yr
+  and a 25% cap. Anchor: Jacobson–LaLonde–Sullivan and Davis–von Wachter displaced-worker
+  earnings losses (15–25%); uncited pending its table. User-adjustable (`wageScarringRate`).
+
+**What the simulation reads from the pool.** Three quantities sit on the simulation path: the
+fill budget (the employability-weighted searching count — the restaffing throttle on
+cost-triggered de-adoption, §3.5); the re-hiring wage (the employability- and
+scarring-weighted mean vintage wage — the §3.5 rehire-basis Cheaper denominator; an empty pool
+degrades to the incumbent basis); and the duration shares (the entitlement-aware insurance
+pricing below).
+
+**Entitlement draw-down.** A cohort `d` years into joblessness has consumed `52 × d` weeks of
+any entitlement. In a given year, an entitlement of `durationWeeks` pays that cohort
+`min(52, max(0, durationWeeks − 52 × d))` weeks — payable weeks only. A 78-week program pays
+52 weeks in the first jobless year, 26 in the second, none after. The enhanced
+unemployment-insurance charge remains the increment over the current-law statutory benefit
+(45% replacement × 26 weeks), computed with the same payable-weeks formula on both sides, so
+default settings still cost exactly zero. Displaced heads are priced at the pool's own
+prior-wage basis; the frictional (short-spell) unemployed are priced at the economy average as
+cohort 0. New cohorts carry the program's duration weeks when enhanced insurance is active, or
+the current-law 26 weeks otherwise.
+
+**The two jobless measures.**
+
+```
+unemploymentRate   = (labor_force − total_employment) / labor_force
+u3UnemploymentRate = (total_unemployment − exited_stock) / (labor_force − exited_stock)
+```
+
+The headline `unemploymentRate` is **broad-consistent**: it counts all working-age jobless in
+the labor force, including those who have stopped searching. The `u3UnemploymentRate` is
+U-3-consistent (U-3 is the Bureau of Labor Statistics' official headline unemployment measure,
+which counts active searchers only): discouragement exits are removed from both numerator and
+denominator. Broad ≥ U-3 always; the two coincide exactly wherever the exited stock is zero —
+at year 0 and in zero-AI runs. Reported alongside: the exited stock itself
+(`laborForceExitedStock`), the employment-to-population ratio, the long-term jobless share
+(the fraction of the searching pool jobless one year or more), and the mean jobless duration
+in years. The model's internal feedback consumers read the broad measure; the bias this
+creates on the yield path is stated at §7.6.6.
+
+Implementation: the pool engine (`advanceDisplacedPool`, `poolFillBudget`, `poolRehireWage`,
+`poolDurationShares`) in `src/models/uiIncidence.ts`; entitlement-weeks pricing in
+`computeTransferPolicyEffect` in `src/models/policy.ts`; measure assembly in the year loop in
+`src/models/simulation.ts`. Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
+
 ---
 
 ## 5. Macro Feedback Loop
@@ -482,7 +752,7 @@ Phases:
 - `LINEAR_DECLINE`: growth < 0 and |acceleration| ≤ threshold
 - `DECELERATING_DECLINE`: growth < 0 and acceleration > threshold
 - `RECOVERY`: growth ≥ 0 and was previously declining
-- `MONETARY_COLLAPSE`: price level hit safety cap (1e15)
+- `MONETARY_COLLAPSE`: the declared currency-collapse regime. When a configuration drives the price level to the model's cap (10¹⁵ — a hyperinflation far beyond any historical episode), the model does not silently continue: it declares monetary collapse, records the collapse year on the run (`monetaryCollapseYear`), freezes all later years at the final state, and the interface states in plain words that output after that year is not meaningful economics. Fully-indexed transfer programs composed with heavy monetization and no fiscal response can legitimately reach this regime — that is the model reporting that such a policy mix destroys the currency, not a numerical accident.
 
 **Median CWI**: Bottom 80% real purchasing power per capita:
 ```
@@ -588,19 +858,38 @@ In a zero-AI economy: wages compound at inflation + productivity ≈ 4.2% nomina
 
 Asset income is decomposed into four components with dynamic P/E ratios and endogenous capital gains realization:
 
+The sector valuations run inside their citations' domain. Three guards keep them
+there, and each guard reports its engagement on the year's output rather than acting
+silently: profit inputs below zero are floored at the observed edge of the
+positive-earnings calibrations before any valuation arithmetic sees them; each
+sector's price-to-earnings ratio is clamped to the range its own constants cite; and
+in a credit crisis the zero-growth valuation anchor falls with the same crisis risk
+premium the aggregate equity market charges, so a near-zero safe rate cannot price
+sector growth as if capital were free.
+
 ```
 -- Component 1: Dividends
 after_tax_corporate_profits(t) = corporate_profits(t-1) × (1 - corporate_tax_rate)
 dividend_income(t) = after_tax_corporate_profits(t) × (1 - corporate_retention_rate)
 
--- Component 2: AI Capital Gains (dynamic P/E)
-ai_profit_growth_rate = (ai_profits(t-1) - ai_profits(t-2)) / ai_profits(t-1)
-ai_sector_PE = max(MIN_PE, BASE_PE_ZERO_GROWTH + ai_PE_sensitivity × ai_profit_growth_rate)
-ai_market_cap_change = (ai_profits(t-1) - ai_profits(t-2)) × ai_sector_PE
+-- The valuation earnings floor (scoped to losses; reported via sectorEarningsFloorEngaged):
+p_v = p if p > 0 else EQUITY_VALUATION_EARNINGS_FLOOR       (each profit input, per sector)
+
+-- The sector discount anchor (one discount-rate producer with the aggregate market;
+-- reported through the equity state's crisis component):
+sector_zero_growth_PE = BASE_PE_ZERO_GROWTH / (1 + BASE_PE_ZERO_GROWTH × erp_crisis_component)
+
+-- Component 2: AI Capital Gains (dynamic P/E, clamped to the cited range;
+-- clamp engagement reported via sectorPEClampEngaged)
+ai_profit_growth_rate = (ai_profits_v(t-1) - ai_profits_v(t-2)) / ai_profits_v(t-1)
+ai_sector_PE = min(MAX_AI_SECTOR_PE,
+                   max(MIN_PE, sector_zero_growth_PE + ai_PE_sensitivity × ai_profit_growth_rate))
+ai_market_cap_change = (ai_profits_v(t-1) - ai_profits_v(t-2)) × ai_sector_PE
 ai_capital_gains = max(0, ai_market_cap_change × realization_rate)
 
--- Component 3: Traditional Capital Gains (same structure, different PE sensitivity)
-trad_sector_PE = max(MIN_PE, BASE_PE_ZERO_GROWTH + trad_PE_sensitivity × trad_profit_growth_rate)
+-- Component 3: Traditional Capital Gains (same structure, different PE sensitivity and ceiling)
+trad_sector_PE = min(MAX_TRADITIONAL_SECTOR_PE,
+                     max(MIN_PE, sector_zero_growth_PE + trad_PE_sensitivity × trad_profit_growth_rate))
 trad_capital_gains = max(0, trad_market_cap_change × realization_rate)
 
 -- Component 4: Non-Corporate Asset Income — tracks WAGES, not productivity (proprietor income moves with labor earnings by design).
@@ -610,8 +899,9 @@ trad_capital_gains = max(0, trad_market_cap_change × realization_rate)
 non_corporate_asset_income = BASELINE_GDP_NOMINAL_2025 × NON_CORPORATE_ASSET_SHARE
                              × wage_index × employment_factor
 
--- Endogenous Realization Rate
-blended_market_performance = ai_weight × ai_growth_rate + (1 - ai_weight) × trad_growth_rate
+-- Endogenous Realization Rate (the blend basis is the equity module's market return,
+-- clamped to ±50% — the profit-growth-proxy arm was retired as structurally dead)
+blended_market_performance = clamp(market_return, -0.5, +0.5)
 realization_rate = clamp(BASE_REALIZATION_RATE × (1 + REALIZATION_SENSITIVITY × blended_market_performance),
                          MIN_REALIZATION_RATE, MAX_REALIZATION_RATE)
 
@@ -621,10 +911,12 @@ aggregate_asset_income(t) = dividends + ai_capital_gains + trad_capital_gains
 ```
 
 Constants (from `constants.ts`):
-- `BASE_PE_ZERO_GROWTH` = 10 (perpetuity valuation at zero growth)
+- `BASE_PE_ZERO_GROWTH` = 10 (perpetuity valuation at zero growth — its citation embeds the calm ~10% discount rate the sector discount anchor deviates from)
 - `MIN_PE` = 5 (distress floor)
 - `DEFAULT_AI_PE_SENSITIVITY` = 100 (P/E points per 100% earnings growth)
 - `DEFAULT_TRADITIONAL_PE_SENSITIVITY` = 60
+- `MAX_AI_SECTOR_PE` = 60, `MAX_TRADITIONAL_SECTOR_PE` = 25 (each derived from its sensitivity constant's own cited extreme at its cited calibration growth point; not user-adjustable — validity rails)
+- `EQUITY_VALUATION_EARNINGS_FLOOR` = 8% of baseline corporate profits (the Great Recession as-reported trailing-earnings trough ratio, Standard & Poor's / Shiller data; not user-adjustable — a validity rail scoped to negative inputs)
 - `BASE_REALIZATION_RATE` = 0.07 (IRS 20-year average)
 - `REALIZATION_SENSITIVITY` = 1.0
 - `MIN_REALIZATION_RATE` = 0.04, `MAX_REALIZATION_RATE` = 0.12
@@ -730,23 +1022,23 @@ AI does not reduce all prices equally. Prices fall **sector by sector** as AI au
 
 #### 5.3.1 Sector Deflation
 
-Each occupation cluster maps to a sector of the consumer economy. The cluster's automation level directly reduces prices in its sector:
+Each occupation cluster maps to a sector of the consumer economy. Automation reduces prices in its sector, and the cost saving that drives the reduction is the same realized AI cost the deploying firm actually pays: the channel consumes the per-cluster realized-cost index produced by the AI-cost assembly (§2.5) rather than assembling a cost curve of its own, so under a supply shock the deployer's cost and the consumer-price channel move together.
+
+**The pass-through law.** Price flows derive from CHANGES in their causes, never their levels. The quantity below is a savings LEVEL — how much cheaper the sector's automated production is than the human production it replaced, weighted by how much of the sector is automated. The deflation the price system receives each year is that level's first difference: prices fall when automation coverage grows or realized AI costs genuinely fall, stop falling when both stand still, and rise when automation unwinds (re-hired human production re-prices its goods). A standing cost advantage, once passed into prices, is passed. The level itself is carried as model state and reported per year.
 
 ```
--- The floored decay curve (constants.ts — DEFAULT_INFERENCE_COST_CURVE):
-cost_ratio(t)         = floor + (1 − floor) × exp(−k × (t − t_start)^decayExponent)
-inference_cost_savings(t) = 1 − cost_ratio(t)
-sector_deflation(o, t)    = cluster_automation_coverage(o, t) × deflation_intensity(o) × inference_cost_savings(t)
+ai_cost_index(o, t)     = Σ_r employment(o, r) × ai_cost_fraction(o, r, t) / Σ_r employment(o, r)   -- §2.5
+cost_savings(o, t)      = 1 − ai_cost_index(o, t)
+savings_level(o, t)     = cluster_automation_coverage(o, t) × deflation_intensity(o) × cost_savings(o, t)
+sector_deflation(o, t)  = savings_level(o, t) − savings_level(o, t−1)        -- signed; the year-0 seam is 0
 ```
 
 Where:
+- `ai_cost_index(o, t)` = the cluster's realized AI cost index: the employment-weighted mean over the cluster's roles `r` of the per-role realized-cost object `ai_cost_fraction(o, r, t)` (§2.5) — the model's one inference-cost assembly, the same object the Cheaper score prices from, including any supply-chain cost multipliers. Dimensionless, anchored at 1.0 in 2025; its inference leg is arrival-anchored per role, so a cluster's costs fall on its own capability clock, not a global schedule.
 - `cluster_automation_coverage(o, t)` = weighted adoption rate across all roles in cluster `o` (0 = no automation, 1 = fully automated)
-- `deflation_intensity(o)` = how much automation in this sector reduces consumer prices (default: sector-specific, see table below)
-- `floor = 0.001` — minimum residual cost ratio. Prevents implausible cost collapse (the pre-Phase-10.A unfloored exponential drove inference cost to ≈77,000× cheaper by 2050).
-- `k = 0.50`, `decayExponent = 0.7` — calibrated decay shape (sub-linear in exponent for slower late-stage gains, consistent with empirical Stanford AI Index inference-cost data).
-- `inference_cost_savings(t)` ∈ [0, 1 − floor] — asymptotes at `1 − floor = 0.999` rather than 1.0.
+- `deflation_intensity(o)` = how much automation in this sector reduces consumer prices (default: sector-specific, see table below). `deflation_intensity` caps the maximum price reduction — prices can't fall below the non-AI input costs (materials, energy, real estate).
 
-> **NOTE**: The floored curve replaces the unbounded `1 - exp(-rate × t)` form. The old `DEFAULT_INFERENCE_ANNUAL_CHANGE` constant is marked DEPRECATED in `constants.ts:1960–1961`. `InferenceCostCurveParams` is now user-adjustable via `AICostParams.inferenceCostCurve` (`types/index.ts:245–248`). `deflation_intensity` still caps the maximum price reduction — prices can't fall below the non-AI input costs (materials, energy, real estate).
+Implementation: `computeSectorWeightedDeflation` in `src/models/macro.ts`, consuming the per-cluster index assembled in the year loop (`src/models/simulation.ts`) from `computeAiCostFraction` in `src/models/aiCost.ts`.
 
 When multiple clusters share a sector prefix (e.g., `tech_swe` and `tech_data_ml` both map to "tech"), the sector's CPI weight is split evenly among those clusters:
 ```
@@ -791,7 +1083,11 @@ goods_inflation(t) = base_inflation_rate
                    + transfer_inflation(t-1)           -- one-year lag from monetary module
                    + demand_effects(t)                 -- demand-pull (TODO: not yet computed)
                    + min_wage_cost_push(t)             -- per-cluster wage overshoot × pass-through
-                   + credit_deflation(t)               -- consumer credit tightening → less borrowing
+                   + credit_deflation(t)               -- the banded impulse form: below the measured
+                                                       -- noise floor the small level drag applies; above
+                                                       -- it only CHANGES in tightening emit, through a
+                                                       -- persistence kernel (κ), symmetric on easing
+                                                       -- (docs/Reference/GR_CREDIT_IMPULSE_DERIVATION.md)
                    + scarcity_inflation(t)             -- labor scarcity where AI can't fill gaps
 
 -- STOCK-FLOW HOUSING — shelter CPI = structural rent growth (the earlier additive stack is RETIRED).
@@ -986,7 +1282,30 @@ AI boosts GDP through TWO mechanisms (neither involves raising wages):
 
 1. **Output per worker increases**: Remaining workers augmented by AI produce more. This is captured implicitly — as sectors automate, they produce the same (or more) output with fewer workers, which shows up as lower prices (Section 5.3) and higher profits (Section 5.2.3).
 
-2. **AI production expansion**: Displaced-worker-equivalent output by AI, split into investment, net exports, and consumer goods potential. The consumer goods potential is absorbed by the economy based on demand health.
+2. **AI production expansion**: Displaced-worker-equivalent output by AI, split into
+investment, net exports, and consumer goods potential. Production is valued at the wage the
+displaced work carried when displaced — per role, the displaced headcount times the start-year
+role wage — never at the cascade-depressed average of the workers who remain. Valuing at the
+depressed remaining average would conflate price and quantity: as wage cascades deepened,
+measured AI production would shrink at constant real output, and a fully automated occupation
+would contribute zero production. On the vintage basis, full automation of an occupation
+yields its full vintage-valued output. The consumer goods potential is absorbed by the
+economy based on demand health against the zero-AI counterfactual (Section 5.8a).
+
+**The two published AI-share metrics.** The model publishes two deliberately distinct
+measures, and no single "AI share of GDP" number:
+- *Realized AI share of GDP* — the AI dollars that actually entered GDP this year (the
+  investment leg after realization, credit, capacity, and borrowing-rate gates; the
+  net-export leg after realization; consumer goods only to the extent directly added to
+  consumption, which is zero under the current architecture), divided by nominal GDP.
+  Numerator and denominator are the same year's nominal dollars, and the numerator never
+  exceeds its own GDP entries.
+- *AI output potential* — the total production expansion (real 2025 dollars, vintage-valued)
+  divided by real GDP. This measures the scale of what AI produces, not what demand and
+  investment gates let into GDP; it is the honest name for what the retired single headline
+  actually measured.
+Implementation: `computeMacro` (macro.ts), the split-metrics block; production valuation in
+`computeAIProductionExpansion` (simulation.ts).
 
 AI does NOT meaningfully raise wages. Historical evidence since the 1970s: productivity has roughly doubled while median real wages are flat. Productivity gains accrue to capital owners. The model reflects this by growing asset income (not wages) with automation.
 
@@ -1025,7 +1344,7 @@ Phase classification is now continuous (from CWI growth rate + acceleration), no
 3. **LINEAR_DECLINE** — CWI falling, roughly constant rate
 4. **DECELERATING_DECLINE** — CWI falling, decline slowing
 5. **RECOVERY** — CWI growing after prior decline
-6. **MONETARY_COLLAPSE** — price level hit safety cap
+6. **MONETARY_COLLAPSE** — the declared currency-collapse regime (the collapse year is recorded, later years freeze, and the interface says so; see the cycle-phase definitions above)
 
 ### 5.6 Displacement-Demand Feedback
 
@@ -1088,13 +1407,25 @@ potential_GDP = gdp_real + ai_consumer_goods_potential
 capacity_utilization = min(1.0, gdp_real / potential_GDP)
 ```
 
-The demand health ratio determines how much AI consumer goods potential is absorbed:
+The demand health ratio determines how much AI consumer goods potential is absorbed. It
+benchmarks real consumption against the consumption path the SAME year would have taken with
+no AI: the engine re-runs itself once per simulation with all three capability trajectories
+set to zero (the zero-AI counterfactual twin — identical policies, events, and overrides)
+and reads the twin's real consumption year by year. A gap below the twin's path means AI-era
+demand destruction is leaving AI consumer goods unsold:
 ```
 real_consumption = consumption / price_level
-demand_health_ratio = min(1.0, real_consumption / BASELINE_CONSUMPTION_2025)
+counterfactual_consumption(t) = the zero-AI twin's real consumption in year t
+demand_health_ratio = min(1.0, real_consumption / counterfactual_consumption)
 ai_goods_absorbed = ai_supply_capacity × demand_health_ratio
 unrealized_AI_output = ai_supply_capacity - ai_goods_absorbed
 ```
+A frozen base-year benchmark cannot serve here: real consumption exceeds any fixed 2025
+level on every plausible path by the time AI production exists, which would pin the ratio at
+its ceiling permanently. A derived growth-trend proxy was measured against the true zero-AI
+run and rejected (worst-year deviation 8.04%, above the 5% acceptance bound), so the model
+takes the second full run. Zero-capability configurations are their own counterfactual and
+skip the twin.
 
 #### 5.8b Demand Feedback
 
@@ -1550,6 +1881,18 @@ These feed into macro.ts:
 
 Source: Fed H.15 Selected Interest Rates; Gilchrist & Zakrajsek (2012).
 
+#### 7.6.6 The Measurement-Basis Caveat on the Yield Path
+
+The bond market's expected-policy-rate projection (§7.6.3) reads the model's headline
+unemployment rate, which is the broad measure — all working-age jobless, including those who
+have stopped searching (§4.5). The real institution being mimicked reads U-3, the searcher-only
+measure. Broad exceeds U-3 wherever discouragement exits have accumulated, so in
+deep-displacement scenarios the projected employment gap is overstated, the expected
+policy-rate path runs too low, and the ten-year yield is understated. Every conclusion
+downstream of the yield — interest expense, debt service, fiscal-risk dynamics — is therefore
+flattered: the bias direction is favorable to debt. The gap is zero at the start year, in
+zero-AI runs, and wherever the exited stock is zero; it grows with scenario depth.
+
 ### 7.7 Equity Market
 
 #### 7.7.1 Growth Momentum
@@ -1566,12 +1909,31 @@ When S-curves are at their steepest: momentum ≈ 1. When S-curves flatten: mome
 
 #### 7.7.2 Gordon Growth Valuation
 
+The equity risk premium is state-dependent. Investors demand a higher return from
+stocks in a credit crisis: the implied-premium series the model cites rose about two
+percentage points across the Great Recession while safe rates collapsed. The model
+reproduces that behavior by adding a crisis component to the calm-period premium,
+driven by consumer credit tightening above its measured noise floor — below the
+floor the premium is exactly the calm value, which keeps the zero-AI reference path
+unchanged.
+
+The Gordon growth form is valid only while the discount rate exceeds expected
+growth. When crisis dynamics push the spread below a cited minimum, the form
+declares itself out of its domain and the valuation caps at the highest valuation
+its price-to-earnings sources ever recorded; the engagement is reported on the
+year's output, never silent. A numerical constant is never the live denominator —
+numerical guards protect arithmetic and never supply economics.
+
 ```
-equityDiscountRate = tenYearYield + EQUITY_RISK_PREMIUM    (0.045, Damodaran)
+erpCrisisComponent = erpCrisisSensitivity × max(0, consumerCreditTightening(t-1) - creditDeflationNoiseFloor)
+equityRiskPremium  = EQUITY_RISK_PREMIUM + erpCrisisComponent   (0.045 calm, Damodaran; the
+                                                                 crisis step is the same series'
+                                                                 2008-09 behavior, sensitivity 0.046)
+equityDiscountRate = tenYearYield + equityRiskPremium
 expectedGrowth = 2-year average of actual corporate profit growth rates
 
--- Singularity guard: prevent IEEE 754 division by zero
-denominator = max(1e-6, equityDiscountRate - expectedGrowth)
+-- The validity-domain guard (reported via gordonDomainGuardEngaged):
+denominator = max(GORDON_MIN_SPREAD, equityDiscountRate - expectedGrowth)
 basePE = (1 + expectedGrowth) / denominator
 
 -- AI P/E premium (rational by default):
@@ -1585,8 +1947,16 @@ marketReturn = (marketCap(t) - marketCap(t-1)) / marketCap(t-1)
 Where:
 - `aiPEMultiplier` = 1.0 default (rational pricing, no AI premium regardless of momentum)
 - User-adjustable 0.5–3.0: values > 1.0 model AI hype/bubble dynamics
+- `erpCrisisSensitivity` = 0.046 default, user-adjustable 0–0.15: derived from the implied
+  equity risk premium series' own crisis step (4.37% in January 2008 to 6.43% in January
+  2009) over the banded Great-Recession tightening signal; one episode is one anchor
+- `GORDON_MIN_SPREAD` = 0.024, not user-adjustable (a validity rail): the module's cited
+  price-to-earnings record (the cyclically adjusted ratio's 44.2× peak, December 1999)
+  Gordon-inverted at trend nominal growth
 
-Source: Gordon (1962) "The Investment, Financing, and Valuation of the Corporation"; Damodaran (2024) implied ERP.
+Source: Gordon & Shapiro (1956); Gordon (1962) "The Investment, Financing, and Valuation
+of the Corporation"; Damodaran implied equity risk premium series; Shiller cyclically
+adjusted price-to-earnings data.
 
 ### 7.9 Inflation Expectations, the Fed's Measure, and the Fiscal Premium
 
@@ -1646,6 +2016,13 @@ Where:
 - `sovereign_fund_dividend = fund_size(t) × distribution_rate / N` (fund grows: size × return + contribution - distribution)
 - `equity_stake_income = ownership_fraction × total_ai_company_profits(t)`
 - User controls: ownership fraction, projected profit levels, annual contribution
+
+The fund has a creation year. The fund seeds its initial size at that year and is
+inert before it: no returns are earned, no dividends are paid, no contributions are
+consumed, and the fund cannot hold equity stakes. By default the creation year equals
+the simulation start year (2025), so a fund enabled at defaults exists from the first
+simulated year. The creation year is user-adjustable (`policyConfig.sovereignWealthFund.startYear`,
+range 2025–2045; implementation: `policy.ts:computeAssetPolicyEffect`).
 
 **Transfer Channel**: UBI, expanded unemployment insurance, retraining stipends
 ```
@@ -1757,20 +2134,138 @@ renders it as a labeled illustration; its flows are not simulation output.
 
 ### 9.3 Supply Chain Multipliers (Phase 9)
 
-> **Dormant by default:** no `supplyChainConfig` is set in the default configuration, so every
-> consumer of this module is gated off — it contributes exactly zero to baseline runs. It is
-> scenario-only machinery, and most of its ~20 default magnitudes are uncited. Any analysis
-> built on it should first validate the module against the 2021–22 chip-shortage record. See
-> USER_PARAMETERS for the user-facing dial note; decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
+> **Dormant by default — with one always-on export:** no `supplyChainConfig` is set in the
+> default configuration, so the supply-chain shock machinery is gated off — it contributes
+> exactly zero to baseline runs, and most of its ~20 default magnitudes are uncited. One piece
+> runs on every path regardless: the hysteresis-band width (`computeHysteresisWidth`), which
+> sets the adoption state machine's freeze band (§3.5), takes its maxima from
+> `supplyChainConfig` when one exists and from the default maxima otherwise — the
+> switching-cost band exists in every run. Validation against the 2021–22 semiconductor
+> record is partially in place: the episode tables are committed
+> (`src/data/episodes/chipShortage2021.ts`) and the pass-through autopilot is anchored to that
+> episode; what remains open is the registered data-program refresh of the module's other
+> magnitudes. See USER_PARAMETERS for the user-facing dial note; decision record:
+> [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
 The Phase 9 Supply Chain Uncertainty model (commit `8315d88`, `src/models/supplyChain.ts`) introduces a **non-demand** multiplier path: chip / energy / datacenter constraints delay AI capability trajectories and pass costs through to BFCS, throttling the adoption side of the displacement cascade rather than the demand side.
 
-**Training-channel effect — capability delay**:
+**The timed-shock surface — per-year parameter resolution.** A supply shock is something that
+happens *at a time*: it hits in some year, and it recovers (or does not) in some later year.
+Every supply-chain year-parameter row — the supply inputs (`aiChips`, `chipPrice`,
+`energyPrice`, `energyCapacity`, `trainingDCCapacity`, `inferenceDCCapacity`,
+`roboticsHardware`, `softwareEfficiency`), the five resilience series, the training-dynamics
+rates, `regulatoryFriction`, both pass-through rates, and `costVsProcurementBlend` — resolves
+per year through three layers:
+
 ```
-cumulativeCapabilityDelay(t) = applyPropagationLags(supplyChainShockHistory)
-S_v(t) = trajectory_v(t − cumulativeCapabilityDelay)        -- effective capability S-curve lag
+effective(row, year) = user override at or before `year` (sticky-forward), if any
+                     else the autopilot trajectory, where one exists
+                     else the baseline (the configuration value)
 ```
-Shocks (e.g., chip shortages) accumulate into a backlog with hysteresis (`hysteresisWidth`) so capacity additions don't unwind delays instantaneously. The `cascadeBacklog` term captures supplier-level propagation lag — bottlenecks in node-N flow downstream into N+1.
+
+Overrides are sticky-forward: a value keyed at a year holds for every later year until another
+key. **Recovery is explicit**: a drop-then-recover episode is two override keys — one at the
+drop year, one at the recovery year — and no shock recovers on its own. The recorded parameter
+timeline and the executed values are the same resolved series by construction. Autopilot
+trajectories exist for the resilience series (the onshoring-accelerated improvement ramp) and
+for the lab-to-deployer pass-through (below).
+
+**Chip price is distinct from chip quantity.** `chipPrice` multiplies the compute-cost leg
+directly (`chipPrice / 100`); the `aiChips` quantity acts through the scarcity constraint
+`max(0, 1 − aiChips/100) × (1 − resilience)` and the score-sensitivity matrices, whose
+`chipPrice` row is all zeros so the two channels never double-count. The separation encodes
+the 2021–22 semiconductor episode's price/quantity divergence: producer price indices stayed
+roughly flat while spot hardware prices ran 2–3× and quantities were rationed by allocation
+(cited tables: `src/data/episodes/chipShortage2021.ts`).
+
+**Cost incidence phases in with the propagation lags.** The deployment cost multipliers read
+the lag-adjusted inputs (each input's Cheaper-dimension lag from the propagation-lag matrix),
+not the instantaneous shock — a shock's cost incidence arrives on the same clock as its
+capability effects.
+
+**The pass-through autopilot.** The configured lab-to-deployer pass-through
+(`costPassThroughRate`) defaults to zero, keeping the dormant module a no-op. When a
+supply-chain scenario is active, the autopilot layer is the constant 0.5: the 2021–22 episode
+shows deployer-side cost incidence from the shock's onset — spot hardware premia of 2–3× paid
+immediately by buyers — not a multi-year ramp, and 0.5 is the mechanism-consistent point
+within that record (cited tables: `src/data/episodes/chipShortage2021.ts`). The separate
+deployer-to-consumer pass-through (`consumerPassThroughRate`, default 0.50, uncited) governs
+how much of the deployer's cost reaches consumer prices; its interaction with adoption is
+non-monotone (FEEDBACK_LOOP_REFERENCE §12).
+
+Implementation: `resolveParameter` in `src/models/parameterResolution.ts`; the per-year
+supply-chain resolution block in the year loop (`src/models/simulation.ts`);
+`interpolatePassThrough`, `applyPropagationLags`, `computeDeploymentCostMultipliers` in
+`src/models/supplyChain.ts`. Decision record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
+
+**Training-channel effect — the frontier stock.** Compute and research capacity are
+cumulative: a year of starved training is a year of capacity not built while the demand
+frontier kept moving, and restarting requires rebuilding fabs, clusters, and pipelines at
+construction speed. Capacity is also funded: the same year of building requires revenue
+and investment to pay for it, and an AI industry whose market has collapsed cannot build
+at the planned pace any more than one that cannot get chips. The model carries both as
+one state variable — the frontier stock, the AI ecosystem's accumulated training capacity
+relative to where its own default path would have put it. Supply famines and funding
+collapses drain the stock (compounding with duration, because the default path grows
+exponentially), recovery rebuilds it at a fab-construction timescale, and the capability
+clock runs at the stock's speed. A shocked world therefore exits a crisis into a slower
+trend that accelerates back as the stock rebuilds, reaching the same ceiling later. On a
+funded, unshocked path the stock sits exactly at 1 and every term below is exactly inert.
+The stock runs on every path, whether or not supply-chain scenarios are composed.
+
+```
+u_supply(t)      = clamp(1 − annualDelay(t), 0, 1)     -- the year's training throughput
+                   (1 when no supply-chain scenario is composed)
+annualDelay(t)   = trainingConstraint(t) / softwareOffset(t)
+                   -- the lagged, delivered-resilience-damped, composition-weighted
+                   -- constraint chain (applyPropagationLags → computeCapabilityDelay)
+F(t)             = min(investmentRealization(t−1), aiCapacityUtilization(t−1))
+                   -- the funding gate: how much AI investment the market funds and how
+                   -- much AI output it absorbs (both §5.4 outputs; both 1 before AI
+                   -- has revenue)
+u_demand(t)      = 1               if F(t) ≥ θ         -- the dead zone (fully funded)
+                 = F(t) / θ        if F(t) < θ         -- linear starvation ramp
+u(t)             = min(u_supply(t), u_demand(t))       -- the scarcer constraint binds
+frontierStock(t) = frontierStock(t−1) × max(0, 1 − (1−u(t)) · κ_G · drainScale)
+                   + (1 / rebuildYears) × max(0, u(t) − drained)
+κ_G              = (G − 1) / G                         -- G = trainingScaleGrowthRate
+rate(t)          = frontierStock(t) ^ rateElasticity
+cumulativeCapabilityDelay(t) = cumulativeCapabilityDelay(t−1) + (1 − rate(t))
+S_v(t)           = trajectory_v(t − cumulativeCapabilityDelay(t))
+τ(t)             = τ(t−1) + frontierStock(t) ^ costElasticity   -- the cost clock (§2.5)
+```
+
+The drain elasticity κ_G is derived, not tuned: on the default path capacity multiplies
+by G each year (tracking the training-compute demand growth the `trainingScaleGrowthRate`
+dial states, source: Epoch AI); a year at throughput u builds only the fraction u of the
+planned increment — whether the missing factor is chips or dollars — so the relative
+stock multiplies by (1 + u·(G−1))/G. The `frontierDrainScale` dial (default 1.0) scales
+that derived elasticity; `frontierRebuildYears` (default 4.0; leading-edge fab
+construction runs three to five years — TSMC Arizona was announced in 2020 and reached
+volume production in late 2024) sets the rebuild speed; `frontierRateElasticity`
+(default 1.0, uncited) maps stock to clock speed. The starvation threshold θ
+(`flywheelStarvationThreshold`, default 0.5, uncited placement) sets how starved the
+market must be before the flywheel stalls; its range is capped at 0.75 because the
+measured funding minimum across the model's reference paths is 0.776 — every in-range
+value leaves ordinary economies untouched. All are user-adjustable. Because the stock
+never exceeds 1, the delay is monotone — the clock never runs backward — and because
+the rate returns to 1 as the stock rebuilds, every finite famine reconverges to the
+same user-set ceiling.
+
+Two further couplings: the innovation channel consumes the stock — new-job creation
+(§6.1) is multiplied by `frontierStock ^ frontierInnovationElasticity` (default 0.5:
+innovation is treated as partially compute-independent; 0 decouples it, 1 makes it fully
+compute-bound; uncited) — and the training channel's resilience damping consumes
+DELIVERED resilience: the resolved resilience series `resilienceOnsetYears` back
+(default 4.0: the CHIPS and Science Act was signed in August 2022 and the first
+CHIPS-era leading-edge fab reached volume production in late 2024, an act-to-capacity
+dead time of roughly three to five years). New reactive capacity cannot insure a
+shortage the year it starts; the displayed resilience rows keep the as-built series.
+
+Shocks (e.g., chip shortages) also accumulate into a backlog with hysteresis
+(`hysteresisWidth`) so capacity additions don't unwind adoption instantaneously. The
+`cascadeBacklog` term captures supplier-level propagation lag — bottlenecks in node-N
+flow downstream into N+1.
 
 **Deployment-channel effect — cost pass-through to BFCS**:
 ```
@@ -1783,9 +2278,9 @@ Hardware cost pass-through similarly compresses Cheaper-score during shortages. 
 
 **Adoption drag**:
 ```
-computeHysteresisWidth(supply_state) → drag → computeStatefulAdoptionRate(...)
+computeAdoptionDrag(supply_state) → drag multiplier → adoption-curve steepness × drag
 ```
-Adoption itself has memory under supply uncertainty — firms postpone commitments when shock variance is high.
+Adoption itself has memory under supply uncertainty — firms postpone commitments when shock variance is high. The drag multiplier folds into the steepness of the growth curve that the adoption state machine wraps (§3.5; `computeUnifiedAdoptionState` in `src/models/adoption.ts` — the one adoption path on every run); without a supply-chain scenario the multiplier is exactly 1.
 
 **Output fields** (per year):
 - `supplyChainState`: `effectiveComputeDecline`, `cascadeBacklog`, `hysteresisWidth`, current shock decomposition
@@ -1818,7 +2313,7 @@ for t in range(t_start, t_end + 1):
        b. Compute BFCS scores for all roles
        c. Check adoption triggers (with payroll tax → Cheaper modulation)
        d. Compute adoption rates (with competitive + revenue + credit + min wage acceleration)
-       e. Compute quadratic displacement: adoption × weighted_capability²
+       e. Compute displacement: adoption × weighted_capability × α (the automation-share decomposition, §4.1)
     3. Aggregate to total employment, average wages (AI-only, no demand adjustment yet)
     4. Compute automation coverage (employment-weighted)
     5. Per-cluster demand spillover (using previous year's C, G, I)
@@ -1854,7 +2349,7 @@ for t in range(t_start, t_end + 1):
 Every timestep produces:
 - Employment by cluster and role (absolute numbers + % change)
 - Average wages by cluster and role (with Phillips curve + wage elasticity adjustment)
-- Unemployment rate (U3 equivalent, CPS-consistent)
+- Unemployment rate (broad-consistent: counts all working-age jobless in the labor force, including discouraged workers who have left the measured labor force), plus the separate `u3UnemploymentRate` output (U-3-consistent: active searchers only — §4.5)
 - CWI (per-capita real disposable purchasing power) + Median CWI (bottom 80%)
 - GDP (nominal and real, where real = nominal / price_level)
 - Price level (composite: shelter × 36% + goods × 64%), inflation/deflation rate
@@ -1902,15 +2397,33 @@ four-quarter lead of new-tenant rents over the stock average); the marginal (new
 measure is displayed alongside so the wedge between the two concepts is visible.
 
 **The five income measures.** CWI_q = income_q / (population_q × index_q). The income side
-routes each source by its distribution: wages and asset income by the CBO quintile source
-shares (consistent with the model's bottom-80 constants); baseline transfers by the CBO
+routes each source by its distribution: asset income by the CBO quintile source shares
+(consistent with the model's bottom-80 constants); baseline transfers by the CBO
 transfer shares; UBI-class cash (universal payments and the incremental-unemployment
 stabilizers) FLAT per capita — routing universal payments through the transfer-heavy
 baseline shares would hand the lowest fifth roughly twice its actual dollars; **the
 wage-proportional enhanced-UI increment by the DISPLACED WAGE-MASS shares and flat per-head
 displaced support by the displaced HEADCOUNT shares** — both from the displaced-worker
 incidence object, which builds the displaced pool's quintile distribution from the
-simulation's own cluster-by-role outputs. Displacement skews UP the wage distribution
+simulation's own cluster-by-role outputs.
+
+**The wage leg's shares are incidence-dynamic.** A fixed wage distribution cannot show
+displacement concentrating in particular income fifths: it changes the aggregate wage pool
+but never re-shapes who holds it, which overstates the hardest-hit fifths' late-period
+welfare. Each year's wage shares are therefore DERIVED: the baseline CBO wage shares
+(Congressional Budget Office, "The Distribution of Household Income", 2021 data), each
+multiplied by the fraction of that fifth's baseline wage mass that survives displacement,
+then renormalized to sum to one. The baseline vector is consistent with the model's
+bottom-80 constants, like the asset and transfer shares above. The survival fractions come from the same displaced-worker
+incidence object as the transfer routing: per worker wage quintile, one minus displaced
+wage mass over baseline wage mass, both at year-zero wage vintage, floored at zero. With no
+displacement the shares ARE the CBO baseline verbatim — year zero in every scenario, and
+every year of a zero-AI run, reproduce the static baseline exactly. Stated approximation
+bound: household income quintiles and worker wage quintiles are aligned one-to-one.
+Households mix earners from different wage quintiles, and the model does not resolve
+household composition, so the alignment concentrates displacement losses in the fifth where
+the displaced wages sit — an upper bound on the re-shaping, stated wherever the derived
+shares are used. Displacement skews UP the wage distribution
 (high-wage cognitive roles displace hardest), so unemployment-insurance dollars flow
 disproportionately to the upper-middle quintiles; the model also PRICES those dollars at
 the displaced pool's own prior wage (`PolicyEffects.uiPricingWage`). The insurance routing
@@ -1937,22 +2450,33 @@ The model states its own edges. Each entry below is a deliberate boundary or a d
 behavior, not an error; where a magnitude is uncited, that status is stated. Decision
 record: [the audit summary](../FABLE_AUDIT_SUMMARY.md).
 
-**Labor force participation is constant (the no-exit bound).** Nobody exits the labor force:
-a displaced worker stays counted as jobless indefinitely. The model's unemployment rate is
-therefore TOTAL JOBLESSNESS — an upper bound on the official U-3 rate, which counts only
-active searchers. Compare model unemployment to employment-to-population statistics, not to
-U-3 (the joblessness display carries this caveat). Institutions the model represents that
-key off U-3 in reality (the monetary reaction function; unemployment-insurance eligibility)
-read the broader measure here: the modeled Federal Reserve sees a larger employment gap
-(bounded in deep scenarios by the zero lower bound), and insurance transfers pay the whole
-jobless pool (an overstatement relative to real recipiency, consistent with the model's own
-unemployment semantics).
+**Labor-force exit is one-way, and participation is otherwise fixed.** Displaced workers can
+become discouraged and leave the measured labor force: the displaced-worker pool applies a
+duration-dependent exit hazard that moves long-jobless workers into an exited stock (§4.5),
+and the model reports joblessness two ways — the headline unemployment rate is
+broad-consistent (it counts the exited stock among the jobless), while the separate
+`u3UnemploymentRate` output removes exits from both numerator and denominator, matching the
+official U-3 searcher-only concept. The residual boundary is narrower: (a) the exited stock
+never re-enters the labor force — re-entry is a registered extension, not a modeled flow; and
+(b) outside that exit channel and the universal-basic-income voluntary-withdrawal channel
+(transfer income replacing a high fraction of a cluster's wage withdraws workers from
+effective labor supply; `participationElasticity`), participation is fixed — the labor force
+follows its exogenous demographic path. When comparing to official statistics, use the
+model's own matched outputs: `u3UnemploymentRate` against U-3 and `employmentToPopulation`
+against the employment-to-population ratio; the headline rate corresponds to a broad jobless
+measure, not U-3. Internal feedback consumers (including the monetary reaction function) read
+the broad measure — the modeled Federal Reserve sees a larger employment gap than a
+U-3-keyed one would (bounded in deep scenarios by the zero lower bound); the bias this
+creates on the yield path is stated at §7.6.6.
 
-**Demand recovery does not re-hire.** Employment lost to automation returns only through
-innovation-driven new-job creation (§6), never through demand recovery — automation
-deployment is one-way on the default path (a modeling choice with switching frictions; the
-supply-chain scenario machinery carries a freeze/decline state, and a full reversal design
-with hysteresis and asymmetric speeds is chartered as the successor program).
+**Demand recovery does not re-hire.** A rebound in aggregate demand does not restore
+automated jobs. Employment lost to automation returns through two channels only:
+innovation-driven new-job creation (§6), and de-adoption — the adoption state machine
+reversing when running AI loses its cost or availability case, with the cost-triggered
+reversal drawing re-hires from the displaced pool at the pool's re-hiring wage (§3.5, §4.5).
+The re-hiring decision is a cost-and-availability comparison, never a demand signal: demand
+recovery raises output and employment through the demand-spillover ratios, but it does not
+reverse an adoption decision.
 
 **Investor housing capital is a land-price story, not a rent-extraction story (tested and
 bounded).** Quadrupling investor demand intensity raises 2050 LAND values by about 9.7%
@@ -1976,8 +2500,546 @@ are internally consistent but uncited. All private-sector clusters use observed 
 jobs; the model does not represent the gross churn (simultaneous creation and destruction)
 underneath, so flow statistics like hires and separations have no model counterpart.
 
+**Supply-chain shocks reach AI's inputs only.** The supply-chain events (chip shortage,
+energy crisis, datacenter freeze, geopolitical escalation) constrain the inputs AI
+production and deployment consume — chips, energy for AI, datacenter capacity, robotics
+hardware — and propagate through AI capability, cost, and adoption. The economy-wide
+effects of the real-world counterparts are out of scope: a chip shortage here does not
+halt automotive or consumer-electronics production, and an energy crisis does not raise
+household energy bills or non-AI industrial costs. Because the modeled channel is AI
+alone, these events typically lower unemployment while they bind (slower automation
+means less displacement) — the measured direction, stated on each event card. An
+input-output propagation block for economy-wide shock channels is a registered design
+question, not an approximation made silently.
+
+**Capability ceilings are exogenous; the capability and cost paths compound through the
+frontier stock.** A supply famine or a funding collapse drains the model's accumulated
+training-capacity stock, and both clocks run at the stock's speed: the capability clock
+(§9's training channel) and the cost clock (§2.5). The frontier's potential pace is a
+belief; its realization is funded — a demand collapse that starves AI revenue stalls the
+cost decline, and recovery resumes it at pace, reaching the same floor later. Crises are
+followed by a rebuild period at fab-construction timescales rather than an immediate
+resume, and a shocked path reaches the same ceiling later. What AI can ultimately do —
+each vector's ceiling — is a belief dial the user sets; no shock raises or lowers it,
+and no mechanism in the model erodes it.
+
+**AI supply constraints bind through costs, adoption drag, and the frontier stock; an
+explicit physical capacity ceiling is not modeled.** Shortages raise realized AI costs,
+slow adoption, and drain the frontier stock's clocks, which is how the model approximates
+a binding capacity limit; there is no deployed-compute stock that caps AI output quantity
+outright. An explicit physical capacity ceiling is a registered design question requiring
+its own structural block, not an approximation made silently.
+
+**Debt is carried, not defaulted.** The model tracks debt stocks and ratios under
+deflation and inflation, but no borrower defaults, restructures, or deleverages in
+response — Fisher debt-deflation dynamics beyond the ratio arithmetic are not modeled.
+
+**Depression-era policy passivity is a scenario property.** The effective lower bound
+and the monetization cap are stated assumptions; the model's institutions do not
+invent new tools in a collapse the way real ones historically have.
+
+**Deflation expectations are not modeled.** Prices move when their causes move;
+self-fulfilling deflation-expectations spirals are not represented, and their absence
+is a stated boundary rather than a claim that such spirals are impossible.
+
 **Citation-thin parameter sets (honest status).** The realization-sensitivity constants,
 the role-level estimation heuristics, the government-cluster estimator magnitudes, and the
 supply-chain block's rates and trajectories carry thin or absent citations. Each is a named
 constant with its status stated at the definition; users adjusting them are moving expert
 judgment, not measured quantities.
+
+The application presents these boundaries directly: the sidebar's "What ATLAS does not
+model" surface renders each entry's lead statement verbatim from this section, and the
+test suite asserts that correspondence so the two cannot drift.
+
+# 13. The Composition System
+
+ATLAS separates four kinds of input a user can give the model: a choice of what data
+grounds the numbers, beliefs about how the world works, happenings that strike it, and
+policies chosen in response. Keeping them apart is what lets the interface stay honest
+— a data grounding is a choice of measurement source, a belief is exclusive (reality
+is only one way), a happening has a date and an aftermath, and a choice can be
+revoked. The composition system is the machinery that takes a user's selections of all
+four kinds, applies them to the model's parameters with a strict order of precedence,
+and labels every affected parameter with where its value came from.
+
+## 13.1 The three species and the three tiers
+
+Plain: you can drive ATLAS at three depths. Casual users pick a named worldview bundle
+in one tap. Users who want to compose their own world answer the sidebar's belief
+questions, toggle events, and select policy packages — no sliders. Power users open
+the Advanced view, where every live parameter has a control, a title, an explanation
+where one has been written, a citation badge, and a provenance badge. A parameter an
+active event governs additionally carries the event's name and its governed years on
+the row itself — the control is the baseline outside that window — with a link to the
+per-year timeline, where the year-by-year values live and can be edited (a per-year
+edit outranks the event).
+
+Specification: an axis is one named empirical question (for example, "How fast and how
+far do AI capabilities advance?") owning a disjoint set of parameters; its variants
+are mutually exclusive, complete assignments of that set, each value labeled cited,
+episode-anchored, or honestly uncertain. Fourteen axes exist, grouped into six sidebar
+groups. An event is a time-anchored happening whose entries write parameter values
+year by year relative to a user-set anchor year, with recovery entries or declared
+permanence. Each event carries two further user knobs. Its DURATION (one to fifteen
+years) sets when recovery lands; on a permanent event, setting a duration switches it to
+a finite regime that lifts on schedule. Recovery is a release, not a value write: when
+an event's window ends, the event lets go of its parameters and whatever governed them
+before resumes — the model's defaults, your worldview, or your own edits. An event
+never leaves its authored restore values behind. Because the
+supply model accumulates each shocked year into a deficit history and acts through input
+lags, duration compounds mechanically — and very short shocks bite less than
+proportionally, which the event cards state. Its SEVERITY (mild, medium, severe) scales
+each shock leg's distance from normal — never the raw value — under a rule the leg
+declares: quantity gaps shrink toward zero, price spikes grow above normal, multipliers
+scale above one, and bounded factors scale within their range. Medium is exactly the
+authored magnitude; mild and severe halve or grow the gap by half again and are editorial
+steps around the authored anchor (episode-cited for the chip shortage; flagged uncertain
+elsewhere), stated on each card. A policy package is a composable choice that writes preset selections —
+never raw parameter values of its own. A worldview bundle is a saved belief-only
+selection of axis variants carrying the scope line "as expressible within ATLAS's
+mechanisms."
+
+Implementation: manifests in `src/data/manifests/` (axes, events, policies, bundles);
+types in `src/types/manifests.ts`; the sidebar in
+`src/components/controls/WorldviewSidebar.tsx`; the Advanced grid in
+`src/components/charts/AdvancedGrid.tsx`.
+
+## 13.2 Compilation, precedence, and provenance
+
+Plain: your selections never overwrite your own settings file. The model compiles what
+you selected into a separate layer, applies it at run time, and keeps your own edits
+supreme — a value you set by hand always beats a value your worldview would have set.
+
+Specification: the user's configuration is never written by a selection; the compiled
+composition is applied over it at the single recomputation point, producing the
+effective configuration the simulation consumes. Precedence, highest first: a user
+override or imported value; an event's year entry; an axis variant's assignment; a
+data-calibration value (§13.7); the autopilot (the fiscal and monetary reaction
+machinery); the baseline default. Every
+resolved parameter-year carries a source tag from exactly that resolution, so the
+displayed provenance equals what the run consumed. Policy packages write preset
+selections into the effective configuration through the same compiled layer, which is
+why deactivating one restores the prior state exactly.
+
+Implementation: `compileComposition` and `applyAssignments` in
+`src/models/manifestCompiler.ts`; the application point and provenance derivation in
+`src/stores/simulationStore.ts` (`computeCompositionProvenance`,
+`computeEffectiveConfig`); per-year resolution in `src/models/parameterResolution.ts`.
+
+## 13.3 Shadowing
+
+Plain: if you move a dial by hand and later pick a worldview that would set the same
+dial, your hand-set value wins and the interface says so — the dial is badged as
+shadowing the worldview, with a one-tap reset that lets the worldview's value through.
+
+Specification: a composed parameter is shadowed when the user has written it — the
+write itself marks the parameter as touched, and the touched set persists with the
+session. Returning a value by hand to its default does not lift the shadow; only the
+explicit reset does, which also restores the default so the composed value resumes.
+Loaded scenario files and imported settings mark their divergences from the defaults
+as touched, so their values shadow compositions exactly as live edits would.
+
+Implementation: the touch subscriber and `resetShadow` in
+`src/stores/simulationStore.ts`; badges in `AdvancedGrid.tsx` and the sidebar's
+shadow panel.
+
+## 13.4 Conflicts
+
+Plain: when two selections would fight over the same parameter, ATLAS refuses the
+combination outright and names it, rather than letting whichever came last win
+silently.
+
+Specification: two active events touching the same parameter-year, or two packages
+writing the same preset slot, are surfaced as a named conflict at composition time;
+nothing applies, nothing partial — the previously applied state stands until the user
+removes or re-times one member. The sidebar states the conflict in plain terms with
+both members' titles and the contested target's name.
+
+Implementation: conflict detection in `compileComposition`; the refusal in
+`setComposition`; the banner in `WorldviewSidebar.tsx`.
+
+## 13.5 The parameter registry
+
+Plain: one machine-readable table lists every live model parameter — its bounds,
+default, citation status, and which question owns it. The Advanced grid renders from
+that table, so a parameter cannot quietly exist without a control or a control without
+a live parameter.
+
+Specification: each registry row carries the parameter key, an authored title, a
+plain-English explanation where authored (unwritten explanations render as absent,
+never as generated filler), bounds and step, the default (by reference to the source
+constant wherever the value is data-derived), any measured computation cap, the
+citation status and class, and the owning axis. The standing reachability claim: every
+live parameter has a rendered control, a named owning editor surface, or an honest
+ledger entry stating that no editor exists yet. The registry, the manifests, and the
+code are held mutually consistent by the test suite.
+
+Implementation: `src/data/dialTable.ts` (generated; the working seed is its source),
+`src/data/dialExplanations.ts` and the title column (authored),
+`src/components/charts/advancedGridRegistry.ts` (control classes, owners, the
+no-owner ledger).
+
+## 13.6 Persistence and the identity guarantee
+
+Plain: a refresh keeps your worldview; an empty worldview is exactly the default
+model.
+
+Specification: the composition and the touched set persist with the browser session
+and are reinstalled through the same compilation path on reload. An empty composition
+compiles to nothing — the effective configuration is identical to the user's
+configuration, and selecting every consensus variant explicitly produces output
+identical to selecting nothing. Reference scenarios in the test suite run the
+simulation directly on constructed configurations and are unaffected by any stored
+composition.
+
+Implementation: the persistence partition and rehydration in
+`src/stores/simulationStore.ts`.
+
+## 13.7 The data-calibration layer
+
+Plain: the sidebar's topmost question asks whose measurements you trust. By default
+the model runs on its own hand-authored parameter values, each documented with its
+source and uncertainty. Selecting a data-calibration source instead grounds part of
+the model in published measurements — currently one source is offered, built from the
+Anthropic Economic Index, a public dataset measuring how Anthropic's AI models are
+actually used across occupations. The selection is a single tap, fully reversible, and
+never overrides anything you have set yourself: measured data calibrates only what you
+did not choose. Everything the source measures, how it differs from other populations,
+and its measured effect on the projection is disclosed in the zone's details view.
+
+Specification: a data-calibration preset is a source-attributed calibration overlay
+occupying the composition's fourth slot. The shipped member derives from the Anthropic
+Economic Index release of 2026-06-26, first-party API population (enterprise-scale
+adoption; roughly 94% of API conversations classify as automation versus roughly 49%
+of consumer conversations — the population choice and the divergence are stated on the
+surface). It supplies, for each of the 25 cognitive occupation clusters with published
+data: the automation share (the fraction of observed usage in automation rather than
+augmentation patterns, a value in [0,1] at four decimals, pooled usage-weighted across
+the release's monthly windows) and recalibrated generative/agentic capability-relevance
+weights derived from the observed collaboration-mode mix (the hand-authored embodied
+weight is preserved verbatim and the pair renormalizes against it). The 20
+embodied-work clusters keep their hand-authored values — conversation data measures
+what people ask about, not what can be physically automated — and their observed
+values are carried for transparency only. Clusters below the source's publication
+thresholds are absent, never estimated. The preset writes no adoption thresholds: the
+natural back-derivation of a quality threshold from an observed automation share
+degenerates as the share approaches one, and at the observed levels its output would
+be a clamp artifact rather than a measurement, so that channel is deliberately absent.
+Precedence: a user's per-cluster override always beats a calibrated value, and the
+overlap is surfaced as a quiet count notice, never a refusal. Selecting no source, or
+deselecting one, is byte-identical to never having selected it. The committed
+artifact carries the release identity, the dataset revision hash, file checksums, and
+the license (data CC-BY 4.0); the raw source files are fetched to a local cache and
+never committed. ATLAS is not endorsed by or affiliated with Anthropic; users can
+adjust every calibrated value through the ordinary per-cluster controls.
+
+Implementation: the manifest and registry in `src/data/manifests/dataCalibration.ts`;
+the committed artifacts and their load-time validation in `src/data/anthropic/`; the
+fetch and transform pipeline in `scripts/fetch-anthropic-data.ts` and
+`scripts/transform-anthropic-data.ts` (pure transform in
+`src/data/anthropic/transform.ts`); the application point in `runSimulation`'s
+effective-cluster construction (`src/models/simulation.ts`); the zone in
+`src/components/controls/DataCalibrationZone.tsx`.
+
+Provenance for this section's design decisions: [the audit
+summary](../FABLE_AUDIT_SUMMARY.md).
+
+---
+
+# 14. The AI Production and Buildout System
+
+The sections above describe how AI capability displaces and augments labor. This
+section describes the other half of the economy's AI story: **where the capacity
+to run AI comes from, who pays for it, and what happens when the money or the
+physical inputs are not there.** The organizing principle: the user's capability
+beliefs are a **ceiling of possibility** — the trajectory AI *could* follow —
+and the economy's finance and capacity machinery determines how much of that
+ceiling is actually realized. A belief in fast AI composed with an economy that
+cannot fund or power it yields slow AI, and the model reports which constraint
+did it.
+
+Provenance for this section's design decisions: [the audit
+summary](../FABLE_AUDIT_SUMMARY.md).
+
+## 14.1 Buildout finance
+
+**Plain English.** Building AI capacity costs money. The model finances it the
+way the observed industry does: mostly from the building firms' own retained
+profits, plus borrowing, plus — once the market values AI companies richly —
+equity issuance against those valuations. Spending cannot exceed what is
+financeable, and it never exceeds what the believed capability trajectory
+actually demands.
+
+**Specification.** Each year:
+
+```
+Financeable(t) = retentionShare × profitBase(t−1)              (retained earnings)
+              + debtLeg(t)                                      (through the economy-wide business-credit conditions)
+              + equityIssuance(t)                               (issuanceRate × impliedAIMarketCap(t−1) × marketWindow(t−1))
+
+I_AI(t) = min(BuildoutDemand(t), Financeable(t))
+```
+
+- `profitBase` is the larger of the AI-building firms' non-AI profit pool
+  (indexed to economy-wide corporate profits, net of the AI sector's energy
+  operating bill) and the model's own realized AI-sector profits, lagged one
+  year. `retentionShare` default 0.30 (national-accounts retention ratios,
+  2023–2025 vintage; user-adjustable).
+- The debt leg rides the same business-credit conditions as all investment — a
+  credit crunch starves the buildout exactly as it starves everything else.
+- `equityIssuance` prices off the model's own guarded AI-sector valuation;
+  the issuance window closes as the crisis equity premium rises (the
+  2008-class shutdown pattern). Issuance rate default 0.015 of market value
+  per year (cited range 0.005–0.03).
+- `BuildoutDemand` is the cost of closing the gap between the capacity the
+  believed trajectory requires next year and the capacity that survives
+  depreciation — demand exhausts when the gap closes; a plateaued belief stops
+  demanding.
+- Buildout spending enters GDP as investment through the one unified investment
+  pipeline (credit gate, capacity gate, rate dampening — no bypass), with an
+  import-content offset: roughly 36 cents of the marginal buildout dollar is
+  imported equipment that adds to investment but subtracts from net exports
+  (input-output import shares per component: chips 0.60, energy 0.30,
+  datacenter construction 0.05, fleet units 0.50).
+
+Implementation: `src/models/buildout.ts` (`computeFinanceable`,
+`computeBuildoutPlan`); the issuance leg and import offset in
+`src/models/simulation.ts` and `src/models/macro.ts`.
+
+## 14.2 The physical capacity machine
+
+**Plain English.** AI compute is produced by three complementary inputs —
+accelerator chips, powered electricity capacity, and datacenter shells — plus,
+for physical-world automation, a fleet of embodied units (robots, automated
+vehicles). Capacity is the *minimum* of the three datacenter legs (chips without
+power compute nothing), and each leg is a stock that depreciates and must be
+rebuilt. Financed dollars are allocated toward whichever input is currently the
+bottleneck.
+
+**Specification.**
+
+```
+S_leg(t+1) = S_leg(t) × (1 − δ_leg) + Build_leg(t)         leg ∈ {chips, energy, dc}
+Capacity(t) = min(S_chips, S_energy × FLOPsPerWatt(t), S_dc) + S_orbital(t)
+
+Fleet(t+1) = Fleet(t) × (1 − δ_fleet)
+           + min(financedUnits, chipConstrainedUnits, manufacturingRamp)
+```
+
+- Stocks are in required-capacity units (the 2025 system ≡ 1 per leg — the
+  observed 2025 buildout delivers the 2025 requirement exactly).
+- Depreciation is cited per asset class: accelerators 0.25/yr (3–5-year
+  hardware cycles), grid assets 0.03/yr, datacenter structures 0.04/yr, fleet
+  units 0.08/yr (about a 12-year service life).
+- `FLOPsPerWatt` is a derived efficiency curve (computations per watt double
+  every ~2.5 years — the measured accelerator-efficiency trend), not a user
+  dial; it converts powered watts into compute so the three legs are
+  commensurable.
+- Chips are one shared upstream supply with two sinks — datacenter installs and
+  fleet units — and a chip shortage rations both.
+- The manufacturing ramp for fleet units is a queue, not a fence: the annual
+  production ceiling grows (default +35 %/yr, automotive plant-ramp episodes)
+  only in years when production runs at the ceiling.
+- Allocation across the four sinks moves each year a bounded step toward the
+  currently binding constraint (smoothed bottleneck-chasing; smoothing default
+  0.5).
+- Per-year telemetry (which input bound, when, and by how much) is a
+  first-class output on the macro surface.
+
+Implementation: `src/models/buildout.ts`; the efficiency derivation in
+`docs/Reference/FLOPS_PER_WATT_DERIVATION.md`.
+
+## 14.3 The energy delivery queue
+
+**Plain English.** Grid power for datacenters is not a purchase; it is a place
+in a line. Money buys the place, but the line is time: an interconnection
+request today delivers power years from now, and the grid can only add so much
+capacity per year. The model gives the energy leg exactly this structure —
+financed energy build enters a delivery pipeline and arrives after a lead time,
+through an annual additions ceiling that expands only when it is saturated with
+orders. A share of new AI power bypasses the queue by building generation
+on-site ("behind the meter"), faster but at a capital-cost premium — the
+pattern observed in current large-scale AI datacenter deployments.
+
+**Specification.**
+
+```
+ordered(t)     → available at t + L            (grid lane; L default 4 years —
+                                                the measured median interconnection
+                                                request-to-operation duration)
+delivered(t)   = min(matured vintages + carryover, additionsCeiling(t))
+ceiling(t+1)   = ceiling(t) × (1 + g)          when deliveries run at the ceiling
+               = ceiling(t)                    otherwise (a queue, not a fence)
+btm lane       : btmShare of financed energy build; ~1-year lead; capital cost
+                 × 1.75 (on-site generation vs the grid industrial rate); not
+                 ceiling-gated
+```
+
+- The queue's three parameters — lead years (default 4), ceiling growth per
+  saturated year (default 0.20, the observed jump in national capacity
+  additions), and the behind-the-meter share (default 0.25, anchored to
+  observed deployment behavior) — are worldview content on the buildout-cost
+  belief axis: a deregulation worldview runs short leads and a fast-growing
+  ceiling; a constrained worldview the reverse.
+- The pipeline seeds with the measured in-flight order book (the hundreds of
+  gigawatts already under executed interconnection agreements), so the model's
+  2026–2029 energy deliveries are ceiling-gated in the direction the observed
+  power-constrained market shows.
+- Supply-chain energy shocks multiply the *stock* the queue has built (one
+  machine per phenomenon: the queue owns availability; shocks disturb it).
+
+Implementation: `src/models/buildout.ts` (the queue state in
+`computeBuildoutPlan`/`applyBuildout`).
+
+## 14.4 Orbital capacity
+
+**Plain English.** Space-based datacenters, if they arrive, ship their own
+power: solar panels and chips travel together, bypassing the terrestrial grid
+queue entirely. The model treats orbital capacity as an additive stock on top
+of the terrestrial minimum — it cannot relieve the terrestrial grid for other
+builds (that would be false physics), and it decays on a satellite service
+life. Orbital additions arrive only through scheduled events (a user choice of
+happening, with magnitudes flagged as stated aspiration rather than citation).
+
+```
+Capacity(t) = min(terrestrial legs) + S_orbital(t);   δ_orbital = 0.15/yr
+```
+
+Implementation: `src/models/buildout.ts`; the arrival event in
+`src/data/manifests/events.ts`.
+
+## 14.5 Energy operating costs in AI profits
+
+**Plain English.** Running AI is substantially the cost of electricity. The
+model makes the AI sector's power bill explicit: profits are revenue minus
+labor, minus non-energy costs, minus the energy bill — so cheap or expensive
+energy now reaches AI margins, and through them the financeable buildout. One
+consequence the model surfaces honestly: in the years before AI revenue
+materializes, the AI sector runs an operating loss — it pays for power while
+earning almost nothing, which is the observed present-day cash pattern.
+
+**Specification.**
+
+```
+energyOpex(t) = seamRate × utilization(t−1) × terrestrialCapacity(t)
+              × (1 / efficiencyNormalization) × p_energy(t)
+
+aiProfits(t)  = realizedRevenue(t) × (1 − laborShare) × (1 − otherCostsShareExEnergy)
+              − energyOpex(t)
+```
+
+- `seamRate` anchors to the AI-attributed share of measured national
+  datacenter electricity cost at 2025 industrial rates.
+- `p_energy` carries the energy-cost worldview trend, supply-chain energy price
+  shocks, and event-driven cost bends — a war-class energy price spike
+  transmits end to end: price ↑ → operating costs ↑ → AI margins ↓ →
+  financeable buildout ↓.
+- `otherCostsShareExEnergy` carves the economy-average cost wedge's implicit
+  energy content (≈1 % of GDP, the cited commercial-and-industrial electricity
+  share) out of the residual so no dollar is counted twice.
+- Orbital capacity pays no grid bill (it carries its own power).
+
+Implementation: `src/models/macro.ts` (the profit identity),
+`src/models/simulation.ts` (the operating-cost line), `src/models/buildout.ts`
+(the financing feedback).
+
+## 14.6 Adoption gating on physical capital
+
+**Plain English.** Software can displace office work the moment it clears the
+adoption thresholds — but physical work is displaced only by machines that
+exist. The model gates each occupation cluster's displacement on the embodied
+fleet actually built for it: a warehouse cluster with no robots displaces no
+one, however capable the AI, while software-exposed clusters are never gated.
+The one fleet is allocated across clusters by a priority derived entirely from
+existing model state — value per worker, accumulated organizational trust,
+safety headroom, and integration friction — with no new authored
+per-industry numbers.
+
+**Specification.** Per cluster c:
+
+```
+displacementGate_c = (1 − w_embodied,c) + w_embodied,c × fleetCoverage_c
+fleetCoverage_c    = min(1, allocatedFleet_c / requiredFleet_c)
+requiredFleet_c    = clearedEmployment_c × w_embodied,c × unitsPerEmbodiedWorker
+priority_c         = valueAddedPerWorker_c × trustMaturity_c × saferMargin_c × frictionFactor_c
+```
+
+Allocation moves a bounded step per year toward priority-proportional shares
+(no thrashing); the same per-cluster coverage series gates both displacement
+and the production ledger (one producer). `w_embodied` is each cluster's
+embodied weight in the standing capability-relevance classification,
+occupational-task-data-validated.
+
+Implementation: `computeFleetAllocation` and the gate wiring in
+`src/models/simulation.ts`; the gate application in
+`src/models/displacement.ts`.
+
+## 14.7 The production ledger: value-added anchoring and demand absorption
+
+**Plain English.** What is AI's output worth? The model anchors each occupation
+cluster's automatable output to what the market actually pays for that
+cluster's production — its measured value added — rather than to the wages of
+the displaced workers (which would cap powerful AI at a multiple of the labor
+cost it replaces). Whether that potential output is *realized* depends on
+demand: consumers absorb AI output according to how healthy demand is relative
+to a zero-AI counterfactual of the same economy, plus a price-elasticity
+response (cheaper AI-made goods call forth more quantity along cited demand
+elasticities). Output that demand cannot absorb is honestly reported as
+unrealized rather than silently counted.
+
+**Specification.** Per cluster: potential = value added × the share of the
+cluster's roles that have cleared all four adoption thresholds × the physical
+feasibility gate. Realized absorption = counterfactual-benchmarked demand
+health plus `Σ_sector consumption × elasticity × price-decline flow`, capped at
+supply. AI-sector profits accrue on realized revenue only.
+
+Implementation: `computeAIProductionExpansion` in `src/models/simulation.ts`;
+absorption in `src/models/macro.ts`; the per-cluster value-added anchors in
+`src/data/bea/cluster-va-anchors.json` (national industry accounts, crosswalked
+by occupation-industry employment weights).
+
+## 14.8 The corporate research channel
+
+**Plain English.** AI-era profits fund research beyond capacity building, and
+that research slowly raises productivity economy-wide. The model routes a cited
+share of realized AI revenue into a corporate research stock and lets
+*changes* in that stock flow into prices as a productivity effect — a frozen
+stock emits nothing.
+
+```
+researchSpend(t) = intensity × realizedAIRevenue(t−1)        (intensity default 0.12,
+                                                              the software/information-sector
+                                                              research-to-sales range)
+researchStock(t+1) = researchStock(t) × (1 − 0.20) + realizedSpend(t)
+productivityFlow(t) = elasticity × Δln(baselineStock + increment)   (elasticity default 0.08,
+                                                              the measured research-returns
+                                                              literature, range 0.01–0.25)
+```
+
+Implementation: `src/models/simulation.ts` (the stock and flow), entering
+prices through the existing pass-through machinery.
+
+## 14.9 The buildout belief axes
+
+Two worldview axes own this system's belief content, alongside the standing
+capability and adoption axes:
+
+- **"What does building AI capacity cost?"** — one coherent worldview per
+  variant across every input-cost trajectory (chip cost decline, energy cost
+  and availability — the queue's lead time, ceiling growth, and on-site share —
+  datacenter construction cost, fleet unit cost and production ramp). The
+  consensus variant is the cited-learning-rates-continue world and is
+  identically the model default; the poles are a supply-constrained world and a
+  deregulated/breakthrough world.
+- **"Does AI accelerate innovation itself?"** — scales the research channel's
+  productivity elasticity, and nothing else, across cited literature positions
+  (a conservative bound, the mainstream semi-endogenous consensus, and an
+  explosive tail flagged as speculative).
+
+Token/service pricing beliefs remain a separate demand-side axis; a derived
+coupling ensures a cheap-capacity worldview cannot be composed with a
+contradictory expensive-token belief.
+
+Implementation: `src/data/manifests/axes.ts`; the derived coupling in
+`src/models/aiCost.ts`.

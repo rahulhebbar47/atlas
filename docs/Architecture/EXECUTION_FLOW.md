@@ -6,6 +6,19 @@
 
 **How to read this document:** Line numbers refer to the source files at audit time and will drift as code changes. Code snippets are copied verbatim except where elided with `// ...`.
 
+> **Addendum (2026-08) — the zero-AI counterfactual twin.** `runSimulation()` now begins
+> with one additional step this trace pre-dates: unless the configuration is already
+> zero-capability (or the run is itself a twin), the engine first re-runs itself once with
+> all three capability trajectories set to zero — the same policies, events, and overrides —
+> and records the twin's real consumption per year. That per-year series enters
+> `computeMacro` as `counterfactualRealConsumption`, the benchmark for AI consumer-goods
+> demand absorption (`demandHealthRatio`); a missing benchmark with AI consumer potential
+> present throws rather than falling back. Practical consequences for readers of Part B:
+> every AI-bearing run executes the full per-year loop twice (the twin first), and the twin
+> is invisible to all outputs except through the absorption benchmark. Implementation:
+> `runSimulation` (the twin block, near the loop-state initialization) and `computeMacro`
+> (the absorption section).
+
 ---
 
 ## Part A — Simulation Entry Point and Call Graph

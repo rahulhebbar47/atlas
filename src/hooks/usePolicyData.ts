@@ -12,7 +12,7 @@
 
 import { useMemo } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { useSimulationStore } from '@/stores/simulationStore';
+import { useSimulationStore, getLastEffectiveConfig } from '@/stores/simulationStore';
 import { DEFAULT_POLICY_CONFIG, BOTTOM80_POP_SHARE, BOTTOM80_TRANSFER_SHARE } from '@/models/constants';
 import type { PolicyConfig } from '@/types';
 
@@ -27,6 +27,24 @@ import type { PolicyConfig } from '@/types';
 export function usePolicyConfig(): PolicyConfig {
   return useSimulationStore(
     useShallow((state) => state.config.policyConfig),
+  );
+}
+
+/**
+ * THE EFFECTIVE policy configuration — the values the last simulation run actually
+ * consumed (user config + the applied composition; the per-field rebuild's binding
+ * fix, same pattern as the Advanced grid's read side). Editor surfaces render THIS so
+ * a sidebar package selection is visible; writes still go to the user config, and a
+ * written key is touched (shadow) so the effective value becomes the user's — display
+ * and truth converge. The timeline subscription keeps the read fresh across every
+ * recompute, including the touch subscriber's shadow-flip recompute.
+ */
+export function useEffectivePolicyConfig(): PolicyConfig {
+  const timeline = useSimulationStore((state) => state.timeline);
+  const config = useSimulationStore((state) => state.config);
+  return useMemo(
+    () => (getLastEffectiveConfig() ?? config).policyConfig,
+    [timeline, config],
   );
 }
 

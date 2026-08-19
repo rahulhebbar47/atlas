@@ -41,6 +41,9 @@ export function saveScenario(
   name: string,
   description: string,
   config: SimulationConfig,
+  dataCalibration?: string | null,
+  composition?: SavedScenario['composition'],
+  touchedKeys?: readonly string[],
 ): SavedScenario {
   const scenario: SavedScenario = {
     id: generateId(),
@@ -48,6 +51,13 @@ export function saveScenario(
     description,
     createdAt: new Date().toISOString(),
     config,
+    // The composition reference (the data-calibration slot) travels with the scenario.
+    dataCalibration: dataCalibration ?? null,
+    // The COMPLETE world's selections (the Scenarios bug pass — the worldview travels).
+    composition: composition ?? { axes: {}, events: [], policies: [], dataCalibration: dataCalibration ?? null },
+    // The per-field rebuild: the user's shadow-winning keys travel too — the load
+    // path's scalar-diff reconstruction cannot see schedule-key shadows.
+    ...(touchedKeys !== undefined ? { touchedKeys: [...touchedKeys] } : {}),
   };
 
   const existing = loadScenarios();
@@ -55,6 +65,46 @@ export function saveScenario(
   localStorage.setItem(STORAGE_KEY, JSON.stringify(existing));
 
   return scenario;
+}
+
+/**
+ * Overwrite a saved scenario's config in place (the chip's "Save changes" path).
+ * @returns the updated scenario, or null when the id no longer exists (deleted in
+ * another tab — the caller degrades to save-as-new).
+ */
+export function updateScenario(
+  id: string,
+  config: SimulationConfig,
+  dataCalibration?: string | null,
+  composition?: SavedScenario['composition'],
+  touchedKeys?: readonly string[],
+): SavedScenario | null {
+  const scenarios = loadScenarios();
+  const idx = scenarios.findIndex((s) => s.id === id);
+  if (idx === -1) return null;
+  const updated: SavedScenario = {
+    ...scenarios[idx]!,
+    config,
+    dataCalibration: dataCalibration ?? null,
+    composition: composition ?? { axes: {}, events: [], policies: [], dataCalibration: dataCalibration ?? null },
+    ...(touchedKeys !== undefined ? { touchedKeys: [...touchedKeys] } : {}),
+  };
+  scenarios[idx] = updated;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(scenarios));
+  return updated;
+}
+
+/**
+ * Rename a saved scenario (the folded list's rename affordance).
+ * @returns true when the id existed and the rename was written.
+ */
+export function renameScenario(id: string, name: string): boolean {
+  const scenarios = loadScenarios();
+  const idx = scenarios.findIndex((s) => s.id === id);
+  if (idx === -1) return false;
+  scenarios[idx] = { ...scenarios[idx]!, name };
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(scenarios));
+  return true;
 }
 
 /**
@@ -118,13 +168,21 @@ export function importScenarioJSON(file: File): Promise<SavedScenario | null> {
 /**
  * Export current config as a JSON download (without scenario metadata).
  */
-export function exportConfigJSON(config: SimulationConfig, name: string): void {
+export function exportConfigJSON(
+  config: SimulationConfig,
+  name: string,
+  composition?: SavedScenario['composition'],
+  touchedKeys?: readonly string[],
+): void {
   const scenario: SavedScenario = {
     id: generateId(),
     name,
     description: 'Exported configuration',
     createdAt: new Date().toISOString(),
     config,
+    dataCalibration: composition?.dataCalibration ?? null,
+    composition,
+    ...(touchedKeys !== undefined ? { touchedKeys: [...touchedKeys] } : {}),
   };
   exportScenarioJSON(scenario);
 }

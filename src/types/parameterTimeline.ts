@@ -18,26 +18,67 @@ import type { MacroOutput, FiscalMonetaryOutput, CapabilityVectorId, SupplyChain
 // ============================================================
 
 /**
+ * The provenance source tag (the axes program's charter invariant, R1).
+ *
+ * One tag per parameter-year, computed by the SAME precedence resolution that picks the
+ * value: user-override/imported > event > axis-variant > autopilot > baseline-default.
+ * The autopilot slot is the POLICY layer's execution arm for profile-driven keys (tag
+ * 'policy'); for trajectory-evolution keys (supply-chain resilience evolution, the
+ * pass-through anchor) it is the model's own default evolving (tag 'default').
+ * 'axis-variant' / 'event' / 'imported' become producible when R2's manifest compiler
+ * lands; the resolution supports them structurally from R1 (dormant by construction).
+ */
+export type SourceTag =
+  | 'default'
+  | 'axis-variant'
+  | 'event'
+  | 'policy'
+  | 'user-override'
+  | 'imported'
+  // The data-calibration preset (the AEI program). TYPE-LEVEL ONLY in v1: the shipped
+  // preset carries zero scalar values, so no runtime producer emits this tag yet — the
+  // per-cluster payload rides the side channel, not the 49-key record. The tag exists
+  // so the species' scalar channel is structurally complete (stated, not hidden).
+  | 'data-calibration';
+
+/**
  * A single parameter value with full provenance tracking.
  *
- * Three layers:
+ * Layers (R1 unified resolution — ONE producer; engine and record consume this object):
  *   baseline: The config-level default (user's slider value or constant)
- *   autopilot: Computed by endogenous rules (fiscal consolidation, COLA dampening)
+ *   autopilot: Computed by endogenous rules (fiscal consolidation, COLA dampening,
+ *              supply-chain trajectory evolution)
+ *   axisValue/eventValue: R2 manifest layers (absent until the manifest compiler lands)
  *   userOverride: Explicitly set by user for this year (sticky forward from set year)
  *
- * Resolution: effective = userOverride ?? autopilot (when differs from baseline) ?? baseline
+ * Resolution: effective = userOverride ?? eventValue ?? axisValue
+ *             ?? autopilot (when differs from baseline) ?? baseline
+ * R1 migration note: the old tri-state source ('baseline'|'autopilot'|'override')
+ * became the six-tag SourceTag ('default'|'policy'/'default'-per-key|'user-override').
  */
 export interface ParameterValue {
   /** Value from SimulationConfig (the starting-point, slider-driven value). */
   baseline: number;
   /** Value computed by autopilot (profile-driven endogenous rules). */
   autopilot: number;
+  /** Axis-variant layer value (R2 manifests; absent at R1). */
+  axisValue?: number;
+  /** Event layer value for this year (R2 manifests; absent at R1). */
+  eventValue?: number;
+  /** Data-calibration layer value (the AEI program's scalar channel — dormant in v1:
+   *  the shipped preset carries zero scalar values; no producer sets this yet). */
+  dataCalibrationValue?: number;
   /** User-set override for this year, if any. Sticky: applies to this year and forward. */
   userOverride?: number;
   /** The resolved value actually used in computation. */
   effective: number;
-  /** Which layer determined the effective value. */
-  source: 'baseline' | 'autopilot' | 'override';
+  /** Which layer determined the effective value (the provenance invariant). */
+  source: SourceTag;
+  /** Ruling 2 (R1 acceptance, binding): for trajectory-evolved keys whose BASELINE an
+   *  axis variant set, the badge's detail surface reveals "baseline set by
+   *  [axis · variant], evolved by [mechanism]" — the tag stays 'default' while the
+   *  origin rides here. Threaded verbatim by the resolver on every return path. */
+  baselineOrigin?: { axis: string; variant: string };
   /** Human-readable explanation for why autopilot adjusted this parameter. */
   explanation?: string;
 }
@@ -125,25 +166,27 @@ export interface YearParameters {
   agenticCapabilityLevel: ParameterValue;
   /** Embodied AI capability score [0, 1]. */
   embodiedCapabilityLevel: ParameterValue;
-  /** Tokens-per-task multiplier vs. 2025 baseline. Default spike-and-recover trajectory:
-   *  2025=1×, 2026=20×, 2027=25×, 2028=15×, 2029=5×, 2030+=1×. Year-overridable
-   *  (sticky-forward). Combined with the token cost curve to produce inference cost. */
-  tokenUsageMultiplier: ParameterValue;
+  /** RETIRED (mini-stage 1; Amendment 2 — no legacy toggles): the global tokens-per-task
+   *  row left with the spike-and-recover schedule; the frontier-intensity layer (aiCost.ts)
+   *  replaces it and the aggregate path is an emergent OUTPUT. Kept per the no-delete rule. */
+  // tokenUsageMultiplier: ParameterValue;
 
   // === Supply Chain (Phase 9) ===
 
   // Supply inputs (baseline-only, autopilot = baseline)
-  /** Combined GPU/TPU/ASIC + HBM supply index. 0-200. */
+  /** Combined GPU/TPU/ASIC + HBM supply index. 0-100 (Stage H: doc corrected — the validated range is 0-100, 100 = unconstrained baseline). */
   supplyChainAiChips: ParameterValue;
+  /** Chip price index. 50-500. (C-3) */
+  supplyChainChipPrice: ParameterValue;
   /** Energy price index. 50-500. */
   supplyChainEnergyPrice: ParameterValue;
-  /** Grid capacity for AI workloads. 0-200. */
+  /** Grid capacity for AI workloads. 0-100 (Stage H: doc corrected). */
   supplyChainEnergyCapacity: ParameterValue;
-  /** Training datacenter build capacity. 0-200. */
+  /** Training datacenter build capacity. 0-100 (Stage H: doc corrected). */
   supplyChainTrainingDC: ParameterValue;
-  /** Inference datacenter capacity. 0-200. */
+  /** Inference datacenter capacity. 0-100 (Stage H: doc corrected). */
   supplyChainInferenceDC: ParameterValue;
-  /** Robotics hardware composite index. 0-200. */
+  /** Robotics hardware composite index. 0-100 (Stage H: doc corrected). */
   supplyChainRoboticsHW: ParameterValue;
   /** Algorithmic efficiency multiplier. 50-300. */
   supplyChainSoftwareEfficiency: ParameterValue;

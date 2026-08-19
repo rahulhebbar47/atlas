@@ -68,9 +68,12 @@ export function OverviewSnapshot() {
           value={formatPercent(macro.unemploymentRate)}
           deltaType={macro.unemploymentRate > 0.08 ? 'negative' : 'neutral'}
         />
+        {/* H3 ruling 1: the card claims a share of GDP, so it shows the REALIZED metric —
+            the AI dollars that actually entered GDP — not the retired basis-mixed pct.
+            The potential-side metric renders on the AI production chart, its natural home. */}
         <MetricCard
-          label="AI GDP %"
-          value={formatPercent(macro.aiGDPContributionPct)}
+          label="Realized AI GDP %"
+          value={formatPercent(macro.aiRealizedShareOfGDP)}
         />
         <MetricCard
           label="Employment"

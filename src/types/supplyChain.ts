@@ -22,6 +22,12 @@ import type { CapabilityVectorId, DeploymentType, BFCSScores, BFCSThresholds, Ad
 export interface SupplyChainInputs {
   /** Combined GPU/TPU/ASIC + HBM supply. 0-100. */
   aiChips: number;
+  /** Mini-stage 2 (C-3): chip PRICE index (100 = baseline; the energyPrice template).
+   *  Distinct from the aiChips QUANTITY index — the 2021-22 episode shows the divergence
+   *  (PPI-semis flat at the index level, spot GPU 2-3× MSRP, quantities rationed); a
+   *  Taiwan-class scenario needs both levers, and the quantity channel's structural ×1.95
+   *  multiplier ceiling cannot carry price spikes. 50-500. */
+  chipPrice: number;
   /** Energy price index (100 = current $/MWh). 50-500. */
   energyPrice: number;
   /** Grid capacity for AI workloads. 0-100. */
@@ -117,7 +123,9 @@ export interface SupplyChainConfig {
 
   // --- Training cost dynamics (Autopilot, year-by-year overridable) ---
   trainingDynamics: {
-    aiChips: TrainingCostDynamics;     // { techDeclineRate: -0.35, scalePressure: 0.05 }
+    // MS1 re-anchor (ruled): chips scalePressure 0.05 → 0.3186 — net drift ≈ 0 at the
+    // default growth rate, per the Epoch stable-hardware-share evidence.
+    aiChips: TrainingCostDynamics;     // { techDeclineRate: -0.35, scalePressure: 0.3186 }
     energy: TrainingCostDynamics;      // { techDeclineRate: -0.04, scalePressure: 0.15 }
     datacenter: TrainingCostDynamics;  // { techDeclineRate: -0.08, scalePressure: 0.25 }
   };
@@ -160,6 +168,32 @@ export interface SupplyChainConfig {
   sensitivityBlendCognitive: number;
   /** -1 = auto from S-curve progress. Range -1 to 1. */
   sensitivityBlendEmbodied: number;
+
+  // --- The frontier stock (the endogenous-frontier program, MS1) ---
+  // All five OPTIONAL: absent ⇒ the constants' defaults at consumption. The stock is
+  // the accumulated training capacity relative to the default path (1 = on-path);
+  // famines drain it (compounding), recovery rebuilds it at fab-construction speed,
+  // and the capability clock runs at stock^rateElasticity. At u = 1 every term is
+  // exactly inert (the ratified default-path identity, checkpoint §3).
+  /** Multiplier on the DERIVED drain elasticity κ_G = (G−1)/G (G = trainingScaleGrowthRate).
+   *  1.0 = exactly the derived law; 0 = the stock never drains. Range 0–1.4. */
+  frontierDrainScale?: number;
+  /** Rebuild time constant toward the supportable level, years. Default 4.0.
+   *  Source class: leading-edge fab construction 3–5 yr (SIA; TSMC Arizona 2020→2024). */
+  frontierRebuildYears?: number;
+  /** Capability-clock speed = stock^elasticity. 1.0 = proportional; 0 = decoupled.
+   *  Range 0–3. Uncited (no measured stock→progress elasticity exists). */
+  frontierRateElasticity?: number;
+  /** Innovation-channel multiplier = stock^elasticity. Default 0.5 (ruled): innovation
+   *  is partially compute-independent — 0 = fully independent, 1 = fully compute-bound.
+   *  Range 0–1. Uncited. */
+  frontierInnovationElasticity?: number;
+  /** Dead time before reactive resilience DELIVERS against a shock, years: the
+   *  training-channel damping consumes the resolved resilience series this many years
+   *  back (delivered capacity), display rows keep the as-built series. Default 4.0.
+   *  Source class: CHIPS Act signed 2022-08 → first US leading-edge volume production
+   *  2024-Q4 (~2.5–4.5 yr act-to-capacity). Range 0–8; 0 = no dead time. */
+  resilienceOnsetYears?: number;
 }
 
 // ============================================================
@@ -167,7 +201,7 @@ export interface SupplyChainConfig {
 // ============================================================
 
 /** Supply input keys used in sensitivity and propagation lag matrices. */
-export type SupplyInputKey = 'aiChips' | 'energyPrice' | 'energyCapacity' | 'trainingDCCapacity' | 'inferenceDCCapacity' | 'roboticsHardware';
+export type SupplyInputKey = 'aiChips' | 'chipPrice' | 'energyPrice' | 'energyCapacity' | 'trainingDCCapacity' | 'inferenceDCCapacity' | 'roboticsHardware';
 
 /** BFCS dimensions. */
 export type BFCSDimension = 'better' | 'faster' | 'cheaper' | 'safer';
@@ -182,14 +216,21 @@ export type SensitivityMatrix = Record<SupplyInputKey, Record<BFCSDimension, num
 export interface SupplyChainEffects {
   // Training channel
   annualCapabilityDelay: Record<CapabilityVectorId, number>;
-  cumulativeCapabilityDelay: Record<CapabilityVectorId, number>;
+  /** DEPRECATED (flywheel MS — the hoist): the frontier stock and the cumulative delay
+   *  are produced by the SIMULATION LOOP now (always-on; the demand-side input reads
+   *  macro state the SC block cannot see). This field is no longer populated; the loop
+   *  accumulates from annualCapabilityDelay via computeFrontierStockUpdate. */
+  cumulativeCapabilityDelay?: Record<CapabilityVectorId, number>;
   dynamicTrainingComposition: TrainingComposition;
 
   // Deployment channel
   deploymentCostMultipliers: { compute: number; physicalHardware: number; energy: number };
   /** Pass-through-applied multipliers in BFCS field names (compute→inference, physicalHardware→manufacturing). */
   bfcsCostMultipliers: { inference: number; manufacturing: number; energy: number };
-  effectiveComputeDeclineRate: number;
+  /** DIAGNOSTIC ONLY (ruling 4's loudness; was `effectiveComputeDeclineRate`): the
+   *  counterfactual decline rate a backlogged fleet implies — not consumed by any
+   *  economic path (proven by execution, flywheel session 1 leg A). */
+  cascadeDeclineRateDiagnostic: number;
 
   // BFCS multipliers
   fasterMultiplier: number;
@@ -211,6 +252,14 @@ export interface SupplyChainEffects {
   effectiveResilience: SupplyChainResilience;
   aggregateResilience: number;
   cascadeBacklog: number;
+
+  // DEPRECATED (flywheel MS — the hoist): the frontier stock, its rate, and the
+  // innovation multiplier are LOOP-PRODUCED now (one producer; always-on so the
+  // demand-side input exists on SC-dormant paths). No longer populated here — the
+  // loop calls computeFrontierStockUpdate directly.
+  frontierStock?: number;
+  frontierRate?: number;
+  innovationStockMultiplier?: number;
 }
 
 // ============================================================
@@ -222,4 +271,7 @@ export interface AdoptionState {
   rates: Record<string, Record<string, number>>;
   /** Year adoption was frozen per cluster-role (null if not frozen). */
   frozenSince: Record<string, Record<string, number | null>>;
+  /** Mini-stage 2: whether the role has ever declined (gates the SLOW re-engagement —
+   *  the asymmetric-speeds recovery cap; cleared when the rich curve is re-caught). */
+  hasDeclined: Record<string, Record<string, boolean>>;
 }

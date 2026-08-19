@@ -363,7 +363,7 @@ describe('Fix 5b Diagnostic — Full timeline audit', () => {
         );
       }
     }
-  });
+  }, 120_000); // explicit budget: full-simulation matrix test (each AI-bearing run includes the zero-AI twin); the 5s default flaked under full-suite contention
 
   // ════════════════════════════════════════════════════════════════
   // TEST 1b: UBI spiral diagnostic — Balanced Reduction + Balanced Mandate
@@ -443,7 +443,7 @@ describe('Fix 5b Diagnostic — Full timeline audit', () => {
     const maxInflation = Math.max(...tl.years.map(y => y.macro.compositeInflation));
     console.log(`\n  Final price level: ${finalPriceLevel.toFixed(3)}, Max inflation: ${(maxInflation*100).toFixed(1)}%`);
     console.log(`  Verdict: ${finalPriceLevel > 10 ? 'SPIRAL' : finalPriceLevel > 3 ? 'ELEVATED BUT BOUNDED' : 'CONVERGES'}`);
-  });
+  }, 120_000); // explicit budget: full-simulation matrix test (each AI-bearing run includes the zero-AI twin); the 5s default flaked under full-suite contention
 
   // ════════════════════════════════════════════════════════════════
   // TEST 1c: UBI + Tax the Winners — tax-financed vs deficit-financed
@@ -525,7 +525,7 @@ describe('Fix 5b Diagnostic — Full timeline audit', () => {
     console.log('--- Comparison: Tax the Winners vs Balanced Reduction ---');
     console.log('  Balanced Reduction: Peak inflation 59.1%, final price level 12.129 → SPIRAL');
     console.log(`  Tax the Winners:    Peak inflation ${(maxInflation*100).toFixed(1)}%, final price level ${finalPriceLevel.toFixed(3)} → ${finalPriceLevel > 10 ? 'SPIRAL' : finalPriceLevel > 3 ? 'ELEVATED BUT BOUNDED' : 'CONVERGES'}`);
-  });
+  }, 120_000); // explicit budget: full-simulation matrix test (each AI-bearing run includes the zero-AI twin); the 5s default flaked under full-suite contention
 
   // ════════════════════════════════════════════════════════════════
   // TEST 2: Mild AI — halved ceilings, all 20 preset combinations
@@ -584,5 +584,5 @@ describe('Fix 5b Diagnostic — Full timeline audit', () => {
         );
       }
     }
-  });
+  }, 120_000); // explicit budget: full-simulation matrix test (each AI-bearing run includes the zero-AI twin); the 5s default flaked under full-suite contention
 });

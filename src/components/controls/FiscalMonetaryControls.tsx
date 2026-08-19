@@ -20,6 +20,9 @@ import { Slider } from '@/components/shared/Slider';
 import { PolicyKeyframeEditor } from './PolicyKeyframeEditor';
 import { PolicyToggleCard } from './PolicyToggleCard';
 import { interpolatePolicy } from '@/utils/policyInterpolation';
+// Stage H: fallbacks reference the live default constants (single source of truth — the
+// termPremium 0.003 stale copy was the audit's four-copies archetype).
+import { TERM_PREMIUM, DEFAULT_INFLATION_CONVERGENCE_YEARS, DEFAULT_FISCAL_RISK_PREMIUM_MAX } from '@/models/constants';
 import type { PolicySchedule } from '@/types';
 
 /** Indigo accent for fiscal-monetary controls */
@@ -30,19 +33,24 @@ const EMPTY_SCHEDULE: PolicySchedule = { keyframes: [] };
 
 export function FiscalMonetaryControls() {
   const neutralRealRate = useSimulationStore((s) => s.config.neutralRealRate ?? 0.007);
-  const termPremium = useSimulationStore((s) => s.config.termPremium ?? 0.003);
-  const inflationConvergenceYears = useSimulationStore((s) => s.config.inflationConvergenceYears ?? 5);
+  const termPremium = useSimulationStore((s) => s.config.termPremium ?? TERM_PREMIUM);
+  const inflationConvergenceYears = useSimulationStore((s) => s.config.inflationConvergenceYears ?? DEFAULT_INFLATION_CONVERGENCE_YEARS);
   const inflationTarget = useSimulationStore((s) => s.config.inflationTarget ?? 0.02);
   const effectiveLowerBound = useSimulationStore((s) => s.config.effectiveLowerBound ?? -0.005);
   const fiscalDominanceThreshold = useSimulationStore((s) => s.config.fiscalDominanceThreshold ?? 0.25);
   const fiscalDominanceDampening = useSimulationStore((s) => s.config.fiscalDominanceDampening ?? 0.5);
-  const fiscalRiskPremiumMax = useSimulationStore((s) => s.config.fiscalRiskPremiumMax ?? 0.06);
-  const fiscalRiskTrajectoryWeight = useSimulationStore((s) => s.config.fiscalRiskTrajectoryWeight ?? 0.50);
-  const fiscalRiskSustainabilityWeight = useSimulationStore((s) => s.config.fiscalRiskSustainabilityWeight ?? 0.35);
-  const fiscalRiskLevelWeight = useSimulationStore((s) => s.config.fiscalRiskLevelWeight ?? 0.15);
-  const fiscalRiskLevelMidpoint = useSimulationStore((s) => s.config.fiscalRiskLevelMidpoint ?? 2.0);
-  const corporateTaxEffectiveness = useSimulationStore((s) => s.config.corporateTaxEffectiveness ?? 0.65);
-  const foreignTreasuryDemand = useSimulationStore((s) => s.config.foreignTreasuryDemand ?? 0.30);
+  const fiscalRiskPremiumMax = useSimulationStore((s) => s.config.fiscalRiskPremiumMax ?? DEFAULT_FISCAL_RISK_PREMIUM_MAX);
+  // DEPRECATED (axes hygiene rider, D-9): dead dials — the fiscalRisk* composite family's sole
+  // consumer was the E-8b legacy branch, retired at close-out (the toggle slot is hardcoded false,
+  // simulation.ts ~2318); config fields kept (no-delete rule); deadness enforced by the five
+  // stageH-honesty.test.ts probes. Re-wiring, if any, is design-checkpoint work.
+  // const fiscalRiskTrajectoryWeight = useSimulationStore((s) => s.config.fiscalRiskTrajectoryWeight ?? 0.50);
+  // const fiscalRiskSustainabilityWeight = useSimulationStore((s) => s.config.fiscalRiskSustainabilityWeight ?? 0.35);
+  // const fiscalRiskLevelWeight = useSimulationStore((s) => s.config.fiscalRiskLevelWeight ?? 0.15);
+  // const fiscalRiskLevelMidpoint = useSimulationStore((s) => s.config.fiscalRiskLevelMidpoint ?? 2.0);
+  // DEPRECATED (Stage H): dead dials — corporateTaxEffectiveness has zero readers; foreignTreasuryDemand is inert on the default path (D-fix zero branch); deadness enforced by stageH-honesty.test.ts.
+  // const corporateTaxEffectiveness = useSimulationStore((s) => s.config.corporateTaxEffectiveness ?? 0.65);
+  // const foreignTreasuryDemand = useSimulationStore((s) => s.config.foreignTreasuryDemand ?? 0.30);
   const aiPEMultiplier = useSimulationStore((s) => s.config.aiPEMultiplier ?? 1.0);
   const policyRateSchedule = useSimulationStore((s) => s.config.policyRateSchedule ?? EMPTY_SCHEDULE);
   const currentYear = useSimulationStore((s) => s.currentYear);
@@ -104,47 +112,49 @@ export function FiscalMonetaryControls() {
     [updateConfig],
   );
 
-  const handleRiskTrajectoryWeight = useCallback(
-    (value: number) => {
-      updateConfig((config) => ({ ...config, fiscalRiskTrajectoryWeight: value }));
-    },
-    [updateConfig],
-  );
+  // DEPRECATED (axes hygiene rider, D-9): dead-dial handlers — controls removed below; config fields kept (no-delete rule).
+  // const handleRiskTrajectoryWeight = useCallback(
+  //   (value: number) => {
+  //     updateConfig((config) => ({ ...config, fiscalRiskTrajectoryWeight: value }));
+  //   },
+  //   [updateConfig],
+  // );
+  //
+  // const handleRiskSustainabilityWeight = useCallback(
+  //   (value: number) => {
+  //     updateConfig((config) => ({ ...config, fiscalRiskSustainabilityWeight: value }));
+  //   },
+  //   [updateConfig],
+  // );
+  //
+  // const handleRiskLevelWeight = useCallback(
+  //   (value: number) => {
+  //     updateConfig((config) => ({ ...config, fiscalRiskLevelWeight: value }));
+  //   },
+  //   [updateConfig],
+  // );
+  //
+  // const handleRiskLevelMidpoint = useCallback(
+  //   (value: number) => {
+  //     updateConfig((config) => ({ ...config, fiscalRiskLevelMidpoint: value }));
+  //   },
+  //   [updateConfig],
+  // );
 
-  const handleRiskSustainabilityWeight = useCallback(
-    (value: number) => {
-      updateConfig((config) => ({ ...config, fiscalRiskSustainabilityWeight: value }));
-    },
-    [updateConfig],
-  );
-
-  const handleRiskLevelWeight = useCallback(
-    (value: number) => {
-      updateConfig((config) => ({ ...config, fiscalRiskLevelWeight: value }));
-    },
-    [updateConfig],
-  );
-
-  const handleRiskLevelMidpoint = useCallback(
-    (value: number) => {
-      updateConfig((config) => ({ ...config, fiscalRiskLevelMidpoint: value }));
-    },
-    [updateConfig],
-  );
-
-  const handleCorpTaxEffectiveness = useCallback(
-    (value: number) => {
-      updateConfig((config) => ({ ...config, corporateTaxEffectiveness: value }));
-    },
-    [updateConfig],
-  );
-
-  const handleForeignTreasuryDemand = useCallback(
-    (value: number) => {
-      updateConfig((config) => ({ ...config, foreignTreasuryDemand: value }));
-    },
-    [updateConfig],
-  );
+  // DEPRECATED (Stage H): dead-dial handlers — controls removed below; config fields kept (no-delete rule).
+  // const handleCorpTaxEffectiveness = useCallback(
+  //   (value: number) => {
+  //     updateConfig((config) => ({ ...config, corporateTaxEffectiveness: value }));
+  //   },
+  //   [updateConfig],
+  // );
+  //
+  // const handleForeignTreasuryDemand = useCallback(
+  //   (value: number) => {
+  //     updateConfig((config) => ({ ...config, foreignTreasuryDemand: value }));
+  //   },
+  //   [updateConfig],
+  // );
 
   const handleAiPEMultiplier = useCallback(
     (value: number) => {
@@ -176,7 +186,7 @@ export function FiscalMonetaryControls() {
       <Slider
         label="Term Premium"
         value={termPremium}
-        min={0}
+        min={-0.01}
         max={0.02}
         step={0.001}
         color={CONTROL_COLOR}
@@ -247,7 +257,17 @@ export function FiscalMonetaryControls() {
         onChange={handleRiskPremiumMax}
         formatValue={(v) => `${(v * 100).toFixed(1)}%`}
       />
-      <Slider
+      {/* DEPRECATED (axes hygiene rider, D-9): dead dials — the fiscalRisk* composite family
+          (trajectory/sustainability/level weights + level midpoint) fed ONLY the E-8b legacy
+          logistic branch, retired at close-out (the toggle slot is hardcoded false at the
+          computeFiscalRiskPremium call site, simulation.ts ~2318). These sliders rendered live
+          after the gate died — the dead-dial-behind-live-control regression the axes program's
+          Session-1 delta caught (finding D-9). Config fields kept (no-delete rule); deadness
+          enforced by five stageH-honesty.test.ts probes (extreme value ⇒ trace bit-identity).
+          The live fiscal-risk dials are laubachLevelBeta / laubachDeficitBeta above and
+          fiscalRiskPremiumMax (the rollover-stress normalizer). Re-wiring, if any, is
+          design-checkpoint work. */}
+      {/* <Slider
         label="Trajectory Weight"
         value={fiscalRiskTrajectoryWeight}
         min={0}
@@ -286,10 +306,11 @@ export function FiscalMonetaryControls() {
         color={CONTROL_COLOR}
         onChange={handleRiskLevelMidpoint}
         formatValue={(v) => `${v.toFixed(1)}x`}
-      />
+      /> */}
 
       {/* ── Tax & Market ── */}
-      <Slider
+      {/* DEPRECATED (Stage H): dead dial — corporateTaxEffectiveness has zero readers anywhere; config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+      {/* <Slider
         label="Corp. Tax Effectiveness"
         value={corporateTaxEffectiveness}
         min={0.10}
@@ -298,8 +319,9 @@ export function FiscalMonetaryControls() {
         color={CONTROL_COLOR}
         onChange={handleCorpTaxEffectiveness}
         formatValue={(v) => `${(v * 100).toFixed(0)}%`}
-      />
-      <Slider
+      /> */}
+      {/* DEPRECATED (Stage H): dead dial — foreignTreasuryDemand is inert on the default path (D-fix zero branch); its only revival is the no-UI legacy toggles; config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+      {/* <Slider
         label="Foreign Treasury Demand"
         value={foreignTreasuryDemand}
         min={0.05}
@@ -308,7 +330,7 @@ export function FiscalMonetaryControls() {
         color={CONTROL_COLOR}
         onChange={handleForeignTreasuryDemand}
         formatValue={(v) => `${(v * 100).toFixed(0)}%`}
-      />
+      /> */}
       <Slider
         label="AI P/E Multiplier"
         value={aiPEMultiplier}

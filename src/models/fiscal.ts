@@ -317,7 +317,7 @@ export function computeWeightedAverageDebtRate(
  *         Advantage Approach to Government Debt Maturity."
  *
  * @param fiscalRiskPremium - Current fiscal risk premium from sigmoid (0 to maxPremium)
- * @param maxFiscalRiskPremium - Maximum fiscal risk premium (config, default 0.04)
+ * @param maxFiscalRiskPremium - Maximum fiscal risk premium (config, default 0.06 = DEFAULT_FISCAL_RISK_PREMIUM_MAX)
  * @param tenYearYield - Current 10Y Treasury yield
  * @param policyRate - Current Fed policy rate
  * @param baseWAMYears - Baseline weighted average maturity in years (default 6.0)

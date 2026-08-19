@@ -165,7 +165,8 @@ describe('isBooleanParam', () => {
 
 describe('PARAM_LABELS', () => {
   it('has labels for all YearParameters fields', () => {
-    expect(Object.keys(PARAM_LABELS).length).toBe(46);
+    // Mini-stage 2 (C-3): +1 for supplyChainChipPrice (46 → 47).
+    expect(Object.keys(PARAM_LABELS).length).toBe(47);
   });
 
   it('all labels are non-empty strings', () => {
@@ -178,13 +179,22 @@ describe('PARAM_LABELS', () => {
 });
 
 describe('PARAM_CATEGORIES', () => {
-  it('has 10 categories', () => {
-    expect(PARAM_CATEGORIES).toHaveLength(10);
+  // Stage H item 3 hid 5 groups (28 rows — the 6 policy-program keys and all 22 supply-chain
+  // keys): resolved-and-recorded but never read back by the engine (the audit's
+  // recorded-not-consumed finding). Mini-stage 2 (C-1): the four supply-chain groups RETURN —
+  // their rows are consumed by execution now (per-year resolution in the simulation loop),
+  // plus the new supplyChainChipPrice row (C-3). The policy group (6 keys) stays hidden
+  // pending wiring. Visible: 9 groups, 40 rows.
+  it('has 9 visible categories (policy group hidden pending re-wiring)', () => {
+    expect(PARAM_CATEGORIES).toHaveLength(9);
   });
 
   it('categories cover all parameter keys', () => {
     const allParams = PARAM_CATEGORIES.flatMap((c) => c.params);
-    expect(allParams).toHaveLength(46);
+    // Mini-stage 1: 17 (tokenUsageMultiplier RETIRED with the global tokens-per-task
+    // schedule — Amendment 2; the aggregate path is an emergent OUTPUT).
+    // Mini-stage 2: 40 — the 22 supply-chain rows returned (C-1) + supplyChainChipPrice (C-3).
+    expect(allParams).toHaveLength(40);
 
     // All params should have a label
     for (const key of allParams) {

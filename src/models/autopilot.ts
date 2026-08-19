@@ -119,6 +119,9 @@ export function computeAutopilotParameters(
   year?: number,
   supplyChainConfig?: SupplyChainConfig,
   onshoringFraction?: number,
+  // THE regulatoryFriction CONSUMER: the loop-accumulated effective permitting time
+  // (Σ 1/friction over elapsed years) the datacenter resilience rows advance by.
+  dcPermittingEffectiveYears?: number,
 ): AutopilotResult {
   // ── Fiscal Consolidation ──
   const consolidation = computeFiscalConsolidation(laggedDebtGDPRatio, profile);
@@ -173,7 +176,7 @@ export function computeAutopilotParameters(
     taylorOutputGapCoeff: profile.taylorOutputGapCoeff,
     taylorEmploymentGapCoeff: profile.taylorEmploymentGapCoeff,
     // Phase 9: Supply chain autopilot values (time-evolved when SC config present)
-    ...computeSupplyChainAutopilot(year, supplyChainConfig, onshoringFraction),
+    ...computeSupplyChainAutopilot(year, supplyChainConfig, onshoringFraction, dcPermittingEffectiveYears),
   };
 }
 
@@ -186,6 +189,7 @@ function computeSupplyChainAutopilot(
   year?: number,
   scConfig?: SupplyChainConfig,
   onshoringFraction?: number,
+  dcPermittingEffectiveYears?: number,
 ): Pick<AutopilotResult, 'scResilienceAiChips' | 'scResilienceEnergy' | 'scResilienceTrainingDC' | 'scResilienceInferenceDC' | 'scResilienceRoboticsHW' | 'scDynamicCompChips' | 'scDynamicCompEnergy' | 'scDynamicCompDC' | 'scCostPassThroughRate'> {
   if (!scConfig || year === undefined) {
     return {
@@ -201,7 +205,7 @@ function computeSupplyChainAutopilot(
     };
   }
 
-  const resilience = computeAutopilotResilience(year, scConfig.resilience, onshoringFraction ?? 0);
+  const resilience = computeAutopilotResilience(year, scConfig.resilience, onshoringFraction ?? 0, dcPermittingEffectiveYears);
   const passThrough = interpolatePassThrough(year);
   const comp = computeDynamicTrainingComposition(year, scConfig);
 

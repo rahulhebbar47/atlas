@@ -19,6 +19,9 @@ import { formatNumber, formatPercent } from '@/utils/format';
 import { BFCSTrajectoryChart } from './BFCSTrajectoryChart';
 import { ClusterEmploymentChart } from './ClusterEmploymentChart';
 import { MultiplierFlowDiagram } from './MultiplierFlowDiagram';
+import { BFCSEditor } from '@/components/controls/BFCSEditor';
+import { ClusterAlphaEditor } from '@/components/controls/ClusterAlphaEditor';
+import { ReplacementDifficultyEditor } from '@/components/controls/ReplacementDifficultyEditor';
 
 export function OccupationDetailView() {
   const selectedClusterId = useSimulationStore((s) => s.selectedClusterId);
@@ -79,6 +82,37 @@ export function OccupationDetailView() {
           </div>
           <div className="text-text-muted text-[10px] font-mono">
             baseline employment
+          </div>
+        </div>
+      </div>
+
+      {/* THE CLUSTER CONTROLS — FIRST on the page (owner ruling: the levers for THIS
+          cluster lead; the category information follows; nothing behind a dropdown).
+          Relocated from the Advanced view's retired editors block. */}
+      <div className="bg-bg-card border border-border rounded-[12px] p-5 space-y-4">
+        <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.1em] text-[#22D3EE]">
+          Cluster Controls
+        </h3>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-8 gap-y-5 items-start">
+          <div>
+            <h4 className="text-text-secondary text-[10px] font-mono uppercase tracking-wider mb-2">
+              Adoption thresholds
+            </h4>
+            <BFCSEditor hideClusterSelect />
+          </div>
+          <div className="space-y-5">
+            <div>
+              <h4 className="text-text-secondary text-[10px] font-mono uppercase tracking-wider mb-2">
+                Automation share
+              </h4>
+              <ClusterAlphaEditor clusterId={selectedClusterId} />
+            </div>
+            <div>
+              <h4 className="text-text-secondary text-[10px] font-mono uppercase tracking-wider mb-2">
+                Replacement difficulty (per role)
+              </h4>
+              <ReplacementDifficultyEditor clusterId={selectedClusterId} />
+            </div>
           </div>
         </div>
       </div>

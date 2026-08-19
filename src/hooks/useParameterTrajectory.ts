@@ -27,7 +27,7 @@ export interface ParameterTrajectoryPoint {
   autopilot: number;
   override?: number;
   effective: number;
-  source: 'baseline' | 'autopilot' | 'override';
+  source: import('@/types/parameterTimeline').SourceTag; // R1: the six-tag provenance union
   explanation?: string;
 }
 

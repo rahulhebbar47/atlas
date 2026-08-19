@@ -64,6 +64,10 @@ export interface MacroTimeSeriesPoint {
   cyclePhase: CyclePhase;
   aiGDPContribution: number;
   aiGDPContributionPct: number;
+  // H3 ruling 1 — the split metrics (display consumers use these, not the pct above)
+  aiRealizedShareOfGDP: number;
+  aiRealizedGDPContribution: number;
+  aiOutputPotentialShare: number;
   incomeWageShare: number;
   incomeAssetShare: number;
   incomeTransferShare: number;
@@ -101,12 +105,15 @@ export function useMacroTimeSeries(): MacroTimeSeriesPoint[] {
           cyclePhase: y.macro.cyclePhase,
           aiGDPContribution: y.macro.aiGDPContribution,
           aiGDPContributionPct: y.macro.aiGDPContributionPct,
+          aiRealizedShareOfGDP: y.macro.aiRealizedShareOfGDP,
+          aiRealizedGDPContribution: y.macro.aiRealizedGDPContribution,
+          aiOutputPotentialShare: y.macro.aiOutputPotentialShare,
           incomeWageShare: y.macro.incomeComposition.wageShare,
           incomeAssetShare: y.macro.incomeComposition.assetShare,
           incomeTransferShare: y.macro.incomeComposition.transferShare,
           automationCoverage: y.macro.automationCoverage,
           // No-AI counterfactual: traditional economy without AI production
-          gdpNoAI: y.macro.gdpNominal - y.macro.aiGDPContribution,
+          gdpNoAI: y.macro.gdpNominal - y.macro.aiRealizedGDPContribution, // H3: subtract only the dollars that actually entered GDP
           // New Jobs fields (Phase 7)
           newJobCreationRate: y.macro.newJobCreationRate,
           durableNewJobs: y.macro.durableNewJobs,
@@ -245,11 +252,14 @@ export function useBaselineMacroTimeSeries(): MacroTimeSeriesPoint[] | null {
         cyclePhase: y.macro.cyclePhase,
         aiGDPContribution: y.macro.aiGDPContribution,
         aiGDPContributionPct: y.macro.aiGDPContributionPct,
+        aiRealizedShareOfGDP: y.macro.aiRealizedShareOfGDP,
+        aiRealizedGDPContribution: y.macro.aiRealizedGDPContribution,
+        aiOutputPotentialShare: y.macro.aiOutputPotentialShare,
         incomeWageShare: y.macro.incomeComposition.wageShare,
         incomeAssetShare: y.macro.incomeComposition.assetShare,
         incomeTransferShare: y.macro.incomeComposition.transferShare,
         automationCoverage: y.macro.automationCoverage,
-        gdpNoAI: y.macro.gdpNominal - y.macro.aiGDPContribution,
+        gdpNoAI: y.macro.gdpNominal - y.macro.aiRealizedGDPContribution, // H3: subtract only the dollars that actually entered GDP
         newJobCreationRate: y.macro.newJobCreationRate,
         durableNewJobs: y.macro.durableNewJobs,
         netJobCreation: y.macro.netJobCreation,

@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { resolveParameter, resolveAllParameters, defaultTokenUsageMultiplier } from '@/models/parameterResolution';
-import { DEFAULT_TOKEN_USAGE_SCHEDULE } from '@/models/constants';
+import { resolveParameter, resolveAllParameters, attachCapabilityMirrors } from '@/models/parameterResolution'; // defaultTokenUsageMultiplier RETIRED (mini-stage 1)
+// import { DEFAULT_TOKEN_USAGE_SCHEDULE } from '@/models/constants'; // RETIRED (mini-stage 1)
 import type { UserOverrideMap, AutopilotResult } from '@/types/parameterTimeline';
 import type { SimulationConfig } from '@/types';
 import { getDefaultSimulationConfig } from '@/models/simulation';
@@ -22,14 +22,14 @@ describe('resolveParameter', () => {
   it('returns baseline when autopilot equals baseline', () => {
     const result = resolveParameter('testParam', 2030, 0.10, 0.10, emptyOverrides);
     expect(result.effective).toBe(0.10);
-    expect(result.source).toBe('baseline');
+    expect(result.source).toBe('default');
     expect(result.userOverride).toBeUndefined();
   });
 
   it('returns autopilot when it differs from baseline', () => {
     const result = resolveParameter('testParam', 2030, 0.10, 0.15, emptyOverrides, 'Tax increase');
     expect(result.effective).toBe(0.15);
-    expect(result.source).toBe('autopilot');
+    expect(result.source).toBe('policy');
     expect(result.baseline).toBe(0.10);
     expect(result.autopilot).toBe(0.15);
     expect(result.explanation).toBe('Tax increase');
@@ -41,7 +41,7 @@ describe('resolveParameter', () => {
     ]);
     const result = resolveParameter('testParam', 2030, 0.10, 0.15, overrides);
     expect(result.effective).toBe(0.22);
-    expect(result.source).toBe('override');
+    expect(result.source).toBe('user-override');
     expect(result.userOverride).toBe(0.22);
   });
 
@@ -52,7 +52,7 @@ describe('resolveParameter', () => {
     // Year 2040 should use the 2035 override (sticky forward)
     const result = resolveParameter('testParam', 2040, 0.10, 0.15, overrides);
     expect(result.effective).toBe(0.22);
-    expect(result.source).toBe('override');
+    expect(result.source).toBe('user-override');
   });
 
   it('sticky override: does NOT apply to years before the set year', () => {
@@ -62,7 +62,7 @@ describe('resolveParameter', () => {
     // Year 2030 should NOT use the 2035 override
     const result = resolveParameter('testParam', 2030, 0.10, 0.15, overrides);
     expect(result.effective).toBe(0.15);
-    expect(result.source).toBe('autopilot');
+    expect(result.source).toBe('policy');
   });
 
   it('later override supersedes earlier override', () => {
@@ -84,13 +84,13 @@ describe('resolveParameter', () => {
     ]);
     const result = resolveParameter('testParam', 2030, 0.10, 0.15, overrides);
     expect(result.effective).toBe(0.15);
-    expect(result.source).toBe('autopilot');
+    expect(result.source).toBe('policy');
   });
 
   it('handles floating point near-equality for baseline vs autopilot', () => {
     // Difference smaller than 1e-10 should be treated as equal
     const result = resolveParameter('testParam', 2030, 0.10, 0.10 + 1e-12, emptyOverrides);
-    expect(result.source).toBe('baseline');
+    expect(result.source).toBe('default');
   });
 });
 
@@ -98,36 +98,39 @@ describe('resolveParameter', () => {
 // defaultTokenUsageMultiplier
 // ============================================================
 
-describe('defaultTokenUsageMultiplier', () => {
-  const startYear = 2025;
-
-  it('follows the spike-and-recover schedule by default', () => {
-    // Schedule [1, 20, 25, 15, 5, 1] indexed by offset from the start year.
-    expect(defaultTokenUsageMultiplier(2025, startYear)).toBe(1);
-    expect(defaultTokenUsageMultiplier(2026, startYear)).toBe(20);
-    expect(defaultTokenUsageMultiplier(2027, startYear)).toBe(25);
-    expect(defaultTokenUsageMultiplier(2028, startYear)).toBe(15);
-    expect(defaultTokenUsageMultiplier(2029, startYear)).toBe(5);
-    expect(defaultTokenUsageMultiplier(2030, startYear)).toBe(1);
-  });
-
-  it('holds the last scheduled value for years past the schedule (2031+)', () => {
-    const last = DEFAULT_TOKEN_USAGE_SCHEDULE[DEFAULT_TOKEN_USAGE_SCHEDULE.length - 1];
-    expect(defaultTokenUsageMultiplier(2031, startYear)).toBe(last);
-    expect(defaultTokenUsageMultiplier(2040, startYear)).toBe(last);
-    expect(defaultTokenUsageMultiplier(2050, startYear)).toBe(1);
-  });
-
-  it('bypasses the schedule with a flat override (start year stays 1×)', () => {
-    expect(defaultTokenUsageMultiplier(2025, startYear, 50)).toBe(1);
-    expect(defaultTokenUsageMultiplier(2026, startYear, 50)).toBe(50);
-    expect(defaultTokenUsageMultiplier(2030, startYear, 50)).toBe(50);
-  });
-
-  it('clamps years before the start to the start-year value', () => {
-    expect(defaultTokenUsageMultiplier(2024, startYear)).toBe(1);
-  });
-});
+// RETIRED (mini-stage 1; Amendment 2 — no legacy toggles): the global tokens-per-task
+// schedule and its per-year row left the model; these specs are preserved as the
+// predecessor record (the which-change pole is the recorded 6c831b7 run).
+// describe('defaultTokenUsageMultiplier', () => {
+//   const startYear = 2025;
+//
+//   it('follows the spike-and-recover schedule by default', () => {
+//     // Schedule [1, 20, 25, 15, 5, 1] indexed by offset from the start year.
+//     expect(defaultTokenUsageMultiplier(2025, startYear)).toBe(1);
+//     expect(defaultTokenUsageMultiplier(2026, startYear)).toBe(20);
+//     expect(defaultTokenUsageMultiplier(2027, startYear)).toBe(25);
+//     expect(defaultTokenUsageMultiplier(2028, startYear)).toBe(15);
+//     expect(defaultTokenUsageMultiplier(2029, startYear)).toBe(5);
+//     expect(defaultTokenUsageMultiplier(2030, startYear)).toBe(1);
+//   });
+//
+//   it('holds the last scheduled value for years past the schedule (2031+)', () => {
+//     const last = DEFAULT_TOKEN_USAGE_SCHEDULE[DEFAULT_TOKEN_USAGE_SCHEDULE.length - 1];
+//     expect(defaultTokenUsageMultiplier(2031, startYear)).toBe(last);
+//     expect(defaultTokenUsageMultiplier(2040, startYear)).toBe(last);
+//     expect(defaultTokenUsageMultiplier(2050, startYear)).toBe(1);
+//   });
+//
+//   it('bypasses the schedule with a flat override (start year stays 1×)', () => {
+//     expect(defaultTokenUsageMultiplier(2025, startYear, 50)).toBe(1);
+//     expect(defaultTokenUsageMultiplier(2026, startYear, 50)).toBe(50);
+//     expect(defaultTokenUsageMultiplier(2030, startYear, 50)).toBe(50);
+//   });
+//
+//   it('clamps years before the start to the start-year value', () => {
+//     expect(defaultTokenUsageMultiplier(2024, startYear)).toBe(1);
+//   });
+// });
 
 // ============================================================
 // resolveAllParameters
@@ -167,7 +170,7 @@ describe('resolveAllParameters', () => {
   it('resolves 23 parameters for a year', () => {
     const result = resolveAllParameters(
       2030, defaultConfig, baselineAutopilot, emptyOverrides,
-      'balanced_reduction', { generative: 0.5, agentic: 0.3, embodied: 0.1 },
+      'balanced_reduction',
     );
 
     expect(result.year).toBe(2030);
@@ -199,26 +202,28 @@ describe('resolveAllParameters', () => {
     expect(result.taylorEmploymentGapCoeff).toBeDefined();
   });
 
-  it('all parameters have baseline source when autopilot matches baseline', () => {
+  it('all parameters have default source when autopilot matches baseline', () => {
     const result = resolveAllParameters(
       2025, defaultConfig, baselineAutopilot, emptyOverrides,
-      'balanced_reduction', { generative: 0.1, agentic: 0.05, embodied: 0.01 },
+      'balanced_reduction',
     );
 
     // Fiscal parameters should be baseline (no consolidation)
-    expect(result.fiscalDiscretionaryMultiplier.source).toBe('baseline');
-    expect(result.consolidationIntensity.source).toBe('baseline');
-    expect(result.effectiveColaDampeningFactor.source).toBe('baseline');
+    expect(result.fiscalDiscretionaryMultiplier.source).toBe('default');
+    expect(result.consolidationIntensity.source).toBe('default');
+    expect(result.effectiveColaDampeningFactor.source).toBe('default');
   });
 
-  it('technology parameters are always baseline source (read-only)', () => {
-    const result = resolveAllParameters(
+  it('technology mirrors attach post-resolution (R1: attachCapabilityMirrors)', () => {
+    const resolved = resolveAllParameters(
       2030, defaultConfig, baselineAutopilot, emptyOverrides,
-      'balanced_reduction', { generative: 0.5, agentic: 0.3, embodied: 0.1 },
+      'balanced_reduction',
     );
-
+    // placeholder-0 until attached (the mirrors depend on the mid-year SC delay)
+    expect(resolved.generativeCapabilityLevel.effective).toBe(0);
+    const result = attachCapabilityMirrors(resolved, { generative: 0.5, agentic: 0.3, embodied: 0.1 });
     expect(result.generativeCapabilityLevel.effective).toBe(0.5);
-    expect(result.generativeCapabilityLevel.source).toBe('baseline');
+    expect(result.generativeCapabilityLevel.source).toBe('default');
     expect(result.agenticCapabilityLevel.effective).toBe(0.3);
     expect(result.embodiedCapabilityLevel.effective).toBe(0.1);
   });

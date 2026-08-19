@@ -13,6 +13,7 @@ import { useMemo } from 'react';
 import { useSimulationStore } from '@/stores/simulationStore';
 import { getBLSBaselines } from '@/stores/simulationStore';
 import { runSimulation } from '@/models/simulation';
+import { DEFAULT_FISCAL_POLICY_PRESET } from '@/models/fiscalResponseProfiles';
 import { OCCUPATION_CLUSTERS } from '@/data/occupationClusters';
 import type { SimulationTimeline } from '@/types';
 
@@ -68,7 +69,8 @@ export function useProfileComparison(
       baselines,
     );
 
-    const currentProfileName = currentConfig.fiscalPolicyPreset ?? 'balanced_reduction';
+    // Stage H: fallback references the live default preset (was a stale 'balanced_reduction' copy)
+    const currentProfileName = currentConfig.fiscalPolicyPreset ?? DEFAULT_FISCAL_POLICY_PRESET;
 
     return {
       profileA: {

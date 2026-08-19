@@ -28,53 +28,40 @@ import {
   DOMAIN_RISK_FACTORS,
   type ClusterCategory,
   DEFAULT_START_YEAR,
-  DEFAULT_MANUFACTURING_ANNUAL_CHANGE,
-  DEFAULT_ENERGY_ANNUAL_CHANGE,
-  DEFAULT_TOKEN_COST_CURVE,
-  START_YEAR_TOKEN_USAGE_MULTIPLIER,
+  // RETIRED (mini-stage 1): the inference-cost assembly moved to aiCost.ts (the one-assembly
+  // rule). The mfg/energy/composition constants are consumed there now.
+  // DEFAULT_MANUFACTURING_ANNUAL_CHANGE,
+  // DEFAULT_ENERGY_ANNUAL_CHANGE,
+  // DEFAULT_TOKEN_COST_CURVE,
+  // START_YEAR_TOKEN_USAGE_MULTIPLIER,
   // DEPRECATED: DEFAULT_TOKEN_USAGE_MULTIPLIER (20×) was the bare fallback for
   // computeInferenceCostFactor; replaced by the neutral START_YEAR value (1×) so an
   // unparameterized call assumes no usage spike. Kept exported in constants.ts.
   // DEFAULT_TOKEN_USAGE_MULTIPLIER,
-  AI_COST_COMPOSITION,
+  // AI_COST_COMPOSITION,
 } from './constants';
+import { computeAiCostFraction, type CostClock } from './aiCost';
 
-/**
- * Cost per token of AI work, as a fraction of the 2025 baseline.
- * Shape: floor + (1 - floor) × exp(-k × t^decayExponent).
- * Strictly non-increasing — represents the falling cost of a single token of compute.
- */
-export function computeTokenCostFactor(
-  t: number,
-  params: TokenCostCurveParams = DEFAULT_TOKEN_COST_CURVE,
-): number {
-  if (t <= 0) return 1.0;
-  const decay = Math.exp(-params.k * Math.pow(t, params.decayExponent));
-  return params.floor + (1 - params.floor) * decay;
-}
+/** The cited per-token curve lives in aiCost.ts (the one-assembly rule); re-exported here
+ *  for existing callers (InferenceCostControls' preview chart). */
+export { computeTokenCostFactor } from './aiCost';
 
-/**
- * Total inference cost factor: cost per token × tokens per task.
- *   inferenceCostFactor(t) = tokenCostFactor(t) × usageMultiplier
- * Where `usageMultiplier` is the *year-resolved* tokens-per-task multiplier
- * (resolved via parameterResolution from baseline + per-year overrides), so the
- * full Jevons dynamic is captured without imposing a smooth growth curve.
- * With usageMultiplier = 1 this reduces exactly to the token cost curve.
- *
- * The bare default is the NEUTRAL START_YEAR_TOKEN_USAGE_MULTIPLIER (1×): an
- * unparameterized call assumes no token-usage spike. The spike-and-recover
- * trajectory (DEFAULT_TOKEN_USAGE_SCHEDULE) is applied only via the year-resolved
- * value the simulation/UI thread in explicitly — never via this fallback, which
- * would otherwise pin a constant 20× on every year and match no real year.
- */
-export function computeInferenceCostFactor(
-  t: number,
-  tokenParams: TokenCostCurveParams = DEFAULT_TOKEN_COST_CURVE,
-  usageMultiplier: number = START_YEAR_TOKEN_USAGE_MULTIPLIER,
-): number {
-  if (t <= 0) return usageMultiplier;
-  return computeTokenCostFactor(t, tokenParams) * usageMultiplier;
-}
+// RETIRED (the coupled design checkpoint, mini-stage 1; Amendment 2 — no legacy toggles):
+// computeInferenceCostFactor was the global tokens-per-task path — tokenCostFactor(t) ×
+// year-resolved usageMultiplier (the spike-and-recover schedule). Replaced by the
+// frontier-intensity layer in aiCost.ts: work at the frontier pays a persistent intensity
+// premium M_f(t); arrived roles migrate onto the arrival-anchored fixed-capability curve;
+// the aggregate tokens-per-task path is an emergent OUTPUT (impliedAggregateTokensPerTask),
+// never an input. Kept per the no-delete rule; the which-change pole is the recorded
+// predecessor-commit run (6c831b7).
+// export function computeInferenceCostFactor(
+//   t: number,
+//   tokenParams: TokenCostCurveParams = DEFAULT_TOKEN_COST_CURVE,
+//   usageMultiplier: number = START_YEAR_TOKEN_USAGE_MULTIPLIER,
+// ): number {
+//   if (t <= 0) return usageMultiplier;
+//   return computeTokenCostFactor(t, tokenParams) * usageMultiplier;
+// }
 
 /**
  * Compute the Better (B) score for an occupation-role at time t.
@@ -186,27 +173,23 @@ export function computeCheaperScore(
    *  channel lives here, once (the G4 partition: labor-availability/organizational caution stays
    *  in the α slack driver — see alphaDrivers). 1.0 = disconnected (the which-change row). */
   economyWageIndex: number = 1.0,
+  /** Mini-stage 1 (the frontier-intensity cost layer): the role's Better-arrival year
+   *  (first year Better ≥ B*; null = not arrived → frontier-priced) and its CURRENT-year
+   *  capability surplus s = Better − B*. Legacy callers' defaults (null, 0) price at the
+   *  frontier — the conservative pole. */
+  arrivalYear: number | null = null,
+  betterSurplus: number = 0,
+  /** Flywheel MS: the cost clock (τ). Absent ⇒ calendar time (legacy/fixture identity). */
+  costClock?: CostClock,
 ): number {
-  const t = year - DEFAULT_START_YEAR;
-  // Non-null assertion safe: AI_COST_COMPOSITION has all DeploymentType keys
-  const comp = (costParams?.composition?.[cluster.deploymentType]
-    ?? AI_COST_COMPOSITION[cluster.deploymentType]
-    ?? AI_COST_COMPOSITION['software'])!;
-
-  const mfgChange = costParams?.manufacturingAnnualChange ?? DEFAULT_MANUFACTURING_ANNUAL_CHANGE;
-  const energyChange = costParams?.energyAnnualChange ?? DEFAULT_ENERGY_ANNUAL_CHANGE;
-
-  // Supply chain multipliers (1.0 = no effect)
+  // Mini-stage 1: THE ONE ASSEMBLY — the realized-cost object (aiCost.ts) owns the
+  // 3-leg composition (frontier/fixed-capability inference blend + mfg/energy exponentials
+  // + supply-chain multipliers). The retired inline assembly is preserved in git history
+  // and the predecessor-commit record (6c831b7).
   const scm = supplyChainMultipliers ?? { inference: 1, manufacturing: 1, energy: 1 };
-
-  // Phase 10.A: inference component uses the floored decay curve; manufacturing/energy
-  // keep the existing exponential decay (out of scope for this rework — see plan Part 3).
-  const inferenceFactor = computeInferenceCostFactor(t, costParams?.tokenCostCurve, costParams?.tokenUsageMultiplier);
-
-  const aiCostFraction =
-      comp.inference * inferenceFactor * scm.inference
-    + comp.manufacturing * Math.exp(mfgChange * t) * scm.manufacturing
-    + comp.energy * Math.exp(energyChange * t) * scm.energy;
+  const aiCostFraction = computeAiCostFraction(
+    year, cluster.deploymentType, arrivalYear, betterSurplus, costParams, scm, costClock,
+  ).fraction;
 
   // FS-3 (ratified): the OEWS basis — humanCost = (roleWage/econMean) × wageIndex(t−1) × (1+scarcity).
   // NOMINAL-ON-NOMINAL declared: aiCostFraction is nominal-anchored-2025; the wage leg is the
@@ -276,13 +259,18 @@ export function computeBFCSScores(
   /** FS-3: the OEWS basis + the G1 connection (see computeCheaperScore). */
   roleWageRelative?: number,
   economyWageIndex: number = 1.0,
+  /** Mini-stage 1: Better-arrival year + current surplus (see computeCheaperScore). */
+  arrivalYear: number | null = null,
+  betterSurplus: number = 0,
+  /** Flywheel MS: the cost clock (τ). Absent ⇒ calendar time (legacy/fixture identity). */
+  costClock?: CostClock,
 ): BFCSScores {
   return {
     better: computeBetterScore(capabilityScores, cluster, role),
     faster: computeFasterScore(year, cluster, supplyChainParams?.fasterMultiplier),
     cheaper: computeCheaperScore(
       year, role, cluster, costParams, supplyChainParams?.costMultipliers, wageAdjustment,
-      roleWageRelative, economyWageIndex,
+      roleWageRelative, economyWageIndex, arrivalYear, betterSurplus, costClock,
     ),
     safer: computeSaferScore(year, cluster, supplyChainParams?.saferMultiplier),
   };
@@ -337,10 +325,15 @@ export function checkAdoptionTrigger(
   /** FS-3: the OEWS basis + the G1 connection. */
   roleWageRelative?: number,
   economyWageIndex: number = 1.0,
+  /** Mini-stage 1: Better-arrival year + current surplus (see computeCheaperScore). */
+  arrivalYear: number | null = null,
+  betterSurplus: number = 0,
+  /** Flywheel MS: the cost clock (τ). Absent ⇒ calendar time (legacy/fixture identity). */
+  costClock?: CostClock,
 ): { triggered: boolean; scores: BFCSScores } {
   const scores = computeBFCSScores(
     capabilityScores, cluster, role, year, costParams, supplyChainParams, wageAdjustment,
-    roleWageRelative, economyWageIndex,
+    roleWageRelative, economyWageIndex, arrivalYear, betterSurplus, costClock,
   );
   const effectiveThresholds = thresholdOverride ?? role.bfcsThresholds;
   const triggered = checkThresholdsMet(scores, effectiveThresholds);
@@ -415,9 +408,19 @@ export function findTriggerYear(
   costParams?: AICostParams,
   frictionYears: number = 0,
 ): number | null {
+  // Mini-stage 1: the scan tracks the Better-arrival year chronologically (the same latch
+  // the simulation loop keeps), so the Cheaper leg prices the frontier/fixed-capability
+  // blend exactly as the live path does.
+  const bStar = (thresholdOverride ?? role.bfcsThresholds).better;
+  let arrivalYear: number | null = null;
   for (let year = startYear; year <= endYear; year++) {
     const capScores = getScoresForYear(year);
-    const { triggered } = checkAdoptionTrigger(cluster, role, year, capScores, thresholdOverride, costParams);
+    const better = computeBetterScore(capScores, cluster, role);
+    if (arrivalYear === null && better >= bStar) arrivalYear = year;
+    const { triggered } = checkAdoptionTrigger(
+      cluster, role, year, capScores, thresholdOverride, costParams,
+      undefined, 0, undefined, 1.0, arrivalYear, better - bStar,
+    );
     if (triggered) {
       const effectiveTriggerYear = Math.ceil(year + Math.max(0, frictionYears));
       if (effectiveTriggerYear > endYear) return null;

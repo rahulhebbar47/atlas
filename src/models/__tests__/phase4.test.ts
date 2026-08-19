@@ -60,17 +60,20 @@ describe('Phase 4: checkAdoptionTrigger with threshold override', () => {
     expect(typeof result.triggered).toBe('boolean');
   });
 
+  // Mini-stage 1 re-spec: moved 2040 → 2050 — under frontier pricing (arrival=null) Cheaper is
+  // still 0-clamped in 2040 (below even the 0.01 override), so the low-threshold trigger could
+  // not fire; by 2050 per-token decay dominates the intensity premium and Cheaper is interior.
   it('uses override thresholds when provided', () => {
-    const capScores = getAllCapabilityScores(2040, getDefaultSimulationConfig().capabilities);
+    const capScores = getAllCapabilityScores(2050, getDefaultSimulationConfig().capabilities);
 
     // Very low thresholds — should trigger easily
     const lowThresholds: BFCSThresholds = { better: 0.01, faster: 0.01, cheaper: 0.01, safer: 0.01 };
-    const lowResult = checkAdoptionTrigger(cluster, role, 2040, capScores, lowThresholds);
+    const lowResult = checkAdoptionTrigger(cluster, role, 2050, capScores, lowThresholds);
     expect(lowResult.triggered).toBe(true);
 
     // Very high thresholds — should not trigger
     const highThresholds: BFCSThresholds = { better: 0.99, faster: 0.99, cheaper: 0.99, safer: 0.99 };
-    const highResult = checkAdoptionTrigger(cluster, role, 2040, capScores, highThresholds);
+    const highResult = checkAdoptionTrigger(cluster, role, 2050, capScores, highThresholds);
     expect(highResult.triggered).toBe(false);
   });
 

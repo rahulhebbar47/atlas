@@ -563,8 +563,117 @@ async function fetchGovernmentSpending(apiKey: string, debug: boolean): Promise<
 }
 
 // ============================================================
+// Fetch 1E': Industry GDP — VALUE ADDED + GROSS OUTPUT
+// ============================================================
+// The production-ledger anchor (an adopted design decision: VALUE ADDED is
+// the anchor, gross output retained for reference). GDPbyIndustry rows carry
+// Industry / IndustrYDescription (sic, BEA's spelling) — NOT the NIPA SeriesCode /
+// LineDescription fields the deprecated 1E function assumed (it would have keyed every
+// row 'undefined'; found during this extension, deprecated below with attribution).
+
+async function fetchIndustryVAandGO(apiKey: string): Promise<void> {
+  console.log('🏭 Fetching Industry Value Added + Gross Output (GDPbyIndustry Tables 1 & 15, Annual)...');
+  const pull = async (tableId: string) => {
+    // GDPbyIndustry wraps Results in an ARRAY ([{Data: [...]}]) unlike NIPA — the shared
+    // fetchBEA reads Results.Data and returns null here, so this fetch normalizes locally.
+    const url = new URL(BEA_BASE_URL);
+    url.searchParams.set('UserID', apiKey);
+    url.searchParams.set('method', 'GetData');
+    url.searchParams.set('ResultFormat', 'JSON');
+    url.searchParams.set('DataSetName', 'GDPbyIndustry');
+    url.searchParams.set('TableID', tableId);
+    url.searchParams.set('Frequency', 'A');
+    url.searchParams.set('Year', '2025');
+    url.searchParams.set('Industry', 'ALL');
+    const response = await fetch(url.toString());
+    if (!response.ok) throw new Error(`BEA GDPbyIndustry ${response.status}`);
+    const json = await response.json() as { BEAAPI?: { Results?: unknown } };
+    let results = json.BEAAPI?.Results as { Data?: BEADataRow[] } | Array<{ Data?: BEADataRow[] }> | undefined;
+    if (Array.isArray(results)) results = results[0];
+    const data = results?.Data ?? [];
+    const out: Record<string, { description: string; valueBillions: number }> = {};
+    for (const row of data) {
+      const code = row['Industry'];
+      const desc = row['IndustrYDescription'] ?? '';
+      const val = parseNumericValue(row.DataValue);
+      if (code && !isNaN(val)) out[code] = { description: desc, valueBillions: val };
+    }
+    return out;
+  };
+  try {
+    const valueAdded = await pull('1');
+    await sleep(RATE_LIMIT_DELAY_MS);
+    const grossOutput = await pull('15');
+    if (Object.keys(valueAdded).length === 0) {
+      console.log('  ⚠️  No VA rows returned — leaving existing file untouched.');
+      return;
+    }
+    writeJSON(path.join(OUTPUT_DIR, 'industry-gdp.json'), {
+      source: 'BEA GDP by Industry — Value Added (Table 1) + Gross Output (Table 15)',
+      seriesOrTable: 'GDPbyIndustry TableID 1 & 15, Frequency A, Industry ALL',
+      fetchedAt: new Date().toISOString(),
+      dataYear: 2025,
+      notes: 'Billions of current dollars, annual 2025. valueAdded is the production-ledger anchor (an adopted design decision); grossOutput retained for reference. Keys are BEA industry codes (NAICS-based).',
+      valueAdded,
+      grossOutput,
+    });
+    console.log(`  VA industries: ${Object.keys(valueAdded).length}; GO industries: ${Object.keys(grossOutput).length}\n`);
+  } catch (error) {
+    console.error('  ❌ Industry VA/GO fetch error:', error);
+  }
+}
+
+// ============================================================
+// Fetch 1H: Private Fixed Investment by Type (NIPA T50305) — the baseline capex
+// partition's measured input (the buildout finance design)
+// ============================================================
+
+async function fetchFixedInvestmentDetail(apiKey: string): Promise<void> {
+  console.log('🏗️  Fetching Private Fixed Investment by Type (NIPA Table 5.3.5, Annual 2024–2025)...');
+  try {
+    const byYear: Record<string, Record<string, { description: string; valueBillions: number }>> = {};
+    for (const year of ['2024', '2025']) {
+      const data = await fetchBEA({
+        DataSetName: 'NIPA', TableName: 'T50305', Frequency: 'A', Year: year,
+      }, apiKey);
+      const rows: Record<string, { description: string; valueBillions: number }> = {};
+      for (const row of data ?? []) {
+        const val = parseNumericValue(row.DataValue);
+        if (!isNaN(val) && row.LineNumber) {
+          rows[row.LineNumber] = {
+            description: row.LineDescription,
+            // UNIT_MULT converts to absolute dollars; render as billions
+            valueBillions: (val * Math.pow(10, parseInt(row.UNIT_MULT ?? '6', 10))) / 1e9,
+          };
+        }
+      }
+      if (Object.keys(rows).length > 0) byYear[year] = rows;
+      await sleep(RATE_LIMIT_DELAY_MS);
+    }
+    if (Object.keys(byYear).length === 0) {
+      console.log('  ⚠️  No T50305 rows returned — nothing written.');
+      return;
+    }
+    writeJSON(path.join(OUTPUT_DIR, 'fixed-investment-detail.json'), {
+      source: 'BEA NIPA Table 5.3.5 (Private Fixed Investment by Type)',
+      seriesOrTable: 'NIPA T50305, Frequency A',
+      fetchedAt: new Date().toISOString(),
+      notes: 'Billions of current dollars by line number. Inputs to the I_AI_observed baseline capex partition (production program, checkpoint §1.1): information-processing equipment, computers & peripheral, software, and structures lines.',
+      byYear,
+    });
+    console.log(`  Years: ${Object.keys(byYear).join(', ')}; lines/yr: ${Object.keys(Object.values(byYear)[0]!).length}\n`);
+  } catch (error) {
+    console.error('  ❌ Fixed investment detail fetch error:', error);
+  }
+}
+
+// ============================================================
 // Fetch 1E: Industry GDP (GDPbyIndustry)
 // ============================================================
+// DEPRECATED (2026-08-17): this function assumed NIPA row
+// fields (SeriesCode/LineDescription) which GDPbyIndustry does not return — every key
+// would land 'undefined'. Superseded by fetchIndustryVAandGO above (correct fields,
+// VA + GO). Kept per the no-delete rule; no longer called from main().
 
 async function fetchIndustryGDP(apiKey: string): Promise<void> {
   console.log('🏭 Fetching Industry GDP (GDPbyIndustry)...');
@@ -852,6 +961,18 @@ async function main() {
     console.log('🔍 DEBUG MODE: Will print all rows for each NIPA table.\n');
   }
 
+  // ---- fetch ONLY the new tables ----
+  // Refreshing the existing calibration artifacts (gdp-components, personal-income, …)
+  // would move the engine baseline outside a ratified re-baseline — this flag scopes the
+  // run to the NEW files (industry-gdp VA/GO + fixed-investment-detail) and exits.
+  if (flags.has('--production-stage0')) {
+    await fetchIndustryVAandGO(apiKey);
+    await sleep(RATE_LIMIT_DELAY_MS);
+    await fetchFixedInvestmentDetail(apiKey);
+    console.log('✅ Production-Stage-0 fetches complete (existing calibration artifacts untouched).');
+    return;
+  }
+
   // ---- 1A: GDP Components ----
   await fetchGDPComponents(apiKey, debug);
   await sleep(RATE_LIMIT_DELAY_MS);
@@ -868,8 +989,11 @@ async function main() {
   await fetchGovernmentSpending(apiKey, debug);
   await sleep(RATE_LIMIT_DELAY_MS);
 
-  // ---- 1E: Industry GDP ----
-  await fetchIndustryGDP(apiKey);
+  // ---- 1E: Industry GDP (Production Stage 0: re-pointed to the corrected VA+GO fetch;
+  //          the deprecated NIPA-field version is retained above, uncalled) ----
+  await fetchIndustryVAandGO(apiKey);
+  await sleep(RATE_LIMIT_DELAY_MS);
+  await fetchFixedInvestmentDetail(apiKey);
   await sleep(RATE_LIMIT_DELAY_MS);
 
   // ---- 1F: Input-Output Multipliers (TODO) ----

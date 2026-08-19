@@ -53,6 +53,7 @@ import {
   BOTTOM80_TRANSFER_SHARE,
   BOTTOM80_ASSET_SHARE,
   BOTTOM80_POP_SHARE,
+  BASELINE_CONSUMPTION_2025,
 } from '@/models/constants';
 import type { PolicyEffects, ClusterDisplacementResult, MacroProductionInputs, MacroInputs } from '@/types';
 
@@ -78,6 +79,7 @@ function zeroPolicyEffects(): PolicyEffects {
     swfAnnualContribution: 0,
     requiredAssetOwnership: 0,
     requiredTransferLevel: 0,
+    aiProfitPayoutBase: 0, // Stage H addendum (A-6): fixture default — no payout base in these unit fixtures
   };
 }
 
@@ -95,6 +97,11 @@ function buildDefaultMacroInputs(overrides?: Partial<MacroInputs>): MacroInputs 
     automationCoverage: 0,
     policyEffects: zeroPolicyEffects(),
     previousMacro: null,
+    // H3 rider F6b: the dead profit-growth-proxy arm was retired LOUD — computeMacro now
+    // requires the equity-module return (the simulation loop always passes it). Neutral 0
+    // here; tests that exercised the dead arm ride the same neutral basis (previousMacro is
+    // null in this helper, so the retired arm evaluated to 0 as well — bit-identical).
+    marketReturn: 0,
     ...overrides,
   };
 }
@@ -321,6 +328,10 @@ describe('computeSectorWeightedDeflation', () => {
     expect(deflation).toBe(0);
   });
 
+  // Mini-stage 1 re-spec: the channel no longer assembles its own cost index from aiCostParams —
+  // it consumes the per-cluster realized cost index (clusterAiCostIndex, the one assembly in
+  // aiCost.ts); a falling index (0.2 = AI does the work at 20% of the 2025 task cost) expresses
+  // the cost savings, and without the map the fallback (1.0 = anchor cost, no savings) yields 0.
   it('increases with cluster automation', () => {
     const lowDisp: ClusterDisplacementResult[] = [{
       clusterId: 'tech_swe',
@@ -342,10 +353,21 @@ describe('computeSectorWeightedDeflation', () => {
       averageWage: 100_000,
       bfcsOutput: [],
     }];
-    const lowDeflation = computeSectorWeightedDeflation(lowDisp, 2030).total;
-    const highDeflation = computeSectorWeightedDeflation(highDisp, 2030).total;
+    const clusterAiCostIndex = new Map<string, number>([['tech_swe', 0.2]]);
+    const lowDeflation = computeSectorWeightedDeflation(
+      lowDisp, 2030, undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, clusterAiCostIndex,
+    ).total;
+    const highDeflation = computeSectorWeightedDeflation(
+      highDisp, 2030, undefined, undefined, undefined, undefined, undefined,
+      undefined, undefined, undefined, undefined, clusterAiCostIndex,
+    ).total;
     expect(highDeflation).toBeGreaterThan(lowDeflation);
     expect(lowDeflation).toBeGreaterThan(0);
+
+    // Without the realized-cost map, the fallback index (1.0 = 2025 anchor cost) means no
+    // per-unit savings — automation alone produces no deflation.
+    expect(computeSectorWeightedDeflation(highDisp, 2030).total).toBe(0);
   });
 });
 
@@ -1352,6 +1374,9 @@ describe('computeMacro — Phase 2 production inputs', () => {
       previousMacro: firstYear,
       nominalGDPHistory: [BASELINE_GDP_NOMINAL_2025],
       productionInputs: prodWithConsumer,
+      // H3 ruling 2: consumer potential > 0 requires the zero-AI benchmark (loud guard);
+      // the baseline level keeps this unit test's demand-healthy premise (ratio clamps at 1).
+      counterfactualRealConsumption: BASELINE_CONSUMPTION_2025,
     }));
     const resultWithout = computeMacro(buildDefaultMacroInputs({
       year: DEFAULT_START_YEAR + 1,
@@ -1485,6 +1510,7 @@ describe('Phase 3: Demand-Constrained GDP', () => {
         swfAnnualContribution: 0,
         requiredAssetOwnership: 0,
         requiredTransferLevel: 0,
+        aiProfitPayoutBase: 0, // Stage H addendum (A-6): fixture default — no payout base in these unit fixtures
       };
 
       const resultSWF = computeMacro(buildDefaultMacroInputs({
@@ -1562,6 +1588,8 @@ describe('Phase 3: Demand-Constrained GDP', () => {
         previousMacro: firstYear,
         nominalGDPHistory: [BASELINE_GDP_NOMINAL_2025],
         productionInputs: prod,
+        // H3 ruling 2: the zero-AI benchmark (loud-guarded); baseline keeps demand healthy here.
+        counterfactualRealConsumption: BASELINE_CONSUMPTION_2025,
       }));
 
       // potentialGDP = gdpReal + $2T (real-terms: both sides in 2025 dollars)
@@ -1588,6 +1616,8 @@ describe('Phase 3: Demand-Constrained GDP', () => {
         previousMacro: firstYear,
         nominalGDPHistory: [BASELINE_GDP_NOMINAL_2025],
         productionInputs: prod,
+        // H3 ruling 2: the zero-AI benchmark (loud-guarded); baseline keeps demand healthy here.
+        counterfactualRealConsumption: BASELINE_CONSUMPTION_2025,
       }));
 
       // Verify the capacity utilization identity (real-terms: gdpReal / potentialGDP)
@@ -1732,6 +1762,8 @@ describe('Phase 3: Demand-Constrained GDP', () => {
         previousMacro: year0,
         nominalGDPHistory: [BASELINE_GDP_NOMINAL_2025],
         productionInputs: prod1,
+        // H3 ruling 2: the zero-AI benchmark (loud-guarded)
+        counterfactualRealConsumption: BASELINE_CONSUMPTION_2025,
       }));
 
       // Current utilization drops with AI potential
@@ -1748,6 +1780,7 @@ describe('Phase 3: Demand-Constrained GDP', () => {
         previousMacro: year1,
         nominalGDPHistory: [BASELINE_GDP_NOMINAL_2025, year1.gdpNominal],
         productionInputs: prod2,
+        counterfactualRealConsumption: BASELINE_CONSUMPTION_2025,
       }));
 
       // Capacity utilization should still be < 1.0
@@ -1981,7 +2014,7 @@ describe('Housing Market Stabilization', () => {
     }));
   }
 
-  // STAGE 6.5: the additive shelter stack is replaced by the stock-flow housing model.
+  // The additive shelter stack is replaced by the stock-flow housing model.
   // The old tests asserted the retired hand-set coefficients (foreclosure ×0.5, rentersCreated ×
   // rentalDemandSensitivity, the −0.05 floor); the structural semantics are tested below — on the
   // pure computeHousingBlock where possible, and on the re-pointed diagnostics at the macro level.
@@ -2300,7 +2333,7 @@ describe('Stage 6.5 (R25): transmitted AI deflation equals the firewall add-back
 });
 
 // ============================================================
-// Stage 7 — Residual corporate profits (Phase 10.B; OD-5 ratified)
+// Residual corporate profits (Phase 10.B; an adopted design decision)
 // ============================================================
 
 describe('Stage 7: residual corporate profits', () => {
@@ -2394,7 +2427,7 @@ describe('E-8c F-A: the plucking potential (Friedman ceiling)', () => {
     expect((80 - p) / p).toBeLessThan(-0.2);             // the gap reads the depression
   });
 
-  it('boost composition (ratified item 1): the boost raises the COUNTERFACTUAL line; realized below it is never absorbed', () => {
+  it('boost composition (an adopted design decision): the boost raises the COUNTERFACTUAL line; realized below it is never absorbed', () => {
     let p: number | null = 100;
     // C-like: AI coverage rises (boostAdjust 1.05) while realized stays below the composed line
     p = computePluckingPotential(p, 95, 0.02, 1.05);

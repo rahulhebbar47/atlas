@@ -11,6 +11,14 @@
  */
 
 import type { SimulationConfig } from '@/types';
+import { DEFAULT_POLICY_CONFIG } from '@/models/constants';
+
+// Stage H item 1 (the audit's cosmetic-template finding): policy features MUST be expressed
+// through config.policyConfig (the engine's live mechanism — computePolicyEffects reads config
+// only). The per-year override keys ubiEnabled/ubiMonthlyAmount/swfEnabled are RESOLVED and
+// RECORDED but never read back by the simulation; templates that wrote them advertised UBI/SWF
+// that never fired while their tax-rate rows (live keys) did. The policyConfig blocks below are
+// full objects (the gallery's configOverrides merge is shallow, top-level-key replacement).
 
 // ============================================================
 // Types
@@ -66,12 +74,24 @@ export const SCENARIO_TEMPLATES: ScenarioTemplate[] = [
     tags: ['progressive', 'ubi', 'high-tax'],
     fiscalProfile: 'tax_the_winners',
     parameterOverrides: {
-      'ubiEnabled:2032': 1,
-      'ubiMonthlyAmount:2032': 1200,
-      'ubiMonthlyAmount:2036': 1600,
-      'ubiMonthlyAmount:2040': 2000,
+      // Tax rows stay as per-year overrides — these keys ARE read back by the engine.
       'effectiveIncomeTaxRate:2030': 0.18,
       'effectiveCorporateTaxRate:2030': 0.24,
+      // The former ubiEnabled/ubiMonthlyAmount override rows were dead keys (never consumed);
+      // the UBI ramp now lives in policyConfig below — the advertised feature actually fires.
+    },
+    configOverrides: {
+      policyConfig: {
+        ...DEFAULT_POLICY_CONFIG,
+        ubi: {
+          ...DEFAULT_POLICY_CONFIG.ubi,
+          enabled: true,
+          // interpolatePolicy: 0 before the first keyframe (introduction at 2032), linear
+          // ramp between keyframes — exactly the description's "introduced at $1,200 in
+          // 2032, ramping to $2,000 by 2040".
+          monthlyAmount: { keyframes: [{ year: 2032, value: 1200 }, { year: 2036, value: 1600 }, { year: 2040, value: 2000 }] },
+        },
+      },
     },
   },
   {
@@ -100,11 +120,18 @@ export const SCENARIO_TEMPLATES: ScenarioTemplate[] = [
     tags: ['ubi', 'progressive', 'gradual'],
     fiscalProfile: 'balanced_reduction',
     parameterOverrides: {
-      'ubiEnabled:2032': 1,
-      'ubiMonthlyAmount:2032': 500,
-      'ubiMonthlyAmount:2035': 1000,
-      'ubiMonthlyAmount:2038': 1500,
-      'ubiMonthlyAmount:2040': 2000,
+      // The former ubiEnabled/ubiMonthlyAmount override rows were dead keys (never consumed);
+      // the phase-in now lives in policyConfig below — the advertised feature actually fires.
+    },
+    configOverrides: {
+      policyConfig: {
+        ...DEFAULT_POLICY_CONFIG,
+        ubi: {
+          ...DEFAULT_POLICY_CONFIG.ubi,
+          enabled: true,
+          monthlyAmount: { keyframes: [{ year: 2032, value: 500 }, { year: 2035, value: 1000 }, { year: 2038, value: 1500 }, { year: 2040, value: 2000 }] },
+        },
+      },
     },
   },
   {
@@ -124,11 +151,30 @@ export const SCENARIO_TEMPLATES: ScenarioTemplate[] = [
     tags: ['moderate', 'ubi', 'swf'],
     fiscalProfile: 'balanced_reduction',
     parameterOverrides: {
-      'ubiEnabled:2035': 1,
-      'ubiMonthlyAmount:2035': 1000,
-      'swfEnabled:2030': 1,
+      // Tax rows stay as per-year overrides — these keys ARE read back by the engine.
       'effectiveIncomeTaxRate:2032': 0.15,
       'effectiveCorporateTaxRate:2032': 0.22,
+      // The former ubiEnabled/ubiMonthlyAmount/swfEnabled override rows were dead keys (never
+      // consumed); UBI and the SWF now live in policyConfig below — the advertised features
+      // actually fire.
+    },
+    configOverrides: {
+      policyConfig: {
+        ...DEFAULT_POLICY_CONFIG,
+        ubi: {
+          ...DEFAULT_POLICY_CONFIG.ubi,
+          enabled: true,
+          monthlyAmount: { keyframes: [{ year: 2035, value: 1000 }] },
+        },
+        sovereignWealthFund: {
+          ...DEFAULT_POLICY_CONFIG.sovereignWealthFund,
+          enabled: true,
+          // "Enabled in 2030": contributions begin at 2030 (0 before the first keyframe).
+          // $100B/yr matches the asset_democracy preset's cited federal-feasibility value
+          // (~0.4% GDP — see POLICY_PRESETS in constants.ts).
+          annualContribution: { keyframes: [{ year: 2030, value: 100 }] },
+        },
+      },
     },
   },
 ];

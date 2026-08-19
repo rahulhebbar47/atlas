@@ -16,11 +16,13 @@ import { useSimulationStore } from '@/stores/simulationStore';
 import { Slider } from '@/components/shared/Slider';
 import {
   BASELINE_SHELTER_CPI_WEIGHT,
-  DEFAULT_SHELTER_INFLATION_STICKINESS,
+  // DEPRECATED (Stage H): dead dial — shelterInflationStickiness retired with the Stage-6.5/L9 shelter mechanics; control removed below.
+  // DEFAULT_SHELTER_INFLATION_STICKINESS,
   DEFAULT_MORTGAGE_STRESS_AMPLIFIER,
   DEFAULT_HOUSING_WEALTH_MPC,
   DEFAULT_FORECLOSURE_LAG,
   DEFAULT_HOMEOWNERSHIP_RECOVERY_RATE,
+  DEFAULT_INSTITUTIONAL_BUYER_RATE,
 } from '@/models/constants';
 
 /** Warm amber accent for housing controls */
@@ -31,12 +33,13 @@ export function HousingControls() {
   const shelterCPIWeight = useSimulationStore(
     (s) => s.config.shelterCPIWeight ?? BASELINE_SHELTER_CPI_WEIGHT,
   );
-  const shelterStickiness = useSimulationStore(
-    (s) => s.config.shelterInflationStickiness ?? DEFAULT_SHELTER_INFLATION_STICKINESS,
-  );
-  const shelterFloor = useSimulationStore(
-    (s) => s.config.shelterInflationFloor ?? -0.05,
-  );
+  // DEPRECATED (Stage H): dead dials — shelterInflationStickiness / shelterInflationFloor retired with the Stage-6.5/L9 shelter mechanics; deadness enforced by stageH-honesty.test.ts.
+  // const shelterStickiness = useSimulationStore(
+  //   (s) => s.config.shelterInflationStickiness ?? DEFAULT_SHELTER_INFLATION_STICKINESS,
+  // );
+  // const shelterFloor = useSimulationStore(
+  //   (s) => s.config.shelterInflationFloor ?? -0.05,
+  // );
 
   // Mortgage & Ownership
   const mortgageStressAmp = useSimulationStore(
@@ -54,11 +57,12 @@ export function HousingControls() {
 
   // Market Stabilization (NEW)
   const institutionalBuyer = useSimulationStore(
-    (s) => s.config.institutionalBuyerRate ?? 0.40,
+    (s) => s.config.institutionalBuyerRate ?? DEFAULT_INSTITUTIONAL_BUYER_RATE, // Stage H: by-reference
   );
-  const rentalDemandSens = useSimulationStore(
-    (s) => s.config.rentalDemandSensitivity ?? 0.50,
-  );
+  // DEPRECATED (Stage H): dead dial — rentalDemandSensitivity retired with the Stage-6.5/L9 shelter mechanics; deadness enforced by stageH-honesty.test.ts.
+  // const rentalDemandSens = useSimulationStore(
+  //   (s) => s.config.rentalDemandSensitivity ?? 0.50,
+  // );
 
   const updateConfig = useSimulationStore((s) => s.updateConfig);
 
@@ -67,14 +71,15 @@ export function HousingControls() {
     (value: number) => updateConfig((c) => ({ ...c, shelterCPIWeight: value })),
     [updateConfig],
   );
-  const handleShelterStickiness = useCallback(
-    (value: number) => updateConfig((c) => ({ ...c, shelterInflationStickiness: value })),
-    [updateConfig],
-  );
-  const handleShelterFloor = useCallback(
-    (value: number) => updateConfig((c) => ({ ...c, shelterInflationFloor: value })),
-    [updateConfig],
-  );
+  // DEPRECATED (Stage H): dead-dial handlers — shelter stickiness/floor controls removed below; config fields kept (no-delete rule).
+  // const handleShelterStickiness = useCallback(
+  //   (value: number) => updateConfig((c) => ({ ...c, shelterInflationStickiness: value })),
+  //   [updateConfig],
+  // );
+  // const handleShelterFloor = useCallback(
+  //   (value: number) => updateConfig((c) => ({ ...c, shelterInflationFloor: value })),
+  //   [updateConfig],
+  // );
 
   // Mortgage handlers
   const handleMortgageStressAmp = useCallback(
@@ -99,10 +104,11 @@ export function HousingControls() {
     (value: number) => updateConfig((c) => ({ ...c, institutionalBuyerRate: value })),
     [updateConfig],
   );
-  const handleRentalDemandSens = useCallback(
-    (value: number) => updateConfig((c) => ({ ...c, rentalDemandSensitivity: value })),
-    [updateConfig],
-  );
+  // DEPRECATED (Stage H): dead-dial handler — rentalDemandSensitivity control removed below; config field kept (no-delete rule).
+  // const handleRentalDemandSens = useCallback(
+  //   (value: number) => updateConfig((c) => ({ ...c, rentalDemandSensitivity: value })),
+  //   [updateConfig],
+  // );
 
   return (
     <div className="space-y-5">
@@ -110,8 +116,9 @@ export function HousingControls() {
       <div className="space-y-3">
         <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider">Shelter Prices</p>
         <Slider label="Shelter CPI Weight" value={shelterCPIWeight} min={0.20} max={0.50} step={0.01} color={CONTROL_COLOR} onChange={handleShelterCPIWeight} formatValue={(v) => `${(v * 100).toFixed(0)}%`} />
-        <Slider label="Shelter Stickiness" value={shelterStickiness} min={0} max={1} step={0.05} color={CONTROL_COLOR} onChange={handleShelterStickiness} formatValue={(v) => v.toFixed(2)} />
-        <Slider label="Shelter Inflation Floor" value={shelterFloor} min={-0.15} max={0} step={0.01} color={CONTROL_COLOR} onChange={handleShelterFloor} formatValue={(v) => `${(v * 100).toFixed(0)}%`} />
+        {/* DEPRECATED (Stage H): dead dials — shelterInflationStickiness and shelterInflationFloor were retired with the Stage-6.5/L9 shelter mechanics; config fields kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+        {/* <Slider label="Shelter Stickiness" value={shelterStickiness} min={0} max={1} step={0.05} color={CONTROL_COLOR} onChange={handleShelterStickiness} formatValue={(v) => v.toFixed(2)} /> */}
+        {/* <Slider label="Shelter Inflation Floor" value={shelterFloor} min={-0.15} max={0} step={0.01} color={CONTROL_COLOR} onChange={handleShelterFloor} formatValue={(v) => `${(v * 100).toFixed(0)}%`} /> */}
       </div>
 
       {/* Subcategory: Mortgage & Ownership */}
@@ -127,7 +134,8 @@ export function HousingControls() {
       <div className="space-y-3">
         <p className="text-text-muted text-[10px] font-mono uppercase tracking-wider">Market Stabilization</p>
         <Slider label="Institutional Buyer Rate" value={institutionalBuyer} min={0} max={1} step={0.05} color={CONTROL_COLOR} onChange={handleInstitutionalBuyer} formatValue={(v) => v.toFixed(2)} />
-        <Slider label="Rental Demand Sensitivity" value={rentalDemandSens} min={0} max={1} step={0.05} color={CONTROL_COLOR} onChange={handleRentalDemandSens} formatValue={(v) => v.toFixed(2)} />
+        {/* DEPRECATED (Stage H): dead dial — rentalDemandSensitivity was retired with the Stage-6.5/L9 shelter mechanics; config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+        {/* <Slider label="Rental Demand Sensitivity" value={rentalDemandSens} min={0} max={1} step={0.05} color={CONTROL_COLOR} onChange={handleRentalDemandSens} formatValue={(v) => v.toFixed(2)} /> */}
       </div>
     </div>
   );

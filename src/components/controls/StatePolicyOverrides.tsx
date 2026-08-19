@@ -24,13 +24,14 @@ import type { StateCode, StatePolicyOverride } from '@/types';
 // Regulatory options
 // ============================================================
 
-type RegulatoryLevel = 'permissive' | 'moderate' | 'restrictive';
-
-const REGULATORY_OPTIONS: { value: RegulatoryLevel; label: string }[] = [
-  { value: 'permissive', label: 'Permissive' },
-  { value: 'moderate', label: 'Moderate' },
-  { value: 'restrictive', label: 'Restrictive' },
-];
+// DEPRECATED (Stage H): options for the dead AV/robotics regulatory selectors (lagModifier computed then discarded); controls removed below.
+// type RegulatoryLevel = 'permissive' | 'moderate' | 'restrictive';
+//
+// const REGULATORY_OPTIONS: { value: RegulatoryLevel; label: string }[] = [
+//   { value: 'permissive', label: 'Permissive' },
+//   { value: 'moderate', label: 'Moderate' },
+//   { value: 'restrictive', label: 'Restrictive' },
+// ];
 
 // ============================================================
 // Component
@@ -90,7 +91,8 @@ export function StatePolicyOverrides() {
           </div>
 
           {/* Minimum wage override */}
-          <Slider
+          {/* DEPRECATED (Stage H): dead dial — state minimumWage writes a field never read by computeStateOutputs; config field kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
+          {/* <Slider
             label="Min Wage Override"
             value={override.minimumWage ?? STATE_MINIMUM_WAGES_2024[selectedStateCode] ?? 7.25}
             min={7.25}
@@ -99,7 +101,7 @@ export function StatePolicyOverrides() {
             color="#D4A03C"
             onChange={(v) => updateField('minimumWage', v)}
             formatValue={(v) => `$${v.toFixed(2)}`}
-          />
+          /> */}
 
           {/* Additional UBI */}
           <Slider
@@ -125,8 +127,9 @@ export function StatePolicyOverrides() {
             formatValue={(v) => formatPercent(v, 0)}
           />
 
+          {/* DEPRECATED (Stage H): dead dials — the AV/robotics regulatory environments' lagModifier is computed and discarded (only `.additions` is consumed by computeStateOutputs); config fields kept (no-delete rule); deadness enforced by stageH-honesty.test.ts. Re-wiring, if any, is design-checkpoint work. */}
           {/* AV regulatory environment */}
-          <div>
+          {/* <div>
             <label className="text-text-secondary text-[11px] font-medium block mb-1.5">
               AV Regulatory Environment
             </label>
@@ -145,10 +148,10 @@ export function StatePolicyOverrides() {
                 </button>
               ))}
             </div>
-          </div>
+          </div> */}
 
           {/* Robotics regulatory environment */}
-          <div>
+          {/* <div>
             <label className="text-text-secondary text-[11px] font-medium block mb-1.5">
               Robotics Regulatory Environment
             </label>
@@ -167,7 +170,7 @@ export function StatePolicyOverrides() {
                 </button>
               ))}
             </div>
-          </div>
+          </div> */}
 
           {/* Reset button */}
           <button

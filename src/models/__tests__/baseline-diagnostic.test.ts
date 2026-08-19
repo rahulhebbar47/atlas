@@ -107,7 +107,7 @@ describe('Baseline Diagnostic — CES/CPS fix verification', () => {
         `${y.year}  | ${(gdpReal(y) / 1e12).toFixed(2).padStart(13)} | ${(employment(y) / 1e6).toFixed(1).padStart(14)} | ${debtGDP(y).toFixed(3).padStart(8)} | ${(tenYearYield(y) * 100).toFixed(2).padStart(8)}% | ${consumerCredit(y).toFixed(3).padStart(15)} | ${businessCredit(y).toFixed(3).padStart(14)}`,
       );
     }
-  });
+  }, 120_000); // explicit budget: full-simulation matrix test (each AI-bearing run includes the zero-AI twin); the 5s default flaked under full-suite contention
 });
 
 describe('Default AI + Fiscal × Fed Presets — Differentiation Check', () => {
@@ -176,5 +176,5 @@ describe('Default AI + Fiscal × Fed Presets — Differentiation Check', () => {
     const ues = Object.values(results).map(r => r.unemployment);
     const ueSpread = Math.max(...ues) - Math.min(...ues);
     console.log(`Unemployment spread: ${ueSpread.toFixed(1)}pp`);
-  });
+  }, 120_000); // explicit budget: full-simulation matrix test (each AI-bearing run includes the zero-AI twin); the 5s default flaked under full-suite contention
 });

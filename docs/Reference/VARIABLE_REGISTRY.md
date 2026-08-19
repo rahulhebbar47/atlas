@@ -64,7 +64,7 @@
 
 **Per-year state carried across iterations** (simulation.ts:437-473):
 - `previousMacro` (MacroOutput | null)
-- `previousFundSize` ($B, from sovereignWealthFund.initialFundSize)
+- `previousFundSize` ($B, from sovereignWealthFund.initialFundSize when the fund's creation year is at/before the simulation start; 0 until a later creation year seeds it)
 - `previousMoneySupply` ($, from BASELINE_MONEY_SUPPLY)
 - `previousTransferInflation` (decimal, init 0)
 - `debtGDPHistory` (array of ratios, Phase 8a)
@@ -518,8 +518,51 @@ The model splits inflation into shelter and goods, then weighted-blends. Inflati
 | `netInflation` | state | macro.ts:1502-1521 | `base - aiDefl + transferInfl + demand + minWageCostPush + creditDefl + scarcityInfl` | goodsInflation | N/A | percent (can be neg) |
 | `aiDeflationRate` | state | macro.ts:1477 | `computeSectorWeightedDeflation(clusters, year)` | netInflation | N/A | percent |
 | `sectorWeightedDeflationRate` | state | macro.ts:189-242 | `Σ(clusterAutoCoverage × deflationIntensity × costSavings × cpiWeight)` | aiDeflationRate | N/A | percent |
-| `creditDeflationContribution` | state | macro.ts:1457 | `-creditTightening × creditDeflationSensitivity` | netInflation | N/A | percent |
+| `creditDeflationContribution` | state | macro.ts `computeCreditDeflationContribution` | banded impulse form: `−(T_sub/GR)·s_level − s_imp·J` | netInflation | N/A | percent |
 | `creditDeflationSensitivity` | param | types/index.ts:1201 | 0.04 | monetary.ts → computePriceLevel | CreditFinancialControls | ratio |
+| `creditDeflationImpulseSensitivity` | param | constants.ts `DEFAULT_CREDIT_DEFLATION_IMPULSE_SENSITIVITY` | 0.007 (derived from the level constant's 2008 episode citation; A8-laddered ×4) | macro.ts `computeCreditDeflationContribution` (impulse component) | CreditFinancialControls "Credit Impulse Sensitivity" | pp per GR-unit ΔT |
+| `creditDeflationPersistence` | param | constants.ts `DEFAULT_CREDIT_DEFLATION_PERSISTENCE` | 0.5 (episode-anchored: 2008 impulse faded ~2yr) | macro.ts `computeCreditDeflationContribution` (kernel κ) | CreditFinancialControls "Credit Impulse Persistence" | per-year decay |
+| `creditDeflationNoiseFloor` | param | constants.ts `DEFAULT_CREDIT_DEFLATION_NOISE_FLOOR` | 0.05 (measured band: zero-AI max 0.021 / crisis onset 0.215) | macro.ts `computeCreditDeflationContribution` (band boundary); equityMarket.ts `computeCrisisAdjustedERP` (the same series' floor gates the crisis equity premium — one series, one floor) | CreditFinancialControls "Credit Noise Floor" | tightening level |
+| `aiRetentionShare` | param | constants.ts `DEFAULT_AI_RETENTION_SHARE` | 0.30 (measured national-accounts corporate retention 0.283–0.331, 2023–25, net-dividends basis — buybacks excluded from that basis, stated) | buildout.ts `computeFinanceable` → the buildout finance block → the investment pipeline | Advanced grid (buildout group) | share of profits [0.1–0.6] |
+| `buildoutAllocSmoothing` | param | constants.ts `DEFAULT_BUILDOUT_ALLOC_SMOOTHING` | 0.5 (editorial partial-adjustment step; oscillation battery-pinned) | buildout.ts `computeBuildoutPlan` (allocUsed) → `applyBuildout` | Advanced grid (buildout group) | fraction per year [0.1–1] |
+| `aiBuildoutSeamAnchor` | param | constants.ts `I_AI_OBSERVED_2025` | $140B (the measured $130–155B bracket's point pick; sensitivity override) | simulation.ts buildout step → the baseline capex partition delta | Advanced grid (buildout group) | $ (2025) |
+| `macro.buildout.*` | output | buildout.ts `computeBuildoutPlan` (echoed by macro.ts) | — | the per-year buildout telemetry surface: requirement, capacity, financeable, demand, realized investment, funding ratio F, binding sink, stocks (chips/energy/dc/fleet), allocation shares, manufacturing ramp | scenario output surfaces (gate attribution) | mixed (capacity units / $ / shares) |
+| `unitsPerEmbodiedWorker` | param | constants.ts `DEFAULT_UNITS_PER_EMBODIED_WORKER` | 1.0 (robot-density anchored; honest band 0.5–1.5 = the range) | simulation.ts `computeAIProductionExpansion` (the cleared-work fleet requirement) → buildout.ts fleet demand + the embodiment gate | Advanced grid (buildout group) | units per worker |
+| `absorptionElasticityAiExposed` | param | constants.ts `DEFAULT_ABSORPTION_ELASTICITY_AI_EXPOSED` | 0.75 (broad-category own-price elasticities −0.74…−0.82, national consumer-demand estimates) | macro.ts elasticity absorption → `aiGoodsAbsorbed` | Advanced grid | elasticity magnitude [0–1] |
+| `absorptionElasticityLaborServices` | param | constants.ts `DEFAULT_ABSORPTION_ELASTICITY_LABOR_SERVICES` | 0.20 (health-insurance-experiment arc elasticity; healthcare-dominant sector declared) | macro.ts elasticity absorption | Advanced grid | elasticity magnitude [0–0.5] |
+| `absorptionElasticityFoodEnergy` | param | constants.ts `DEFAULT_ABSORPTION_ELASTICITY_FOOD_ENERGY` | 0.40 (food-category review 0.27–0.81 blended with modern-era fuel 0.03–0.08) | macro.ts elasticity absorption | Advanced grid | elasticity magnitude [0–0.8] |
+| `macro.aiPotentialCeiling` | output | simulation.ts `computeAIProductionExpansion` (echoed by macro.ts) | — | the market-anchored potential ceiling: Σ cluster value added × cleared share × embodiment gate | scenario output surfaces | $ (real 2025 basis, economy-indexed) |
+| `macro.aiElasticityAbsorbed` | output | macro.ts elasticity absorption | — | the signed quantity called forth by AI-attributable sector price flows at the cited elasticities | scenario output surfaces | $ (real 2025 basis) |
+| `macro.buildout.fleetCoverage` | output | simulation.ts (the ledger's gate) | — | min(1, fleet stock / cleared-work fleet requirement) — the embodiment gate's coverage | scenario output surfaces (gate attribution) | ratio [0–1] |
+| `macro.buildout.trainingShare` | output | buildout.ts `trainingShare(year)` | — | the derived time-varying training share of compute demand (reinforcement-learning rollout inside the slice; docs/Reference/TRAINING_SHARE_DERIVATION.md) | scenario output surfaces | share (0, 0.6] |
+| `equityIssuanceRate` | param | constants.ts `DEFAULT_EQUITY_ISSUANCE_RATE` | 0.015 (issuance ~0.5–1% of market value economy-wide; the AI regime above the norm) | simulation.ts issuance leg → buildout.ts `computeFinanceable` (the third financing leg; no-flow-of-funds boundary stated there) | Advanced grid (buildout group) | share of implied market cap per year [0.005–0.03] |
+| `aiRdIntensity` | param | constants.ts `DEFAULT_AI_RD_INTENSITY` | 0.12 (software/information R&D ≈10–15% of sales, national business R&D survey) | simulation.ts Channel-3 demand → the unified investment pipeline | Advanced grid (buildout group) | share of realized AI revenue [0.02–0.20] |
+| `rdTfpElasticity` | param (N2 axis lever) | constants.ts `DEFAULT_RD_TFP_ELASTICITY` | 0.08 (Hall–Mairesse–Mohnen 0.01–0.25, source-read) | simulation.ts Channel-3 flow (Δln of the base-inclusive research stock) → the non-shelter sector price assembly | N2 axis + Advanced grid | elasticity [0.01–0.25] |
+| `buildoutChipsCostTrend` | param (N1 axis lever) | constants.ts `BUILDOUT_LEG_COST_TREND.chips` | −0.26/yr (Epoch price-performance doubling 2.1–2.5yr) | buildout.ts legUnitCost (chips) → the buildout plan; aiCost.ts coupledTokenCostCurve (the derived token coupling) | N1 axis + Advanced grid | annual rate [−0.5–0.05] |
+| `buildoutEnergyCostTrend` | param (N1 axis lever) | constants.ts `BUILDOUT_LEG_COST_TREND.energy` | 0.0/yr (Lazard v18 blend) | buildout.ts legUnitCost (energy) | N1 axis + Advanced grid | annual rate [−0.1–0.1] |
+| `buildoutDcCostTrend` | param (N1 axis lever) | constants.ts `BUILDOUT_LEG_COST_TREND.dc` | 0.0/yr (level citable; learning rate honest-uncertainty) | buildout.ts legUnitCost (dc) | N1 axis + Advanced grid | annual rate [−0.1–0.1] |
+| `buildoutFleetCostTrend` | param (N1 axis lever) | constants.ts `FLEET_UNIT_COST_TREND` | −0.05/yr (honest-uncertainty) | buildout.ts fleetUnitCost | N1 axis + Advanced grid | annual rate [−0.25–0.05] |
+| `buildoutFleetRampGrowth` | param (N1 axis lever) | constants.ts `FLEET_RAMP_GROWTH` | 0.35/binding-yr (automotive ramp episodes) | buildout.ts applyBuildout (the queue-not-fence manufacturing ramp) | N1 axis + Advanced grid | growth rate [0.05–1.0] |
+| `fleetAllocSmoothing` | param | constants.ts `DEFAULT_FLEET_ALLOC_SMOOTHING` | 0.5 ([e], the R3 smoothing class — the adoption-gating design's one new constant) | simulation.ts computeFleetAllocation → the per-cluster coverage both gates consume | Advanced grid (buildout group) | step [0.1–1.0] |
+| `energyQueueLeadYears` | param (N1 axis lever) | constants.ts `DEFAULT_ENERGY_QUEUE_LEAD_YEARS` | 4 yr (Lawrence Berkeley Queued Up: median interconnection request-to-operation >4 yr for 2018–24 builds, >5 yr for 2025-completed; honest band 3–5) | buildout.ts computeBuildoutPlan → applyBuildout (the energy delivery pipeline) | N1 axis + Advanced grid | years [1–8] |
+| `energyQueueCeilingGrowth` | param (N1 axis lever) | constants.ts `DEFAULT_ENERGY_QUEUE_CEILING_GROWTH` | 0.20/binding-yr (the observed 48.6 → 63 GW additions jump, discounted for the non-datacenter claim) | buildout.ts applyBuildout (the additions ceiling — a queue, not a fence) | N1 axis + Advanced grid | growth rate [0–1] |
+| `energyBtmShare` | param (N1 axis lever) | constants.ts `DEFAULT_ENERGY_BTM_SHARE` | 0.25 (episode: the Colossus-class on-site turbine deployments; the express lane observably exists) | buildout.ts computeBuildoutPlan (lane split + blended gap price) → applyBuildout (the express pipeline) | N1 axis + Advanced grid | share [0–0.8] |
+| `parameterOverrides.orbitalCapacity` | per-year vehicle | — | 100 = no arrival ((v − 100)/100 capacity units join the orbital stock per covered year) | simulation.ts buildout step (event-layer read) → buildout.ts applyBuildout (orbital additions past the terrestrial min) | arrival events (the upgraded orbital-datacenters card) | index |
+| `macro.buildout.energyPending` / `.energyBtmPending` / `.energyCeiling` / `.energyDelivered` / `.energyBtmDelivered` / `.energyCarryover` | output | — | — | buildout.ts (the energy queue's per-year state: pending vintages, the additions ceiling, ceiling-gated grid deliveries, express-lane deliveries, blocked carryover) | scenario output telemetry (live-machine years) | units / units-per-yr |
+| `macro.buildout.energyOpex` | output | constants.ts `AI_ENERGY_OPEX_SEAM_RATE` ($3.5B seam class, rows 45/49/52) | — | simulation.ts (seam rate × t−1 utilization × terrestrial capacity × efficiency norm × the energy price index) → macro.ts (subtracted in the AI profit identity with the wedge carve-out `AI_ENERGY_WEDGE_SEAM_SHARE` 0.01) | scenario output telemetry | $ |
+| `macro.buildout.capacityTerrestrial` / `.orbitalStock` | output | — | — | buildout.ts (the terrestrial min alone; the orbital additive stock past it — integrated capacity) | scenario output telemetry | capacity units |
+| `macro.buildout.fleetCoverageByCluster` | output | — | — | simulation.ts computeFleetAllocation (the one coverage producer) | scenario output telemetry | per-cluster coverage [0–1] |
+| `macro.buildout.equityIssuance` / `.issuanceWindow` | output | simulation.ts issuance leg | — | the third financing leg + its market window (closes on the crisis equity premium) | scenario output surfaces (gate attribution) | $ / ratio [0–1] |
+| `macro.buildout.importShare` / `.importLeakage` | output | macro.ts (the buildout import offset) | — | the allocation-weighted import-content share + the net-export offset on the machine's above-baseline spend | scenario output surfaces | share / $ |
+| `macro.aiMarketCapImplied` | output | macro.ts (the guarded sector leg) | — | the model-implied AI market value (guarded price-earnings × realized AI profits) — the issuance leg's pricing basis | scenario output surfaces | $ |
+| `macro.aiRdSpend` / `.aiRdStock` / `.aiRdDeflationFlow` | output | macro.ts (realized spend) + simulation.ts (stock advance, flow) | — | the corporate AI-era R&D channel: realized spend, perpetual-inventory stock, and the signed productivity flow (Δln of the base-inclusive stock × the cited elasticity) | scenario output surfaces | $ / $ / rate |
+| `erpCrisisSensitivity` | param | constants.ts `DEFAULT_ERP_CRISIS_SENSITIVITY` | 0.046 (the Damodaran implied-premium 2008-09 step over the banded Great-Recession tightening signal) | equityMarket.ts `computeCrisisAdjustedERP` → the Gordon discount rate + the sector discount anchor | CreditFinancialControls "Crisis Equity Premium" | premium per tightening unit |
+| `erpCrisisComponent` | state | EquityMarketState | 0 (calm; identically 0 on the zero-AI path) | the Gordon discount rate; macro.ts sector zero-growth anchor (one producer, both legs) | N/A | rate |
+| `gordonDomainGuardEngaged` | state | EquityMarketState | false | reported trace flag (the validity-domain guard, `GORDON_MIN_SPREAD`) | N/A | boolean |
+| `sectorPEClampEngaged` | state | MacroOutput | false | reported trace flag (a sector P/E hit its constants' cited ceiling) | N/A | boolean |
+| `sectorEarningsFloorEngaged` | state | MacroOutput | false | reported trace flag (a negative sector-profit input floored for valuation) | N/A | boolean |
+| `creditDeflationImpulseState` | state | MacroOutput | 0 at seam | the kernel recursion (previousMacro) | N/A | GR-unit impulse |
+| `aiSavingsLevelTotal` (+4 sector, +2 leg) | state | MacroOutput | 0 at seam | the pass-through differencing (previousMacro); diagnostics | N/A | savings level |
 | `DEFAULT_CREDIT_DEFLATION_SENSITIVITY` | const | constants.ts:651 | 0.04 | monetary.ts | N/A | ratio |
 | `scarcityInflation` | state | macro.ts:1470 | `Σ(laborScarcity × clusterWeight × scarcityPassThrough)` | netInflation | N/A | percent |
 | `scarcityPassThrough` | param | types/index.ts:1205 | 0.30 | macro.ts → computeWageInflation | MonetaryPricesControls | ratio |
@@ -953,6 +996,7 @@ Phase 8 fix: `computeMonetizationRate` now evaluates ALL cases and returns the m
 | Variable | Type | Defined in | Default | Read by | UI binding | Unit |
 |---|---|---|---|---|---|---|
 | `policyConfig.sovereignWealthFund.enabled` | param | policy.ts:107 | false | computeAssetPolicyEffect | PolicyControls toggle | boolean |
+| `policyConfig.sovereignWealthFund.startYear` | param (optional) | policy.ts (creation-year seed + inert-before gate) | 2025 (simulation start) | computeAssetPolicyEffect; sim init | PolicyControls slider; sidebar Asset democracy card | year |
 | `policyConfig.sovereignWealthFund.initialFundSize` | param | policy.ts:109 | 0 | computeAssetPolicyEffect; sim init | PolicyControls | $B |
 | `policyConfig.sovereignWealthFund.annualContribution` | param (PolicySchedule) | policy.ts:116 | 0 | computeAssetPolicyEffect | PolicyKeyframeEditor | $B/year |
 | `policyConfig.sovereignWealthFund.annualReturnRate` | param | policy.ts:114 | 0.05 | computeAssetPolicyEffect | PolicyControls | rate |
@@ -1116,14 +1160,28 @@ Phase 8 fix: `computeMonetizationRate` now evaluates ALL cases and returns the m
 | `DEFAULT_TRAINING_SCALE_GROWTH_RATE` | const | constants.ts:2113 | 3.0 | supplyChain.ts → trainingDemand | N/A |
 | `trainingScaleGrowthRate` | param | types | 3.0 (UI 1.5) | supplyChain.ts | SupplyChainControls "Training Scale Growth" |
 | `DEFAULT_TRAINING_DYNAMICS` | const | constants.ts:2116 | per-component {techDeclineRate, scalePressure} | supplyChain.ts → trainingCosts | N/A |
-| `trainingDynamics.aiChips.techDeclineRate` | param | types | -0.35 (UI -0.25) | supplyChain.ts | SupplyChainControls "Chip Cost Decline" |
-| `trainingDynamics.energy.techDeclineRate` | param | types | -0.02 | supplyChain.ts | SupplyChainControls "Energy Cost Decline" |
-| `trainingDynamics.datacenter.techDeclineRate` | param | types | -0.05 | supplyChain.ts | SupplyChainControls "DC Cost Decline" |
-| `trainingDynamics.aiChips.scalePressure` | param | types | 0.15 | supplyChain.ts | SupplyChainControls "Chip Scale Pressure" |
-| `trainingDynamics.energy.scalePressure` | param | types | 0.05 | supplyChain.ts | SupplyChainControls "Energy Scale Pressure" |
-| `trainingDynamics.datacenter.scalePressure` | param | types | 0.08 | supplyChain.ts | SupplyChainControls "DC Scale Pressure" |
+| `trainingDynamics.aiChips.techDeclineRate` | param | types | -0.35 | supplyChain.ts | SupplyChainControls "Chip Cost Decline" |
+| `trainingDynamics.energy.techDeclineRate` | param | types | -0.04 | supplyChain.ts | SupplyChainControls "Energy Cost Decline" |
+| `trainingDynamics.datacenter.techDeclineRate` | param | types | -0.08 | supplyChain.ts | SupplyChainControls "DC Cost Decline" |
+| `trainingDynamics.aiChips.scalePressure` | param | types | 0.3186 (Epoch stable-hardware-share derivation: 0.35/ln 3) | supplyChain.ts | SupplyChainControls "Chip Scale Pressure" |
+| `trainingDynamics.energy.scalePressure` | param | types | 0.15 | supplyChain.ts | SupplyChainControls "Energy Scale Pressure" |
+| `trainingDynamics.datacenter.scalePressure` | param | types | 0.25 | supplyChain.ts | SupplyChainControls "DC Scale Pressure" |
 | `DEFAULT_REGULATORY_FRICTION` | const | constants.ts:2126 | 1.0 | supplyChain.ts → DCScaling | N/A |
 | `regulatoryFriction` | param | types | 1.0 | supplyChain.ts | SupplyChainControls "Regulatory Friction" |
+
+### The frontier stock and the flywheel (capability and cost endogeneity)
+
+| Variable | Type | Defined in | Default | Read by | UI binding | Unit |
+|---|---|---|---|---|---|---|
+| `frontierDrainScale` | param | constants.ts `DEFAULT_FRONTIER_DRAIN_SCALE` | 1.0 | supplyChain.ts `computeFrontierStockUpdate` | SupplyChainControls "Frontier Drain Scale" | multiplier on derived κ = (G−1)/G |
+| `frontierRebuildYears` | param | constants.ts `DEFAULT_FRONTIER_REBUILD_YEARS` | 4.0 (fab class 3–5 yr, SIA / TSMC Arizona) | supplyChain.ts `computeFrontierStockUpdate` | SupplyChainControls "Frontier Rebuild Years" | years |
+| `frontierRateElasticity` | param | constants.ts `DEFAULT_FRONTIER_RATE_ELASTICITY` | 1.0 (uncited) | supplyChain.ts `computeFrontierStockUpdate` | SupplyChainControls "Frontier Rate Elasticity" | elasticity |
+| `frontierInnovationElasticity` | param | constants.ts `DEFAULT_FRONTIER_INNOVATION_ELASTICITY` | 0.5 (uncited; 0 = compute-independent, 1 = compute-bound) | simulation.ts new-job site | SupplyChainControls "Innovation Compute Coupling" | elasticity |
+| `resilienceOnsetYears` | param | constants.ts `DEFAULT_RESILIENCE_ONSET_YEARS` | 4.0 (CHIPS-Act act-to-capacity record ~2.5–4.5 yr) | simulation.ts → `lookupDeliveredResilience` → training damping | SupplyChainControls "Resilience Onset Years" | years |
+| `frontierStock` | output | MacroOutput | 1 on funded, unshocked paths | capability + cost clock increments; sparkline overlay; charts | capability sparkline dashed overlay | relative stock (0–1] |
+| `flywheelStarvationThreshold` | param | constants.ts `DEFAULT_FLYWHEEL_STARVATION_THRESHOLD` | 0.5 (uncited placement; range cap 0.75 measurement-derived — pinned-path funding minimum 0.776) | simulation.ts flywheel block (u_demand) | SupplyChainControls "Flywheel Starvation Threshold" | funding-gate ratio |
+| `frontierCostElasticity` | param | constants.ts `DEFAULT_FRONTIER_COST_ELASTICITY` | 1.0 (uncited; 0 = cost decoupled — the shipped calendar curves) | simulation.ts flywheel block (τ increment) → aiCost.ts | SupplyChainControls "Frontier Cost Coupling" | elasticity |
+| `effectiveCostTime` | output | MacroOutput | = year − startYear on funded paths | aiCost.ts (every realized-cost leg); BFCS preview; sparkline clock overlay | capability sparkline light-dashed overlay | effective innovation years (τ) |
 
 ### Cascade, hysteresis, pass-through
 

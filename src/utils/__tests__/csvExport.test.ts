@@ -138,14 +138,42 @@ describe('exportSimulationResultsCSV', () => {
   // ----------------------------------------------------------
   // 1. Export produces valid CSV with correct column count (338)
   // ----------------------------------------------------------
+  // Mini-stage 1 re-spec: 649 → 647 — four retired cost-index columns (blended_ai_cost_index,
+  // inference_cost_index, manufacturing_cost_index, energy_cost_index) replaced by two emergent
+  // outputs (implied_aggregate_tokens_per_task, aggregate_frontier_weight), net −2;
+  // automation_dividend renamed deployer_realized_savings (count-neutral).
+  // Mini-stage 3 re-spec: 647 → 652 — five jobless-measure columns appended after
+  // aggregate_frontier_weight (u3_unemployment_rate, labor_force_exited_stock,
+  // employment_to_population, long_term_jobless_share, mean_jobless_duration_years).
+  // H3 re-spec: 652 → 655 — the split metrics appended in block G (ai_realized_gdp_contribution,
+  // ai_realized_share_of_gdp, ai_output_potential_share).
   it('produces valid CSV with correct column count', () => {
     const expectedCount = getExpectedColumnCount();
-    expect(expectedCount).toBe(649); // FS-6f: +1 = the transfer_tax column (the 8th revenue channel exposed)
-    expect(headerRow.length).toBe(649); // FS-6f: transfer_tax column added
+    expect(expectedCount).toBe(655);
+    expect(headerRow.length).toBe(655);
 
     for (let r = 0; r < dataRows.length; r++) {
-      expect(dataRows[r]!.length).toBe(649); // FS-6f: transfer_tax column added
+      expect(dataRows[r]!.length).toBe(655);
     }
+
+    // The two new realized-cost columns are present; the renamed savings column replaced the old name.
+    expect(headerRow).toContain('implied_aggregate_tokens_per_task');
+    expect(headerRow).toContain('aggregate_frontier_weight');
+    expect(headerRow).toContain('deployer_realized_savings');
+
+    // Mini-stage 3: the five jobless-measure columns are present.
+    expect(headerRow).toContain('u3_unemployment_rate');
+    expect(headerRow).toContain('labor_force_exited_stock');
+    expect(headerRow).toContain('employment_to_population');
+    expect(headerRow).toContain('long_term_jobless_share');
+    expect(headerRow).toContain('mean_jobless_duration_years');
+
+    // The retired cost-index columns (and the old savings name) are gone from the export surface.
+    expect(headerRow).not.toContain('blended_ai_cost_index');
+    expect(headerRow).not.toContain('inference_cost_index');
+    expect(headerRow).not.toContain('manufacturing_cost_index');
+    expect(headerRow).not.toContain('energy_cost_index');
+    expect(headerRow).not.toContain('automation_dividend');
   });
 
   // ----------------------------------------------------------

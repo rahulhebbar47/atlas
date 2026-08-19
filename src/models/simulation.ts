@@ -25,6 +25,7 @@ import type {
   SimulationTimeline,
   SimulationYearOutput,
   SimulationSummary,
+  AICostParams,
   ClusterDisplacementResult,
   OccupationCluster,
   OccupationBaseline,
@@ -44,8 +45,12 @@ import type {
   SupplyChainEffects,
   AdoptionState,
 } from '@/types';
+// The data-calibration side channel's payload contract (type-only — the VALUES arrive
+// through the composition argument; the store resolves them from the manifest registry).
+import type { DataCalibrationPayload } from '@/data/anthropic/types';
 import {
   DEFAULT_START_YEAR,
+  DEFAULT_SWF_START_YEAR,
   DEFAULT_END_YEAR,
   US_POPULATION_2025,
   US_LABOR_FORCE_2025,
@@ -90,6 +95,8 @@ import {
   AI_PRODUCTIVITY_MULTIPLIER_BY_DEPLOYMENT,
   DEFAULT_AI_PRODUCTION_INVESTMENT_FRACTION,
   DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION,
+  DEFAULT_RESILIENCE_ONSET_YEARS,
+  MIN_REGULATORY_FRICTION,
   DEFAULT_NEW_JOB_WAGE_FRACTION,
   DEFAULT_AUGMENTATION_MULTIPLIER,
   PREP_WINDOW_UE_RISE_THRESHOLD,
@@ -104,6 +111,8 @@ import {
   DEFAULT_FISCAL_CREDIBILITY_TRIGGER,
   PCE_CPI_WEDGE,
   TERM_PREMIUM,
+  DEFAULT_FISCAL_RISK_PREMIUM_MAX,
+  DEFAULT_INFLATION_CONVERGENCE_YEARS,
   DEBT_ROLLOVER_COUPON_RATE,
   DEFAULT_TAYLOR_SMOOTHING,
   DEFAULT_FISCAL_DOMINANCE_THRESHOLD,
@@ -120,6 +129,13 @@ import {
   DEFAULT_AI_PROFIT_MARGIN,
   DEFAULT_TRADITIONAL_PROFIT_MARGIN,
   DEFAULT_INFERENCE_ANNUAL_CHANGE,
+  DEFAULT_TRAINING_SCALE_GROWTH_RATE,
+  DEFAULT_FLYWHEEL_STARVATION_THRESHOLD,
+  DEFAULT_FRONTIER_COST_ELASTICITY,
+  DEFAULT_CREDIT_DEFLATION_IMPULSE_SENSITIVITY,
+  DEFAULT_CREDIT_DEFLATION_PERSISTENCE,
+  DEFAULT_CREDIT_DEFLATION_NOISE_FLOOR,
+  DEFAULT_ERP_CRISIS_SENSITIVITY,
   DEFAULT_MANUFACTURING_ANNUAL_CHANGE,
   DEFAULT_ENERGY_ANNUAL_CHANGE,
   AI_COST_COMPOSITION,
@@ -172,16 +188,38 @@ import {
   DEFAULT_AUGMENTATION_ADOPTION_STEEPNESS,
   DEFAULT_SCARCITY_INTENSITY,
   DEFAULT_REPLACEMENT_MULTIPLIER,
+  // ═══ Production Program Stage 2 — Channel 2 (the ledger re-anchor) ═══
+  CLUSTER_VA_PER_WORKER,
+  DEFAULT_UNITS_PER_EMBODIED_WORKER,
   // DEPRECATED (Phase 10.A fix #2): DEFAULT_MAX_ADOPTION_FRICTION_YEARS no longer read.
   DEFAULT_COMPETITIVE_PRESSURE_THRESHOLD,
+  // Mini-stage 2: the reverse gear's speed-dial defaults
+  ADOPTION_DECLINE_RATE_COGNITIVE,
+  ADOPTION_DECLINE_RATE_EMBODIED,
+  DEFAULT_RE_ADOPTION_RATE_FRACTION,
+  DEFAULT_POOL_EXIT_BASE,
+  DEFAULT_POOL_EXIT_DURATION_SLOPE,
+  DEFAULT_POOL_ATROPHY_RATE,
+  DEFAULT_POOL_WAGE_SCARRING_RATE,
+  CURRENT_LAW_UI_DURATION_WEEKS,
   ALPHA_BASELINE_CORPORATE_MARGIN,
   DEFAULT_AI_COST_PARAMS,
+  BUILDOUT_LEG_COST_TREND, // Stage 4 MS3: the energy bend's standing-trend base
+  AI_ENERGY_OPEX_SEAM_RATE, // Stage 5A (A3): the opex line's seam anchor
+  // Stage 4 MS4 (the adoption-gating build): the priority's friction surface +
+  // the one new [e] smoothing constant.
+  ROLE_AI_REPLACEMENT_FRICTION_YEARS_DEFAULTS,
+  FALLBACK_REPLACEMENT_FRICTION_YEARS,
+  DEFAULT_FLEET_ALLOC_SMOOTHING,
 } from './constants';
 import { getAllCapabilityScores, computeWeightedCapability } from './capabilities';
-import { checkAdoptionTrigger, findTriggerYear, deriveSeamCheaperThreshold } from './bfcs';
+import { checkAdoptionTrigger, findTriggerYear, deriveSeamCheaperThreshold, computeBetterScore, computeCheaperScore } from './bfcs';
+// Mini-stage 1: the ONE realized-cost object (frontier-intensity layer + arrival-anchored
+// fixed-capability pricing) — the only inference-cost assembly in the model.
+import { computeAiCostFraction, computeTokenCostFactor, computeFrontierCost, resolveFrontierDials, coupledTokenCostCurve, type RoleCostBreakdown } from './aiCost';
 import { computeEffectiveAlpha, computePeerAlpha, buildClusterEmploymentMap } from './alphaDrivers';
 import { computeAugmentationAdoption } from './augmentationAdoption';
-import { getAdoptionRate } from './adoption';
+import { getAdoptionRate, computeUnifiedAdoptionState } from './adoption';
 import { computeClusterDisplacement, computeSimplifiedDisplacement } from './displacement';
 import { computeAggregateDisplacement } from './multipliers';
 import {
@@ -201,7 +239,7 @@ import { computeFullEmploymentGDP, computeTaylorRule, computeFiscalDominance, ge
 } from './federalReserve';
 import { computeMonetizationRate, computeMoneyCreation, getBaselineMonetizationState } from './monetization';
 import { computeFiscalRiskPremium, computeForeignDemand, computeExpectedPolicyRates, computeAbsorptionCapacity, computeTenYearYield, computeRateTransmission, getBaselineBondMarketState } from './bondMarket';
-import { computeGrowthMomentum, computeEquityValuation, getBaselineEquityMarketState } from './equityMarket';
+import { computeGrowthMomentum, computeEquityValuation, getBaselineEquityMarketState, computeCrisisAdjustedERP } from './equityMarket';
 import type { FiscalMonetaryOutput } from '@/types';
 import { computeNewJobMetrics } from './newJobs';
 import {
@@ -216,10 +254,20 @@ import {
 // SecondOrderEffectParams now imported from @/types (Phase 5g Step 0)
 import { computeStateOutputs } from './stateSimulation';
 import { computeDisplacedPool } from './uiIncidence';
+// Mini-stage 3: the duration-structured pool (checkpoint §5)
+import {
+  advanceDisplacedPool, emptyDisplacedPoolState, poolFillBudget, poolRehireWage,
+  poolDurationShares, type DisplacedPoolState, type PoolDials,
+} from './uiIncidence';
 import { interpolatePolicy } from '@/utils/policyInterpolation';
 // Phase 8b: Autopilot + parameter resolution
 import { computeAutopilotParameters, getBaselineAutopilot, getBaselineTaxRates } from './autopilot';
-import { resolveAllParameters, resolveParameter, defaultTokenUsageMultiplier } from './parameterResolution';
+// Mini-stage 1: defaultTokenUsageMultiplier + the per-year tokenUsage resolveParameter call
+// RETIRED with the global schedule (Amendment 2 — no legacy toggles).
+// R1 (the axes program): resolveParameter retired FROM THIS FILE with the rsc block —
+// simulation consumes only the ONE producer (resolveAllParameters) + the mirror attach;
+// the single-producer guard (R1-B6) enforces this. Import commented, not stripped.
+import { resolveAllParameters, attachCapabilityMirrors, stickyLayerValue /* , resolveParameter */ } from './parameterResolution';
 // Phase 9: Supply chain
 import {
   computeSupplyChainEffects,
@@ -228,8 +276,38 @@ import {
   computeSaferMultiplier,
   computeAdoptionDrag,
   computeHysteresisWidth,
-  computeStatefulAdoptionRate,
+  // RETIRED (mini-stage 2): computeStatefulAdoptionRate — superseded by the unified machine
+  // (adoption.ts computeUnifiedAdoptionState); kept in supplyChain.ts as the deprecated record.
+  // computeStatefulAdoptionRate,
+  // R1: the C-1/C-2 direct calls retired with the rsc block — both now reach execution
+  // through the autopilot inside the one producer. Imports commented, not stripped.
+  // computeAutopilotResilience,
+  // interpolatePassThrough,
+  getDefaultSupplyChainConfig,
+  SUPPLY_CHAIN_PARAM_KEYS,
+  // MS1 (the frontier stock): the delivered-resilience lookup for the ruled onset
+  // dead time. FLYWHEEL MS (the hoist): the stock update runs HERE in the loop now
+  // (always-on; demand-side input) — the update function and dial resolver import.
+  lookupDeliveredResilience,
+  computeFrontierStockUpdate,
+  resolveFrontierStockDials,
 } from './supplyChain';
+import type { SupplyChainConfig, SupplyChainResilience } from '@/types/supplyChain';
+// Production Program Stage 1 — Channel 1 (the buildout machine)
+import {
+  getInitialBuildoutState, computeBuildoutPlan, applyBuildout, trainingShare,
+  flopsPerWattFactor, // Stage 5A (A3): the opex line's efficiency normalization
+  type BuildoutPlan,
+} from './buildout';
+// Stage 2 (T-A): the static share import retired — u_supply consumes the derived
+// trainingShare(year) (buildout.ts). Kept per the no-delete rule:
+// import { FLEET_DEPRECIATION, BUILDOUT_TRAINING_SHARE_2025 } from './constants';
+import {
+  FLEET_DEPRECIATION, BUILDOUT_IMPORT_CONTENT_SHARE,
+  DEFAULT_EQUITY_ISSUANCE_RATE, EQUITY_ISSUANCE_WINDOW_SENSITIVITY,
+  DEFAULT_AI_RD_INTENSITY, DEFAULT_RD_TFP_ELASTICITY, DEFAULT_RD_DEPRECIATION,
+  BASELINE_BUSINESS_RD_STOCK,
+} from './constants'; // DEFAULT_ERP_CRISIS_SENSITIVITY already imported above (the main constants block)
 
 /**
  * Get default simulation configuration.
@@ -240,7 +318,11 @@ export function getDefaultSimulationConfig(): SimulationConfig {
     endYear: DEFAULT_END_YEAR,
     capabilities: { ...DEFAULT_CAPABILITY_TRAJECTORIES },
     adoptionParams: { ...DEFAULT_ADOPTION_PARAMS },
-    policyConfig: { ...DEFAULT_POLICY_CONFIG },
+    // The latent-hazard fix (the policy-wiring review): DEEP clone — the shallow
+    // spread shared the nested policy blocks (ubi, wageSubsidy, …) as module-level
+    // references across every call, so one in-place nested mutation anywhere
+    // would contaminate the module default and every later config.
+    policyConfig: structuredClone(DEFAULT_POLICY_CONFIG),
     baseInflationRate: BASE_INFLATION_RATE,
     // DEPRECATED: pre-tax MPCs no longer set — consumption uses postTaxMPCs (Phase 5-tax)
     baselineGDPGrowth: BASELINE_GDP_GROWTH_RATE,
@@ -261,7 +343,9 @@ export function getDefaultSimulationConfig(): SimulationConfig {
     fiscalDominanceDampening: 0.5,
     // DEPRECATED Phase 8 Fix 4: fiscalRiskPremiumMidpoint replaced by fiscalRiskLevelMidpoint
     // fiscalRiskPremiumMidpoint: 1.20,
-    fiscalRiskPremiumMax: 0.06, // Phase 8 Fix 4: increased from 0.04 — composite model distributes across 3 components
+    // by-reference (audit H679, single-source-of-truth rule — the stale-fallback-family finding):
+    // Phase 8 Fix 4 raised this from 0.04; the value now lives ONLY in constants.ts.
+    fiscalRiskPremiumMax: DEFAULT_FISCAL_RISK_PREMIUM_MAX,
     corporateTaxEffectiveness: 0.65,
     foreignTreasuryDemand: 0.30,
     aiPEMultiplier: 1.0,
@@ -289,7 +373,7 @@ export function getDefaultSimulationConfig(): SimulationConfig {
     // Phase 8 Fix 4: Yield calibration
     neutralRealRate: 0.007,
     termPremium: TERM_PREMIUM,  // E-8c F-C: 0.007 per NY Fed ACM (ACMTP10) — see constants.ts; was 0.003 (the hawkish-path backout era)
-    inflationConvergenceYears: 5,
+    inflationConvergenceYears: DEFAULT_INFLATION_CONVERGENCE_YEARS, // by-reference (audit H679, single-source-of-truth rule)
     // Phase 8 Fix 4: Fiscal risk premium weights
     fiscalRiskTrajectoryWeight: 0.50,
     fiscalRiskSustainabilityWeight: 0.35,
@@ -302,7 +386,10 @@ export function getDefaultSimulationConfig(): SimulationConfig {
     augmentationAdoptionSteepness: DEFAULT_AUGMENTATION_ADOPTION_STEEPNESS,
     scarcityIntensity: DEFAULT_SCARCITY_INTENSITY,
     competitivePressureThreshold: DEFAULT_COMPETITIVE_PRESSURE_THRESHOLD,
-    replacementMultiplier: DEFAULT_REPLACEMENT_MULTIPLIER,
+    // DEPRECATED (Production Program Stage 2, order item 5): the replacementMultiplier
+    // dial retired with the ledger re-anchor (config influence removed; the deflation
+    // channel consumes the frozen constant). Kept per the no-delete rule:
+    // replacementMultiplier: DEFAULT_REPLACEMENT_MULTIPLIER,
     // DEPRECATED (Phase 10.A fix #2): maxAdoptionFrictionYears no longer in the config interface.
   };
 }
@@ -397,111 +484,245 @@ function buildDeflationIntensityOverrides(
 }
 
 /**
- * Compute AI production expansion — how much MORE output AI produces
- * vs. the displaced human workers.
+ * Compute AI production expansion — PRODUCTION PROGRAM STAGE 2 (Channel 2): the ledger
+ * RE-ANCHORED to cluster VALUE ADDED (ratification R1-A1; checkpoint §2).
  *
- * Per-cluster: additionalOutput = displacedWorkers × avgWage × (effectiveProductivity - 1.0)
- * Aggregate: split into investment (I), net exports (NX), and consumer goods (tracked, not added to C).
+ * THE CEILING/EMISSION SPLIT (STAGE2_BATTERIES.md, pre-registered interpretation 1):
+ *   potentialCeiling_c(t) = VA_c × BFCSClearance_c(t) × EmbodimentGate_c(t)
+ *     — the checkpoint formula verbatim: the market value of the cluster's work whose
+ *       roles clear all four BFCS bars, embodiment-gated. Surfaced; never emitted raw.
+ *   emitted_c(t) = max(0, VA_c × Gate_c(t) − W0_c) × automatedShare_c(t)
+ *     — the EMISSION tracks REALIZED automation (the adoption S-curve), not clearance:
+ *       a clearance-driven emission would claim output for work whose humans are still
+ *       employed and augmentation-boosted (fails the ratified no-double-count battery).
+ *       The − W0_c continuation-netting keeps this an EXPANSION ledger: the automated
+ *       work's former labor input is not new output. The uncited ×2.0
+ *       replacementMultiplier is REPLACED BY THE MEASURED PER-CLUSTER MULTIPLE
+ *       (VA_c/W0_c − 1, BEA-anchored); clusters whose anchored VA sits below their
+ *       wage mass emit 0 (reported, the education-class floors).
+ *   VA_c = CLUSTER_VA_PER_WORKER × year-0 cluster employment × econIdx (the
+ *       basis-commensurability step — loader doc; econIdx = the real economy index,
+ *       the market grows with the economy it serves).
+ *   automatedShare_c = displaced vintage wage mass / W0_c — the H3 trigger-time
+ *       vintage basis UNCHANGED (year-0 role wages; cascade-invariant; full
+ *       displacement ⇒ full share — battery H3-B3).
+ *
+ * THE EMBODIMENT GATE (A5′ §1, R4 continuous; Stage-2 order item 2):
+ *   Gate_c = 1 − w_embodied,c × (1 − fleetCoverage);
+ *   fleetCoverage = min(1, Fleet / clearedFleetRequirement), ≡ 1 at zero requirement.
+ *   clearedFleetRequirement = Σ_c clearedEmployment_c × w_embodied,c ×
+ *   unitsPerEmbodiedWorker (the fleet-scale re-derivation, order item 3 — the retired
+ *   [hu] FLEET_UNITS_AT_FULL_EMBODIMENT scale's replacement).
+ *
+ * Aggregate: split into investment (I), net exports (NX), and consumer goods
+ * (tracked, not added to C) — the entry routing is UNCHANGED (checkpoint §2: Channel 2
+ * changes the SIZE and SHAPE of potential, not its entry paths).
  *
  * @param clusterResults - Displacement results for all clusters
- * @param clusters - Occupation clusters (for deployment type)
- * @param capabilityScores - Current capability scores per vector
- * @param config - Simulation config (for overrides and fractions)
- * @returns AI production expansion components
+ * @param clusters - Occupation clusters (resolved capability weights — the ONE producer)
+ * @param capabilityScores - Current capability scores per vector (retained; the retired
+ *   multiplier form consumed them — the live emission does not scale with them directly)
+ * @param config - Simulation config (for split fractions + unitsPerEmbodiedWorker)
+ * @param triggerBetterScores - RETIRED input (the augmentation floor belonged to the
+ *   multiplier form); kept positionally per the no-delete rule, unread
+ * @param year0ClusterResults - The year-0 cluster results (the wage-vintage basis)
+ * @param channel2 - Stage-2 state: the fleet stock (start-of-year) and the real economy
+ *   index; absent ⇒ coverage 1 / index 1 (unit-test convenience — the loop always passes them)
+ * @returns AI production expansion components + the Channel-2 surfaces
  */
 export function computeAIProductionExpansion(
   clusterResults: ClusterDisplacementResult[],
   clusters: OccupationCluster[],
   capabilityScores: Record<CapabilityVectorId, number>,
   config: SimulationConfig,
-  triggerBetterScores?: Record<string, Record<string, number | null>>,
+  triggerBetterScores: Record<string, Record<string, number | null>> | undefined,
+  year0ClusterResults: ClusterDisplacementResult[],
+  channel2?: {
+    fleetUnits?: number; econIdx?: number;
+    /** Stage 4 MS4 (the ratified design §3): the per-cluster coverage series the
+     *  allocation produced this year — the ONE producer feeding both the ledger
+     *  gate (here) and the displacement gate (the cluster loop). Absent (unit
+     *  fixtures, Stage-2 batteries) ⇒ the retired one-ratio fallback below. */
+    perClusterCoverage?: Record<string, number>;
+    /** Stage 4 MS4: the simulation year + the resolved trust half-life — the
+     *  trust-maturity ramp's inputs (the alphaDrivers ramp, same formula, same
+     *  resolved parameter). */
+    year?: number;
+    trustHalfLifeYears?: number;
+  },
 ): {
   aiInvestmentBoost: number;
   aiNetExportBoost: number;
   aiConsumerGoodsPotential: number;
   totalAdditionalOutput: number;
+  /** Σ_c VA_c × clearance_c × gate_c — the checkpoint §2 potential ceiling. */
+  potentialCeiling: number;
+  /** Σ_c clearedEmployment_c × w_embodied,c × unitsPerEmbodiedWorker (units). */
+  clearedFleetRequirement: number;
+  /** Stage 4 MS4: the requirement-weighted mean of the per-cluster coverages
+   *  (1 when no requirement); the retired one-ratio form survives only as the
+   *  unit-fixture fallback. */
+  fleetCoverage: number;
+  /** Stage 4 MS4: per-cluster cleared-work fleet requirement (units) — threaded
+   *  to next year's allocation. */
+  perClusterFleetRequirement: Record<string, number>;
+  /** Stage 4 MS4: the DERIVED allocation priority per cluster (valueDensity ×
+   *  trustMaturity × saferMargin × frictionFactor — the ratified design §3;
+   *  every factor read from the audited live surfaces). Threaded to next year. */
+  perClusterPriority: Record<string, number>;
 } {
-  // Build cluster lookup for deployment type
+  // Build cluster lookup (resolved capability weights ride the cluster objects)
   const clusterLookup = new Map<string, OccupationCluster>();
   for (const c of clusters) {
     clusterLookup.set(c.id, c);
   }
+  void capabilityScores; void triggerBetterScores; // retired inputs of the multiplier form (kept per no-delete)
 
-  const augMultiplier = config.augmentationMultiplier ?? DEFAULT_AUGMENTATION_MULTIPLIER;
-  let totalAdditionalOutput = 0;
+  const econIdx = channel2?.econIdx ?? 1;
+  const unitsPerWorker = config.unitsPerEmbodiedWorker ?? DEFAULT_UNITS_PER_EMBODIED_WORKER;
 
-  for (const result of clusterResults) {
-    const cluster = clusterLookup.get(result.clusterId);
-    if (!cluster || result.totalDirectDisplacement <= 0) continue;
-
-    // Compute weighted capability for this cluster
-    const clusterOverride = config.clusterOverrides?.[result.clusterId];
-    const effectiveWeights = clusterOverride
-      ? {
-          generative: clusterOverride.generativeWeight ?? cluster.capabilityRelevance.weights.generative,
-          agentic: clusterOverride.agenticWeight ?? cluster.capabilityRelevance.weights.agentic,
-          embodied: clusterOverride.embodiedWeight ?? cluster.capabilityRelevance.weights.embodied,
-        }
-      : cluster.capabilityRelevance.weights;
-    const weightedCapability = computeWeightedCapability(capabilityScores, effectiveWeights);
-
-    // DEPRECATED (Phase 10.A): deployment-type max-multiplier → capability-linear scaling.
-    // const maxMult = clusterOverride?.maxProductivityMultiplier
-    //   ?? AI_PRODUCTIVITY_MULTIPLIER_BY_DEPLOYMENT[cluster.deploymentType];
-    // const effectiveProductivity = 1.0 + (maxMult - 1.0) * weightedCapability;
-    //
-    // Phase 10.A first-principles productivity formula:
-    //   effectiveProductivity = 1 + weightedCapability × betterScore × replacementMultiplier × (1 + cheaperScore)
-    // betterScore scales quality; cheaperScore scales throughput (AI at scale cheaper than human).
-    // No arbitrary cap — extreme inputs produce extreme but coherent outputs (per Phase 10.A no-cap rule).
-    // Uses employment-weighted averages across the cluster's roles.
-    let clusterBetterSum = 0;
-    let clusterCheaperSum = 0;
-    let clusterBetterWeight = 0;
-    for (const roleResult of result.roles) {
-      const bfcs = result.bfcsOutput.find(b => b.roleId === roleResult.roleId);
-      if (!bfcs) continue;
-      const weight = roleResult.remainingEmployment + (clusterOverride ? 0 : 0);
-      // Use direct-displacement weight + remaining weight — whole cluster sums, proxies role size.
-      const roleWeight = Math.max(1, roleResult.remainingEmployment);
-      clusterBetterSum += bfcs.scores.better * roleWeight;
-      clusterCheaperSum += bfcs.scores.cheaper * roleWeight;
-      clusterBetterWeight += roleWeight;
-    }
-    const betterScore = clusterBetterWeight > 0 ? clusterBetterSum / clusterBetterWeight : 0;
-    const cheaperScore = clusterBetterWeight > 0 ? clusterCheaperSum / clusterBetterWeight : 0;
-    const replacementMultiplier = config.replacementMultiplier ?? DEFAULT_REPLACEMENT_MULTIPLIER;
-    const effectiveProductivity = 1
-      + weightedCapability * betterScore * replacementMultiplier * (1 + cheaperScore);
-
-    // Production continuity floor: AI output must at least match the augmented worker output.
-    // Otherwise firms are making irrational decisions (replacing a human+AI combo
-    // that produced more than AI alone). Uses weighted-average better score at trigger.
-    let augFloor = 1.0;
-    if (augMultiplier > 0 && triggerBetterScores?.[result.clusterId]) {
-      const roleScores = triggerBetterScores[result.clusterId]!;
-      let totalWeight = 0;
-      let weightedBetter = 0;
-      for (const role of cluster.roles) {
-        const bs = roleScores[role.id];
-        if (bs !== null && bs !== undefined) {
-          const w = result.roles.find(r => r.roleId === role.id)?.displacementPct ?? 0;
-          weightedBetter += bs * w;
-          totalWeight += w;
-        }
-      }
-      if (totalWeight > 0) {
-        augFloor = 1.0 + (weightedBetter / totalWeight) * augMultiplier;
-      }
-    }
-    const flooredProductivity = Math.max(effectiveProductivity, augFloor);
-
-    // Additional output from AI doing the displaced workers' jobs more productively
-    const additionalOutput = result.totalDirectDisplacement * result.averageWage * (flooredProductivity - 1.0);
-    totalAdditionalOutput += additionalOutput;
+  // H3 ruling 3: the year-0 role lookup — employment and wage at the vintage the displaced
+  // work carried when displaced (year 0 is displacement- and cascade-free by construction,
+  // so year-0 remainingEmployment/remainingWage ARE the baseline).
+  const year0Roles = new Map<string, Map<string, { employment: number; wage: number }>>();
+  for (const c0 of year0ClusterResults) {
+    const roles = new Map<string, { employment: number; wage: number }>();
+    for (const r0 of c0.roles) roles.set(r0.roleId, { employment: r0.remainingEmployment, wage: r0.remainingWage });
+    year0Roles.set(c0.clusterId, roles);
   }
 
-  // Split into GDP components
+  // ── PASS 1: per-cluster year-0 bases + BFCS clearance + the cleared fleet requirement ──
+  // clearance_c = year-0-wage-mass share of roles whose BFCS output is triggered (all
+  // four bars met) at t; clearedEmployment_c = year-0 employment of those roles.
+  interface ClusterBases {
+    e0: number; w0: number; clearedWageShare: number; clearedEmployment: number;
+    displacedVintageWageMass: number; wEmbodied: number;
+  }
+  const bases = new Map<string, ClusterBases>();
+  let clearedFleetRequirement = 0;
+  const perClusterFleetRequirement: Record<string, number> = {};
+  const perClusterPriority: Record<string, number> = {};
+  for (const result of clusterResults) {
+    const cluster = clusterLookup.get(result.clusterId);
+    const roles0 = year0Roles.get(result.clusterId);
+    if (!cluster || !roles0) continue;
+    let e0 = 0, w0 = 0, clearedWageMass = 0, clearedEmployment = 0, displacedVintageWageMass = 0;
+    // Stage 4 MS4 — the priority factors (the ratified design §3, every factor
+    // READ from the audited live surfaces on this function's inputs):
+    let minTriggerYear: number | null = null;
+    let saferMarginWeighted = 0, saferWeight = 0;
+    let frictionWeighted = 0, frictionWeight = 0;
+    for (const roleResult of result.roles) {
+      const r0 = roles0.get(roleResult.roleId);
+      if (!r0) continue;
+      e0 += r0.employment;
+      w0 += r0.employment * r0.wage;
+      const bfcs = result.bfcsOutput.find(b => b.roleId === roleResult.roleId);
+      if (bfcs?.triggered) {
+        clearedWageMass += r0.employment * r0.wage;
+        clearedEmployment += r0.employment;
+        // saferMargin: how far above its Safer bar the cleared role sits
+        // (clamped [0,1]; a threshold at/above 1 degenerates to the pass/fail
+        // indicator), year-0-employment-weighted over CLEARED roles.
+        const th = bfcs.thresholds.safer;
+        const margin = th < 1
+          ? Math.max(0, Math.min(1, (bfcs.scores.safer - th) / (1 - th)))
+          : (bfcs.scores.safer >= th ? 1 : 0);
+        saferMarginWeighted += margin * r0.employment;
+        saferWeight += r0.employment;
+      }
+      if (bfcs?.triggerYear !== null && bfcs?.triggerYear !== undefined) {
+        minTriggerYear = minTriggerYear === null ? bfcs.triggerYear : Math.min(minTriggerYear, bfcs.triggerYear);
+      }
+      // frictionFactor: the authored per-role replacement-friction years
+      // (integration/practical friction), year-0-employment-weighted over the
+      // cluster's roles; the standing 1.25-year fallback where unauthored.
+      const fy = ROLE_AI_REPLACEMENT_FRICTION_YEARS_DEFAULTS[result.clusterId]?.[roleResult.roleId]
+        ?? FALLBACK_REPLACEMENT_FRICTION_YEARS;
+      frictionWeighted += fy * r0.employment;
+      frictionWeight += r0.employment;
+      displacedVintageWageMass += Math.max(0, r0.employment - roleResult.remainingEmployment) * r0.wage;
+    }
+    const wEmbodied = cluster.capabilityRelevance.weights.embodied;
+    bases.set(result.clusterId, {
+      e0, w0,
+      clearedWageShare: w0 > 0 ? clearedWageMass / w0 : 0,
+      clearedEmployment,
+      displacedVintageWageMass,
+      wEmbodied,
+    });
+    // The fleet-scale re-derivation (order item 3): units for the CLEARED embodied work.
+    const reqUnits = clearedEmployment * wEmbodied * unitsPerWorker;
+    clearedFleetRequirement += reqUnits;
+    perClusterFleetRequirement[result.clusterId] = reqUnits;
+    // priority_c = valueDensity × trustMaturity × saferMargin × frictionFactor
+    // (the ratified derived priority — NO new per-industry variable; the only new
+    // authored number is the allocation smoothing step).
+    const vaPerWorkerP = CLUSTER_VA_PER_WORKER[result.clusterId] ?? 0;
+    const trustMaturity = minTriggerYear !== null && channel2?.year !== undefined
+      ? 1 - Math.exp(-Math.max(0, channel2.year - minTriggerYear)
+          / Math.max(1e-9, channel2.trustHalfLifeYears ?? 5))
+      : 0;
+    const saferMargin = saferWeight > 0 ? saferMarginWeighted / saferWeight : 0;
+    const frictionFactor = frictionWeight > 0
+      ? 1 / (1 + frictionWeighted / frictionWeight)
+      : 1 / (1 + FALLBACK_REPLACEMENT_FRICTION_YEARS);
+    perClusterPriority[result.clusterId] = Math.max(0, vaPerWorkerP * trustMaturity * saferMargin * frictionFactor);
+  }
+
+  // STAGE 4 MS4 (the per-cluster supersession, the ratified design §3): the
+  // aggregate coverage surface is the REQUIREMENT-WEIGHTED MEAN of the per-cluster
+  // coverages when the allocation supplies them. The retired ONE-RATIO form
+  // survives ONLY as the unit-fixture fallback (Stage-2 batteries; no live path):
+  //   min(1, fleetUnits / clearedFleetRequirement)
+  let fleetCoverage: number;
+  const cov = channel2?.perClusterCoverage;
+  if (cov) {
+    let covWeighted = 0, covWeight = 0;
+    for (const [cid, req] of Object.entries(perClusterFleetRequirement)) {
+      if (req <= 0) continue;
+      covWeighted += (cov[cid] ?? 0) * req;
+      covWeight += req;
+    }
+    fleetCoverage = covWeight > 0 ? covWeighted / covWeight : 1;
+  } else {
+    fleetCoverage = channel2?.fleetUnits !== undefined && clearedFleetRequirement > 0
+      ? Math.min(1, Math.max(0, channel2.fleetUnits) / clearedFleetRequirement)
+      : 1;
+  }
+
+  // ── PASS 2: the gate, the ceiling, the emission ──
+  // MS4: the gate reads the PER-CLUSTER coverage (the same series the displacement
+  // gate consumed this year — one producer); coverage 1 where no requirement.
+  let totalAdditionalOutput = 0;
+  let potentialCeiling = 0;
+  for (const result of clusterResults) {
+    const b = bases.get(result.clusterId);
+    if (!b) continue;
+    const vaPerWorker = CLUSTER_VA_PER_WORKER[result.clusterId] ?? 0;
+    const va = vaPerWorker * b.e0 * econIdx;
+    const clusterCoverage = cov ? (cov[result.clusterId] ?? 1) : fleetCoverage;
+    const gate = 1 - b.wEmbodied * (1 - clusterCoverage);
+    potentialCeiling += va * b.clearedWageShare * gate;
+    if (b.w0 <= 0 || b.displacedVintageWageMass <= 0) continue;
+    const automatedShare = Math.min(1, b.displacedVintageWageMass / b.w0);
+    totalAdditionalOutput += Math.max(0, va * gate - b.w0) * automatedShare;
+  }
+
+  // DEPRECATED (Stage 2 — the ledger re-anchor): the wage-mass × multiplier emission
+  // form, retired with the uncited replacementMultiplier's ledger role (its OTHER
+  // consumer, the deflation channel's effProd term, is handled at the ledger-transition
+  // mini-stage). Kept per the no-delete rule:
+  //   const replacementMultiplier = config.replacementMultiplier ?? DEFAULT_REPLACEMENT_MULTIPLIER;
+  //   const effectiveProductivity = 1
+  //     + weightedCapability * betterScore * replacementMultiplier * (1 + cheaperScore);
+  //   ... augFloor = 1 + (weightedBetter / totalWeight) * augMultiplier (the production
+  //   continuity floor — its semantics belonged to the multiplier form and retire with it);
+  //   const flooredProductivity = Math.max(effectiveProductivity, augFloor);
+  //   const additionalOutput = displacedVintageWageMass * (flooredProductivity - 1.0);
+  // (The still-earlier remaining-average basis is recorded in git history at this site.)
+
+  // Split into GDP components — the entry routing UNCHANGED (checkpoint §2)
   const investFrac = config.aiProductionInvestmentFraction ?? DEFAULT_AI_PRODUCTION_INVESTMENT_FRACTION;
   const onshoreFrac = config.aiProductionOnshoringFraction ?? DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION;
   const consumerFrac = Math.max(0, 1.0 - investFrac - onshoreFrac);
@@ -511,7 +732,90 @@ export function computeAIProductionExpansion(
     aiNetExportBoost: totalAdditionalOutput * onshoreFrac,
     aiConsumerGoodsPotential: totalAdditionalOutput * consumerFrac,
     totalAdditionalOutput,
+    potentialCeiling,
+    clearedFleetRequirement,
+    fleetCoverage,
+    perClusterFleetRequirement,
+    perClusterPriority,
   };
+}
+
+/**
+ * STAGE 4 MS4 — THE PER-CLUSTER FLEET ALLOCATION (the ratified design §3).
+ * The one fleet stock allocates across clearance-holding clusters by the DERIVED
+ * priority, with bounded partial adjustment toward priority-proportional target
+ * shares (the R3 smoothing philosophy — no bang-bang reallocation). Pure.
+ *
+ * Inputs are the t−1 threaded maps (requirement + priority, produced by
+ * computeAIProductionExpansion) and the start-of-year fleet stock; the output
+ * coverage series is THE ONE PRODUCER both the displacement gate (the cluster
+ * loop) and the ledger gate consume this year. coverage ≡ 1 at zero requirement
+ * (the A3 identity pattern). If every eligible priority is 0, equal shares (the
+ * degenerate guard — flagged in the battery record).
+ */
+export function computeFleetAllocation(
+  prevRequirement: Record<string, number>,
+  prevPriority: Record<string, number>,
+  prevShares: Record<string, number>,
+  fleetUnits: number,
+  smoothing: number,
+): { coverage: Record<string, number>; shares: Record<string, number> } {
+  const eligible = Object.keys(prevRequirement).filter((id) => (prevRequirement[id] ?? 0) > 0);
+  const coverage: Record<string, number> = {};
+  if (eligible.length === 0) return { coverage, shares: {} };
+  let prioritySum = 0;
+  for (const id of eligible) prioritySum += Math.max(0, prevPriority[id] ?? 0);
+  const shares: Record<string, number> = {};
+  let shareSum = 0;
+  for (const id of eligible) {
+    const target = prioritySum > 0 ? Math.max(0, prevPriority[id] ?? 0) / prioritySum : 1 / eligible.length;
+    const prev = prevShares[id] ?? 0;
+    const s = prev + smoothing * (target - prev);
+    shares[id] = s;
+    shareSum += s;
+  }
+  for (const id of eligible) {
+    shares[id] = shareSum > 0 ? shares[id]! / shareSum : 1 / eligible.length;
+    coverage[id] = Math.min(1, Math.max(0, shares[id]! * Math.max(0, fleetUnits) / prevRequirement[id]!));
+  }
+  return { coverage, shares };
+}
+
+/** Does a per-year layer ("key:year" sticky entries) touch any supply-chain row?
+ *  Pure predicate for the event-demanded materialization in runSimulation. */
+function layerDemandsSupplyChain(layer?: UserOverrideMap): boolean {
+  if (!layer) return false;
+  for (const entry of layer.keys()) {
+    const colonIdx = entry.lastIndexOf(':');
+    if (colonIdx !== -1 && SUPPLY_CHAIN_PARAM_KEYS.has(entry.substring(0, colonIdx))) return true;
+  }
+  return false;
+}
+
+/**
+ * THE DATA-CALIBRATION NOTICE COUNT (record ≡ execution): the cells where a user
+ * container entry masks a present preset value, counted by the SAME accessors the
+ * effectiveClusters build consumes (clusterAutomationShareOverrides for α;
+ * clusterOverrides.generativeWeight/agenticWeight for the weight cells — the
+ * consumer-site chains). The zone renders this count as the quiet notice ("your
+ * adjustments override N calibrated values"); the battery asserts it equals the
+ * engine-side count derived from resolved values. Pure — no store, no state.
+ */
+export function countDataCalibrationShadowedCells(
+  config: SimulationConfig,
+  payload: DataCalibrationPayload,
+): { count: number; clusterIds: string[] } {
+  const ids = new Set<string>();
+  let count = 0;
+  for (const [id, entry] of Object.entries(payload.clusters)) {
+    if (config.clusterAutomationShareOverrides?.[id] !== undefined) { count += 1; ids.add(id); }
+    if (entry.weights) {
+      const o = config.clusterOverrides?.[id];
+      if (o?.generativeWeight !== undefined) { count += 1; ids.add(id); }
+      if (o?.agenticWeight !== undefined) { count += 1; ids.add(id); }
+    }
+  }
+  return { count, clusterIds: [...ids].sort() };
 }
 
 /**
@@ -529,10 +833,66 @@ export function runSimulation(
   blsBaselines?: Map<string, OccupationBaseline>,
   stateDataMap?: Map<StateCode, StateData>,
   userOverrides?: UserOverrideMap,
+  // R3a (the axes program): the compiled composition's per-year layers — the event
+  // layer (sticky "key:year" entries with explicit recovery) and the imported-key set
+  // (migration provenance). R2b adds profileTags (the species of what selected each
+  // profile — the retag). ABSENT at defaults: bit-zero by construction (R3A-B3).
+  composition?: {
+    eventLayer?: UserOverrideMap;
+    importedKeys?: ReadonlySet<string>;
+    profileTags?: { fiscal?: 'default' | 'axis-variant' | 'policy'; fed?: 'default' | 'axis-variant' | 'policy' };
+    /** THE ORIGIN CHANNEL (the supply-chain shock ruling): compiler-emitted sticky
+     *  1/0 flags on resilience row keys — domestic-regulatory quantity legs bypass
+     *  the rows' resilience while active (resolution injects event-provenance 0). */
+    scResilienceBypassLayer?: UserOverrideMap;
+    /** THE DATA-CALIBRATION SIDE CHANNEL (the AEI program, Shape A): the active
+     *  preset's per-cluster payload — automation share (α) + capability weights for
+     *  the calibrated cognitive clusters ONLY (the applied block; embodied clusters
+     *  are structurally absent). Consumed ONCE at the effectiveClusters build below
+     *  user overrides and above authored defaults; absent ⇒ the chains short past it
+     *  (bit-zero at defaults by construction). */
+    dataCalibration?: DataCalibrationPayload;
+  },
+  internalRun?: {
+    /** H3 ruling 2: set on the engine's own zero-AI counterfactual twin run — the recursion
+     *  guard. Never set by external callers. */
+    counterfactualTwin?: boolean;
+  },
 ): SimulationTimeline {
+  // Stage H item 8 (the audit's startYear-desync finding): the cost/safety decay clocks are
+  // anchored at DEFAULT_START_YEAR inside bfcs.ts (computeFasterScore/computeCheaperScore/
+  // computeSaferScore) and macro.ts (the Phase-5-tax indices), NOT at config.startYear — a
+  // non-2025 start silently desyncs those clocks from the simulation calendar. Loud until
+  // the clocks are threaded (registered to the successor design checkpoint's docket).
+  if (config.startYear !== DEFAULT_START_YEAR) {
+    throw new Error(
+      `Unsupported startYear ${config.startYear}: the BFCS cost/safety decay clocks are `
+      + `anchored at ${DEFAULT_START_YEAR} (bfcs.ts, macro.ts) and do not follow config.startYear. `
+      + `Non-2025 starts are rejected loudly rather than silently desynced; clock-threading is `
+      + `registered to the successor program's design docket.`,
+    );
+  }
+  // THE EVENT-DEMANDED MATERIALIZATION (wiring audit 2026-08-01): the supply-chain
+  // block below gates on config.supplyChainConfig, which is dormant (undefined) at
+  // defaults — so a per-year layer shocking a supply-chain row (every sidebar event;
+  // a per-year user override) resolved into yearParams and was never consumed. A
+  // demanded row materializes the FULL default block up front — the R3C-F2 rule
+  // (grid write under absent parent) extended to the per-year layers. With no
+  // supply-chain rows demanded, undefined stands: bit-zero at defaults preserved.
+  if (config.supplyChainConfig === undefined
+    && (layerDemandsSupplyChain(composition?.eventLayer) || layerDemandsSupplyChain(userOverrides))) {
+    config = { ...config, supplyChainConfig: getDefaultSupplyChainConfig() };
+  }
   const years: SimulationYearOutput[] = [];
   let previousMacro: MacroOutput | null = null;
-  let previousFundSize = config.policyConfig.sovereignWealthFund.initialFundSize;
+  // The SWF creation year (the per-field policy rebuild): a fund created AFTER the
+  // simulation's first year starts at 0 — the seed fires in computeAssetPolicyEffect
+  // at the creation year itself. A startYear at/before the first sim year reproduces
+  // the prior unconditional init exactly (absent ⇒ DEFAULT_SWF_START_YEAR = start).
+  let previousFundSize =
+    (config.policyConfig.sovereignWealthFund.startYear ?? DEFAULT_SWF_START_YEAR) > config.startYear
+      ? 0
+      : config.policyConfig.sovereignWealthFund.initialFundSize;
   let previousMoneySupply = BASELINE_MONEY_SUPPLY;
   let previousTransferInflation = 0; // One-year lag: monetary module's actualInflationFromTransfers feeds into next year's price computation
 
@@ -556,8 +916,48 @@ export function runSimulation(
   const profileName = `${config.fiscalPolicyPreset ?? DEFAULT_FISCAL_POLICY_PRESET} + ${config.federalReservePreset ?? DEFAULT_FEDERAL_RESERVE_PRESET}`;
   const baselineTaxRates = getBaselineTaxRates(config);
 
+  // ═══ H3 RULING 2 — THE ZERO-AI COUNTERFACTUAL TWIN (absorption re-benchmarked) ═══
+  // The demand-health benchmark is the SAME-YEAR ZERO-AI COUNTERFACTUAL real consumption:
+  // this exact configuration (policies, events, overrides unchanged) with all three
+  // capability trajectories zeroed — the engine's own No-AI machinery, run once per
+  // simulation. The derived trend proxy (BASELINE_CONSUMPTION_2025 × (1+g)^t) FAILED its
+  // pre-registered ±5% fidelity gate against this twin (worst-year +8.04%, battery H3-B2.1),
+  // so the second full run IS taken — stated per the ruling's either-way clause.
+  // Zero-capability configs are their own counterfactual and skip the twin (no AI
+  // production exists there, so the benchmark is never consulted); the twin flag guards
+  // recursion. Events/overrides never write capability keys (manifest-verified), so the
+  // twin's capabilities stay identically zero.
+  const zeroTrajectory = { floor: 0, ceiling: 0, steepness: 1.0, midpointYear: 2035 };
+  const isZeroAIConfig = Object.values(config.capabilities)
+    .every((c) => c.floor === 0 && c.ceiling === 0);
+  let counterfactualRealConsumptionByYear: Map<number, number> | undefined;
+  if (!internalRun?.counterfactualTwin && !isZeroAIConfig) {
+    const twinConfig: SimulationConfig = {
+      ...config,
+      capabilities: {
+        generative: { ...zeroTrajectory },
+        agentic: { ...zeroTrajectory },
+        embodied: { ...zeroTrajectory },
+      } as SimulationConfig['capabilities'],
+    };
+    const twin = runSimulation(
+      twinConfig, clusters, blsBaselines, stateDataMap, userOverrides, composition,
+      { counterfactualTwin: true },
+    );
+    counterfactualRealConsumptionByYear = new Map(twin.years.map((y) => [
+      y.year,
+      y.macro.priceLevel > 0 ? y.macro.consumption / y.macro.priceLevel : 0,
+    ]));
+  }
+
   // Track trigger years per cluster-role (persists across years)
   const triggerYears: Record<string, Record<string, number | null>> = {};
+  // Mini-stage 1 (the frontier-intensity cost layer): the Better-ARRIVAL year per
+  // cluster-role — the first year Better ≥ B* (the capability frontier reaching the role's
+  // requirement; distinct from the TRIGGER year, which needs all four gates). Latched once:
+  // the price of a once-reached capability level does not un-collapse. Anchors the role's
+  // fixed-capability cost curve in aiCost.ts.
+  const betterArrivalYears: Record<string, Record<string, number | null>> = {};
   // Track better score at trigger time (for augmentation → displacement production floor)
   const triggerBetterScores: Record<string, Record<string, number | null>> = {};
   // Phase 10.A — augmentation trigger years per cluster-role (persists across years)
@@ -575,11 +975,13 @@ export function runSimulation(
 
   for (const cluster of clusters) {
     triggerYears[cluster.id] = {};
+    betterArrivalYears[cluster.id] = {};
     triggerBetterScores[cluster.id] = {};
     augTriggerYears[cluster.id] = {};
     priorYearAlphaByRole[cluster.id] = {};
     for (const role of cluster.roles) {
       triggerYears[cluster.id]![role.id] = null;
+      betterArrivalYears[cluster.id]![role.id] = null;
       triggerBetterScores[cluster.id]![role.id] = null;
       augTriggerYears[cluster.id]![role.id] = null;
       priorYearAlphaByRole[cluster.id]![role.id] =
@@ -760,12 +1162,51 @@ export function runSimulation(
         roleWagePremiumOverrides?.[r.id] ?? r.aiReplacementDifficultyWagePremium,
     }));
 
+    // THE DATA-CALIBRATION RUNGS (the AEI program; precedence: user > preset >
+    // authored). Applied ONCE here, on the effective cluster objects, because THREE
+    // downstream consumers read these fields (the year-loop weighted capability, the
+    // production-expansion weighted capability, and computeBetterScore's raw weights
+    // read) — a rung at any single consumer would leave the preset partially live.
+    // The applied block is cognitive-only by construction (embodied clusters live in
+    // clustersInformational, which nothing here reads), and the embodied WEIGHT is
+    // never calibrated — preserved verbatim (a USER embodied override still wins).
+    //
+    // RIDER 2 (mini-stage 3): the USER weight overrides moved here too — the ONE
+    // producer for the whole chain user > data-calibration > authored. The old
+    // consumer-site rungs read user weight overrides at two of the three consumers
+    // and never at computeBetterScore (measured: a full user mask still leaked the
+    // preset's weights into Better scores). The consumer-site chains are retired;
+    // every consumer now reads the uniform weights from the cluster object. Preset
+    // absent and no user weight override ⇒ the authored object passes through
+    // untouched (bit-zero at defaults).
+    const dataCalCluster = composition?.dataCalibration?.clusters[c.id];
+    const userWeights = config.clusterOverrides?.[c.id];
+    const hasWeightWrite = dataCalCluster?.weights !== undefined
+      || userWeights?.generativeWeight !== undefined
+      || userWeights?.agenticWeight !== undefined
+      || userWeights?.embodiedWeight !== undefined;
+
     return {
       ...c,
       employmentMultiplier: mult,
       consumerDemandShare: cShare,
       govDemandShare: gShare,
-      automationShare: clusterAlphaOverride ?? c.automationShare,
+      automationShare: clusterAlphaOverride ?? dataCalCluster?.automationShare ?? c.automationShare,
+      capabilityRelevance: hasWeightWrite
+        ? {
+            ...c.capabilityRelevance,
+            weights: {
+              generative: userWeights?.generativeWeight
+                ?? dataCalCluster?.weights?.generative
+                ?? c.capabilityRelevance.weights.generative,
+              agentic: userWeights?.agenticWeight
+                ?? dataCalCluster?.weights?.agentic
+                ?? c.capabilityRelevance.weights.agentic,
+              embodied: userWeights?.embodiedWeight
+                ?? c.capabilityRelevance.weights.embodied,
+            },
+          }
+        : c.capabilityRelevance,
       roles: effectiveRoles,
     };
   });
@@ -779,7 +1220,13 @@ export function runSimulation(
   const seamWageRelative = new Map<string, number>();
   const seamCheaperThreshold = new Map<string, number>();
   const seamMargins: Array<{ key: string; c2025Old: number; c2025New: number; marginOld: number; thresholdNew: number; outOfRange: boolean }> = [];
-  if (!(config.legacyCheaperProxy ?? false)) {
+  // RETIRED (CO-D2 conversion, R3b; Amendment 2): legacyCheaperProxy — the FS-3
+  // which-change toggle (the retired seniority-proxy Cheaper basis). Pole at
+  // ~/.atlas-referents/co-d2/legacyCheaperProxy/ (recorded pole-first). The seam-map
+  // build is single-path (roles without loaded wages keep the proxy basis regardless —
+  // the data-gated inner fallback, unchanged).
+  // if (!(config.legacyCheaperProxy ?? false)) {
+  {
     for (const cluster of clusters) {
       const bl = blsBaselines?.get(cluster.id);
       for (const role of cluster.roles) {
@@ -831,6 +1278,20 @@ export function runSimulation(
 
   // Phase 5g Step 7: Track AI GDP at UBI index start year for productivity indexing
   let startYearAiGDP: number = 0;
+  // The policy indexation factor: a PRICE-ONLY, one-way cost-of-living index
+  // (compounds max(composite inflation, 0) — nominal amounts are never cut on
+  // deflation), with the fiscal-response profile's cost-of-living dampening
+  // applied, threaded one year lagged (1.0 at the start year). Both indexed
+  // policy instruments consume it: statutory minimum-wage indexation is
+  // CPI-based in real-world practice (the CPI-indexed state statutes; benefit
+  // adjustments are likewise CPI-measured and never negative), and the UBI
+  // card's own text says "inflation-indexed" — a price index, not a wage
+  // index. Consuming the budget's wage-or-price benefit-adequacy index here
+  // would feed a wage floor's own wage push back into the floor (a
+  // self-referential loop, measured divergent); the wage-branch form remains
+  // available as a possible future, honestly-labeled advanced mode.
+  let policyPriceIndexRaw = 1.0;
+  let prevPolicyIndexationFactor = 1.0;
 
   // Phase 7: Fiscal-Monetary state variables (carried forward across years)
   let previousFiscalMonetary: FiscalMonetaryOutput | null = null;
@@ -851,15 +1312,109 @@ export function runSimulation(
   let previousMortgageRate: number | undefined = undefined;
 
   // Phase 9: Supply chain state
-  let adoptionState: AdoptionState = { rates: {}, frozenSince: {} };
+  let adoptionState: AdoptionState = { rates: {}, frozenSince: {}, hasDeclined: {} };
+  // Mini-stage 2 (Amendment 1): the reverse gear's rehire basis + fill throttle read the
+  // PREVIOUS year's displaced pool (the pool the firm would actually hire from; year 0 has
+  // no pool). Mini-stage 3 refines the SAME object's internals (cohorts, scarring,
+  // effectiveness weighting) — the gear's reads sharpen with NO basis change (the ruled
+  // pool-object resolution).
+  let previousDisplacedPool: { count: number; avgWage: number } = { count: 0, avgWage: 0 };
+  // Mini-stage 3: the duration-structured pool (the SAME object gaining resolution — the
+  // ruled pool-object resolution; cohorts/scarring/effectiveness refine the gear's reads
+  // with no basis change).
+  let poolState: DisplacedPoolState = emptyDisplacedPoolState();
+  const poolDials: PoolDials = {
+    exitBase: config.exitBase ?? DEFAULT_POOL_EXIT_BASE,
+    exitDurationSlope: config.exitDurationSlope ?? DEFAULT_POOL_EXIT_DURATION_SLOPE,
+    atrophyRate: config.atrophyRate ?? DEFAULT_POOL_ATROPHY_RATE,
+    wageScarringRate: config.wageScarringRate ?? DEFAULT_POOL_WAGE_SCARRING_RATE,
+  };
   let chipSupplyHistory: number[] = [];
   let cumulativeCapabilityDelay: Record<CapabilityVectorId, number> = { generative: 0, agentic: 0, embodied: 0 };
+  // MS1 (the frontier stock); FLYWHEEL MS (the hoist): training capacity relative to
+  // the default path — 1 at the seam (2025 = observed economy, on-path). ALWAYS-ON and
+  // LOOP-HOSTED now: it drains under supply famines (u_supply from the SC block) AND
+  // funding starvation (u_demand from the t−1 macro funding gate), composed by
+  // u = min(u_s, u_d) — Leontief, the ratified structural form. The capability clock
+  // advances at stock^rateElasticity; the COST CLOCK τ at stock^costElasticity.
+  let frontierStock = 1;
+  // The flywheel's cost clock: effective innovation time τ. Seam-pinned at 0 for the
+  // start year (the cost curves' anchor, like t = 0 today); advances by S^φ_cost per
+  // subsequent year — exactly +1.0 on every funded path (integer-exact identity).
+  let effectiveCostTime = 0;
+  // τ history for the fixed-capability arrival re-anchor (τ at the role's arrival year).
+  const tauByYear = new Map<number, number>();
+  // The innovation-channel multiplier m_inn = S^φ_inn (loop-produced since the hoist).
+  let innovationStockMultiplier = 1;
+  // ═══ PRODUCTION PROGRAM STAGE 1 — Channel 1 state (the buildout machine) ═══
+  // Stocks in 2025-required-capacity units (seam: every DC leg exactly 1); the fleet
+  // in units; the R3-smoothed allocation vector. Year 0 is the SEAM (no demand passed
+  // — PB-1 Leg A byte-identity); the machine is live from the second year.
+  let buildoutState = getInitialBuildoutState();
+  // Stage 4 MS3 (arrival events): the accumulated energy cost-curve BEND — an
+  // event's trend entry compounds this factor from its anchor year
+  // ((1 + eventTrend)/(1 + standingTrend) per covered year); on release the
+  // accumulated factor persists (durable capacity). 1 with no event — bit-zero.
+  let energyCostBendFactor = 1;
+  // The per-year arrival reads (event layer; 100/undefined = no arrival).
+  let fleetRampIdxForYear = 100;
+  // Stage 5A (A2): the orbital arrival row (the fleet-ramp admission precedent) —
+  // a per-year ADDITIONS index: (v − 100)/100 capacity units join S_orbital.
+  let orbitalAddIdxForYear = 100;
+  // Stage 5A (A3 + E2): the energy opex line for the year (undefined ⇒ inert —
+  // the seam year and the zero-AI path; the carve-out travels with it in macro.ts).
+  let aiEnergyOpexForYear: number | undefined;
+  // ═══ STAGE 4 MS4 — THE ADOPTION-GATING STATE (the ratified design §2–§3) ═══
+  // The t−1 per-cluster cleared-work fleet requirement + derived priority
+  // (produced by the ledger pass) and the smoothed allocation shares. Empty at
+  // the seam: no clearance ⇒ no requirement ⇒ every coverage 1 ⇒ the gate is
+  // structurally silent (zero-AI bit-silence by construction).
+  let prevPerClusterFleetReq: Record<string, number> = {};
+  let prevPerClusterPriority: Record<string, number> = {};
+  let fleetAllocShares: Record<string, number> = {};
+  let buildoutPlanForYear: BuildoutPlan | null = null;
+  let buildoutRealGDP2025: number | null = null;
+  // ═══ PRODUCTION PROGRAM STAGE 2 — Channel 2 loop state ═══
+  // The cleared-embodied-work fleet requirement (units), computed by the ledger each
+  // year and consumed by the NEXT year's buildout plan (the t−1 finance-basis pattern;
+  // the fleet-scale re-derivation, order item 3). 0 at the seam and on zero-AI paths.
+  let prevClearedFleetRequirement = 0;
+  // The builderBase dynamics fix (order item 7): the seam-year corporate profits
+  // (captured at year 0, the buildoutRealGDP2025 pattern) — the finance block's
+  // builder base indexes to the LIVE corporate-profits state against this seam.
+  let buildoutCorporateProfitsSeam: number | null = null;
+  // Stage 3 MS3: the issuance leg + window for the year (telemetry stamps them).
+  let buildoutIssuanceForYear = 0;
+  let buildoutIssuanceWindowForYear = 1;
+  // ═══ STAGE 3 MS4 — Channel 3 loop state (the corporate AI-era R&D stock) ═══
+  // Perpetual-inventory dollars (nominal), advanced post-macro from the REALIZED
+  // spend (the same gate chain all investment rides — no bypass). DISTINCT from the
+  // FRONTIER's capability-side stock by the two-stocks partition (RB-4 Leg A).
+  let aiRdStockState = 0;
+  let aiRdStockPrevStart = 0; // the stock at the START of the prior year (the Δln base)
+  let aiRdDemandForYear = 0;
+  let aiRdFlowForYear = 0;
+  // MS1 (the ruled onset dead time): the per-year RESOLVED resilience series, in year
+  // order — the training channel damps by the entry onsetYears back (delivered
+  // capacity), while rows/display keep the as-built series.
+  const resolvedResilienceHistory: SupplyChainResilience[] = [];
   let supplyChainShockHistory: [SupplyChainInputs, SupplyChainInputs] = [
-    { aiChips: 100, energyPrice: 100, energyCapacity: 100, trainingDCCapacity: 100, inferenceDCCapacity: 100, roboticsHardware: 100, softwareEfficiency: 100 },
-    { aiChips: 100, energyPrice: 100, energyCapacity: 100, trainingDCCapacity: 100, inferenceDCCapacity: 100, roboticsHardware: 100, softwareEfficiency: 100 },
+    { aiChips: 100, chipPrice: 100, energyPrice: 100, energyCapacity: 100, trainingDCCapacity: 100, inferenceDCCapacity: 100, roboticsHardware: 100, softwareEfficiency: 100 },
+    { aiChips: 100, chipPrice: 100, energyPrice: 100, energyCapacity: 100, trainingDCCapacity: 100, inferenceDCCapacity: 100, roboticsHardware: 100, softwareEfficiency: 100 },
   ];
   let cognitiveProgress = 0;
   let embodiedProgress = 0;
+
+  // THE regulatoryFriction CONSUMER (the supply-chain shock ruling, Finding 3;
+  // design note .archive/supply-chain-fix/DESIGN_NOTE.md): friction is the
+  // permitting-delay multiplier on datacenter capacity additions. The accumulator
+  // holds Σ 1/friction(τ) over elapsed years — the EFFECTIVE permitting time the
+  // datacenter resilience trajectory advances by (year τ's regime governs additions
+  // coming online in τ+1, the loop's year-start convention). At friction ≡ 1 each
+  // year adds exactly 1.0, so the sum is the exact float t and the trajectory is
+  // arithmetic-identical to the prior closed form (the bit-identity guarantee).
+  // No retroactivity: a freeze slows additions from its year forward only.
+  let dcPermittingEffectiveYears = 0;
 
   // Phase 5i: Housing state tracking
   let dynamicHomeownership: number[] = MORTGAGE_EXPOSURE_QUINTILES.map(q => q.homeownershipRate as number);
@@ -887,23 +1442,42 @@ export function runSimulation(
   // the baseline the displaced-pool price object reads (year 0 is displacement-free).
   let year0ClusterResults: ClusterDisplacementResult[] | null = null;
 
+  // ═══ STAGE 4 MS2 — THE DERIVED N1→TOKEN COUPLING (one producer, run-constant):
+  // the token-cost curve re-derives from N1's capacity-cost trend (ratification
+  // R2's surgery (c) — aiCost.ts coupledTokenCostCurve carries the form and its
+  // derivation). At the consensus trend (or absent) the coupling returns the
+  // ORIGINAL objects by reference — bit-exact identity on the default path. Every
+  // cost consumer below reads costParamsForRun; config.aiCostParams is never read
+  // for cost evaluation past this point. ═══
+  const coupledCurveForRun = coupledTokenCostCurve(
+    config.aiCostParams?.tokenCostCurve, config.buildoutChipsCostTrend,
+  );
+  const costParamsForRun: AICostParams | undefined =
+    coupledCurveForRun === config.aiCostParams?.tokenCostCurve
+      ? config.aiCostParams
+      // reason: spreading a possibly-undefined params object is runtime-safe ({}),
+      // and every downstream consumer resolves absent fields via `?? DEFAULT_*`;
+      // the cast keeps the coupled object on the AICostParams contract.
+      : { ...(config.aiCostParams as AICostParams), tokenCostCurve: coupledCurveForRun };
+
   // === MAIN TIME LOOP (DATA_MODEL.md §10.1) ===
   for (let year = config.startYear; year <= config.endYear; year++) {
 
-    // Resolve year-overridable token usage multiplier (sticky-forward).
-    // Default trajectory: the spike-and-recover schedule (1× → 20× → 25× → 15× → 5× →
-    // 1×, holding 1× thereafter), unless a scenario set a flat tokenUsageMultiplier.
-    // Used downstream by BFCS Cheaper score + sector-weighted deflation.
-    const baselineTokenUsage = defaultTokenUsageMultiplier(
-      year, config.startYear,
-      config.aiCostParams?.tokenUsageMultiplier,
-    );
-    const resolvedTokenUsage = resolveParameter(
-      'tokenUsageMultiplier', year, baselineTokenUsage, baselineTokenUsage, overrides,
-    ).effective;
-    const effectiveAiCostParams = config.aiCostParams
-      ? { ...config.aiCostParams, tokenUsageMultiplier: resolvedTokenUsage }
-      : undefined;
+    // RETIRED (mini-stage 1; Amendment 2 — no legacy toggles): the per-year tokens-per-task
+    // resolution (spike-and-recover schedule + sticky-forward overrides). The frontier-
+    // intensity cost layer (aiCost.ts) replaces it: intensity is a persistent property of
+    // frontier work, per-role migration off the frontier is priced by the arrival-anchored
+    // fixed-capability curve, and the AGGREGATE tokens-per-task path is an emergent OUTPUT
+    // (MacroOutput.impliedAggregateTokensPerTask). Which-change pole: the 6c831b7 run.
+    // const baselineTokenUsage = defaultTokenUsageMultiplier(
+    //   year, config.startYear,
+    //   config.aiCostParams?.tokenUsageMultiplier,
+    // );
+    // const resolvedTokenUsage = resolveParameter(
+    //   'tokenUsageMultiplier', year, baselineTokenUsage, baselineTokenUsage, overrides,
+    // ).effective;
+    // STAGE 4 MS2: the N1-coupled params (identity-by-reference at consensus).
+    const effectiveAiCostParams = costParamsForRun;
 
     // Phase 5g Step 1: Dynamic population growth
     const popGrowthRate = config.populationGrowthRate ?? DEFAULT_POPULATION_GROWTH_RATE;
@@ -916,33 +1490,374 @@ export function runSimulation(
     // create rising structural unemployment as population grows → demand penalty death spiral.
     const laborForceGrowthFactor = dynamicPopulation / config.totalPopulation;
 
+    // ═══ R1 (the axes program): THE ONE RESOLUTION — the unified per-year producer. ═══
+    // Moved here from the fiscal-monetary block so the engine's supply-chain consumption
+    // below reads the SAME object the record stores. This retires D-18's duplicate
+    // resolution (ruling 8: UNIFY; ratify-with-battery rejected as a two-basis genus at
+    // the provenance layer) — provenance holds by construction; B2-3 re-specs to the
+    // internal-consistency form. All inputs are year-start state: t−1 macro (CIF), the
+    // lagged debt/GDP history, the pre-loop profile/tax baselines.
+    const prevCIF = previousMacro?.cumulativeInflationFactor ?? 1.0;
+    const laggedDebtIdx = Math.max(0, debtGDPHistory.length - 1 - fiscalProfile.consolidationLag);
+    const laggedDebtGDP = debtGDPHistory.length > 0
+      ? debtGDPHistory[laggedDebtIdx]!
+      : (INITIAL_FEDERAL_DEBT / BASELINE_GDP_NOMINAL_2025);
+    const autopilotResult = (year - config.startYear) === 0
+      ? getBaselineAutopilot(config, fiscalProfile)
+      : computeAutopilotParameters(
+          laggedDebtGDP, prevCIF, fiscalProfile, baselineTaxRates,
+          year, config.supplyChainConfig,
+          config.aiProductionOnshoringFraction ?? DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION,
+          dcPermittingEffectiveYears,
+        );
+    const yearParams = resolveAllParameters(year, config, autopilotResult, overrides, profileName, composition);
+    // The permitting clock advances by this year's resolved regime (one producer —
+    // events and per-year overrides included). The guard floor matches the standing
+    // validator clamp; per-year vehicles carry no range, so the divisor is floored
+    // rather than trusted.
+    dcPermittingEffectiveYears += 1 / Math.max(MIN_REGULATORY_FRICTION, yearParams.regulatoryFriction.effective);
+
+    // R3a (case 16 live): the geopolitical event layer overrides the axis-owned standing
+    // value per-year — ONE site; the config value stands when no event entry covers the
+    // year (bit-zero at defaults; the RESTORE-AXIS recovery entry returns the composed
+    // axis value by construction at the compiler).
+    const geoEventRaw = composition?.eventLayer
+      ? stickyLayerValue('geopoliticalRiskFactor', year, composition.eventLayer)
+      : undefined;
+    // F2 guard: a release-sentinel recovery (NaN) means NOT event-covered — the
+    // composed config's own value resumes. (The shipped geopolitical drag recovers
+    // via restore-axis, a real value; this guard covers any future released leg.)
+    const geoEventValue = geoEventRaw !== undefined && Number.isNaN(geoEventRaw) ? undefined : geoEventRaw;
+    const effectiveAdoptionParams = geoEventValue !== undefined
+      ? { ...config.adoptionParams, geopoliticalRiskFactor: geoEventValue }
+      : config.adoptionParams;
+
     // Phase 9: Compute supply chain effects (before capabilities so delays are ready)
     const scConfig = config.supplyChainConfig;
     let scEffects: SupplyChainEffects | null = null;
     let scLaggedInputs: ReturnType<typeof applyPropagationLags> | null = null;
+    // Mini-stage 2 (C-1): the per-year RESOLVED supply-chain config consumed by execution
+    // this year — held loop-scope so the shock history pushes the same resolved values.
+    let effectiveScConfig: SupplyChainConfig | null = null;
 
     if (scConfig) {
+      // ── C-1: THE TIMED-SHOCK SURFACE (execution reads the ONE resolved object). ──
+      // Every row resolves per-year through the three-layer machinery (baseline = config
+      // value; autopilot = trajectory/profile evolution; user overrides sticky-forward
+      // with EXPLICIT recovery entries). R1 RETIRED the duplicate inline resolution that
+      // lived here (the rsc helper + its own computeAutopilotResilience call): the engine
+      // now reads yearParams — the SAME object the sidebar records. The autopilot layers
+      // (resilience evolution, the pass-through anchor) come through autopilotResult
+      // inside the one producer.
+      // RETIRED (R1; comment-and-record — the second resolution path, dead by the
+      // single-producer guard R1-B6):
+      // const rsc = (key: string, baseline: number, autopilot?: number) =>
+      //   resolveParameter(key, year, baseline, autopilot ?? baseline, overrides).effective;
+      // const autoResilience = computeAutopilotResilience(
+      //   year, scConfig.resilience,
+      //   config.aiProductionOnshoringFraction ?? DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION,
+      // );
+      const resolvedResilience: SupplyChainResilience = {
+        aiChips: yearParams.resilienceAiChips.effective,
+        energy: yearParams.resilienceEnergy.effective,
+        trainingDC: yearParams.resilienceTrainingDC.effective,
+        inferenceDC: yearParams.resilienceInferenceDC.effective,
+        roboticsHardware: yearParams.resilienceRoboticsHW.effective,
+      };
+      // MS1 (the ruled onset dead time): the history carries the SAME resolved series
+      // the sidebar records (user overrides included — display and execution stay one
+      // object); the training channel consumes the entry onsetYears back. At onset 0
+      // the lookup returns this year's entry exactly (the prior behavior).
+      resolvedResilienceHistory.push(resolvedResilience);
+      const deliveredResilience = lookupDeliveredResilience(
+        resolvedResilienceHistory,
+        scConfig.resilienceOnsetYears ?? DEFAULT_RESILIENCE_ONSET_YEARS,
+      );
+      effectiveScConfig = {
+        ...scConfig,
+        inputs: {
+          aiChips: yearParams.supplyChainAiChips.effective,
+          chipPrice: yearParams.supplyChainChipPrice.effective,
+          energyPrice: yearParams.supplyChainEnergyPrice.effective,
+          energyCapacity: yearParams.supplyChainEnergyCapacity.effective,
+          trainingDCCapacity: yearParams.supplyChainTrainingDC.effective,
+          inferenceDCCapacity: yearParams.supplyChainInferenceDC.effective,
+          roboticsHardware: yearParams.supplyChainRoboticsHW.effective,
+          softwareEfficiency: yearParams.supplyChainSoftwareEfficiency.effective,
+        },
+        trainingDynamics: {
+          aiChips: { techDeclineRate: yearParams.trainingChipsTechDecline.effective, scalePressure: yearParams.trainingChipsScalePressure.effective },
+          energy: { techDeclineRate: yearParams.trainingEnergyTechDecline.effective, scalePressure: yearParams.trainingEnergyScalePressure.effective },
+          datacenter: { techDeclineRate: yearParams.trainingDCTechDecline.effective, scalePressure: yearParams.trainingDCScalePressure.effective },
+        },
+        regulatoryFriction: yearParams.regulatoryFriction.effective,
+        // C-2: the autopilot layer IS the ramp — live at execution (via the one producer).
+        costPassThroughRate: yearParams.costPassThroughRate.effective,
+        consumerPassThroughRate: yearParams.consumerPassThroughRate.effective,
+        costVsProcurementBlend: yearParams.costVsProcurementBlend.effective,
+      };
+      // The cascade re-base (the MS1 registered deferral, due now): the base compute-cost
+      // decline the cascade modifies is the ONE object's frontier trajectory — the
+      // year-over-year log decline of frontierCost(t) — not the retired exp leg.
+      const frontierDials = resolveFrontierDials(costParamsForRun);
+      const tNow = year - config.startYear;
+      const frontierDeclineRate = tNow > 0
+        ? Math.log(
+            computeFrontierCost(tNow, costParamsForRun?.tokenCostCurve, frontierDials)
+            / computeFrontierCost(tNow - 1, costParamsForRun?.tokenCostCurve, frontierDials),
+          )
+        : 0;
       scEffects = computeSupplyChainEffects({
         year,
-        config: scConfig,
+        config: effectiveScConfig,
         shockHistory: supplyChainShockHistory,
         chipSupplyHistory,
         prevCumulativeDelay: cumulativeCapabilityDelay,
         onshoringFraction: config.aiProductionOnshoringFraction ?? DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION,
         automationCoverage: previousMacro?.automationCoverage ?? 0,
-        baseComputeDeclineRate: config.aiCostParams?.inferenceAnnualChange ?? DEFAULT_INFERENCE_ANNUAL_CHANGE,
+        baseComputeDeclineRate: frontierDeclineRate,
         cognitiveProgress,
         embodiedProgress,
+        resolvedResilience,
+        prevFrontierStock: frontierStock, // reason: deprecated input (the hoist) — retained for signature stability, unread
+        deliveredResilience,
       });
-      cumulativeCapabilityDelay = scEffects.cumulativeCapabilityDelay;
-      scLaggedInputs = applyPropagationLags(scConfig.inputs, supplyChainShockHistory[0], supplyChainShockHistory[1]);
+      scLaggedInputs = applyPropagationLags(effectiveScConfig.inputs, supplyChainShockHistory[0], supplyChainShockHistory[1]);
     }
 
-    // 1. Update capability scores S_c(t) for all vectors
+    // ═══ PRODUCTION PROGRAM STAGE 1 — THE BUILDOUT STEP (Channel 1) ═══
+    // The plan for the year: requirement from the BELIEVED capability path (the
+    // ceilings-of-possibility semantics), finance from t−1 profits/credit, gaps at
+    // current unit costs, the R3 smoothed binding-sink allocation, and the funding
+    // ratio F = financed/required (≡ 1 at zero required spend — ratification A3).
+    // Supply-chain quantity/price indices act as SHOCKS ON THE STOCKS/COSTS (the
+    // one-machine rule). Zero-AI beliefs demand nothing (the twin semantics — the
+    // partition delta then subtracts the baseline-embedded AI capex path).
+    buildoutPlanForYear = null;
+    buildoutIssuanceForYear = 0;
+    buildoutIssuanceWindowForYear = 1;
+    aiEnergyOpexForYear = undefined; // Stage 5A: inert unless the live machine sets it
+    // ═══ STAGE 4 MS3 — THE ARRIVAL ROWS (signed, leg-targeted happenings) ═══
+    // The fleet-ramp row (per-year vehicle; the geopolitical case-16 read pattern):
+    // 100/undefined/released ⇒ no arrival — bit-zero at defaults by construction.
+    {
+      const rampRaw = composition?.eventLayer
+        ? stickyLayerValue('fleetRampCapacity', year, composition.eventLayer)
+        : undefined;
+      fleetRampIdxForYear = rampRaw !== undefined && !Number.isNaN(rampRaw) ? rampRaw : 100;
+      // The energy cost-curve BEND: an event's trend entry compounds the factor
+      // for each covered year (continuous level, changed slope — never a cliff).
+      const bendRaw = composition?.eventLayer
+        ? stickyLayerValue('buildoutEnergyCostTrend', year, composition.eventLayer)
+        : undefined;
+      if (bendRaw !== undefined && !Number.isNaN(bendRaw)) {
+        const standing = config.buildoutEnergyCostTrend ?? BUILDOUT_LEG_COST_TREND.energy;
+        energyCostBendFactor *= (1 + bendRaw) / (1 + standing);
+      }
+      // Stage 5A (A2): the orbital arrival row — per-year additions declaration
+      // ((v − 100)/100 units/yr while covered; the upgraded orbital-datacenters
+      // event writes it; 100/undefined/released ⇒ no arrival, bit-zero).
+      const orbRaw = composition?.eventLayer
+        ? stickyLayerValue('orbitalCapacity', year, composition.eventLayer)
+        : undefined;
+      orbitalAddIdxForYear = orbRaw !== undefined && !Number.isNaN(orbRaw) ? orbRaw : 100;
+    }
+    // ═══ STAGE 4 MS4 — THE PER-CLUSTER FLEET ALLOCATION (the ratified design §3):
+    // the ONE coverage producer for the year, from the t−1 requirement/priority
+    // maps and the START-of-year fleet stock. Both the displacement gate (the
+    // cluster loop below) and the ledger gate (computeAIProductionExpansion)
+    // consume THIS series. ═══
+    const fleetAllocation = computeFleetAllocation(
+      prevPerClusterFleetReq, prevPerClusterPriority, fleetAllocShares,
+      buildoutState.fleetUnits,
+      config.fleetAllocSmoothing ?? DEFAULT_FLEET_ALLOC_SMOOTHING,
+    );
+    fleetAllocShares = fleetAllocation.shares;
+    const perClusterCoverage = fleetAllocation.coverage;
+    if (previousMacro && buildoutRealGDP2025 !== null) {
+      const scIn = effectiveScConfig?.inputs;
+      // ═══ STAGE 3 MS3 — EQUITY ISSUANCE (owner ruling v; the ratified design) ═══
+      // ι × the t−1 implied AI market cap (the D1-guarded sector valuation surface)
+      // × the t−1 issuance window (closes on the ONE crisis-ERP producer's component
+      // at the episode-anchored sensitivity — 2008-class shutdowns). Zero-AI: the
+      // implied cap is 0 ⇒ issuance 0 (bit-silence, RB-3 Leg E).
+      buildoutIssuanceWindowForYear = Math.max(0, Math.min(1,
+        1 - EQUITY_ISSUANCE_WINDOW_SENSITIVITY
+          * (previousMacro.erpCrisisComponent ?? 0) / DEFAULT_ERP_CRISIS_SENSITIVITY));
+      buildoutIssuanceForYear = (config.equityIssuanceRate ?? DEFAULT_EQUITY_ISSUANCE_RATE)
+        * Math.max(0, previousMacro.aiMarketCapImplied ?? 0)
+        * buildoutIssuanceWindowForYear;
+      // ═══ STAGE 3 MS4 — CHANNEL 3: the AI-era R&D demand + the TFP flow ═══
+      // Demand = intensity × the t−1 REALIZED nominal AI revenue (the honest basis:
+      // realized GDP entries + absorbed × price level — the same construction the
+      // profits re-base uses); the flow = Δln(stock) × the cited elasticity, from the
+      // stock as of the START of this year vs last (the Δ-form; both-positive guard).
+      {
+        const prevRevenue = Math.max(0, previousMacro.aiRealizedGDPContribution
+          + previousMacro.aiGoodsAbsorbed * previousMacro.priceLevel);
+        aiRdDemandForYear = (config.aiRdIntensity ?? DEFAULT_AI_RD_INTENSITY) * prevRevenue;
+        // Δln over successive START-of-year stocks, measured against the WHOLE
+        // research stock (baseline base + the AI-era increment — the checkpoint §3
+        // incremental-to-baseline honesty; an increment-only Δln fabricates
+        // double-digit deflation from the first dollars — the small-base artifact,
+        // measured at build and refused; BASELINE_BUSINESS_RD_STOCK's comment).
+        aiRdFlowForYear = (config.rdTfpElasticity ?? DEFAULT_RD_TFP_ELASTICITY)
+          * Math.log((BASELINE_BUSINESS_RD_STOCK + aiRdStockState)
+            / (BASELINE_BUSINESS_RD_STOCK + aiRdStockPrevStart));
+      }
+      buildoutPlanForYear = computeBuildoutPlan({
+        year,
+        state: buildoutState,
+        capabilities: config.capabilities,
+        prevRealGDP: previousMacro.gdpReal,
+        realGDP2025: buildoutRealGDP2025,
+        prevAiProfitsNominal: previousMacro.aiCorporateProfits,
+        prevNominalGDP: previousMacro.gdpNominal,
+        prevBusinessCreditMultiplier: previousMacro.businessCreditMultiplier,
+        retentionShare: config.aiRetentionShare,
+        allocSmoothing: config.buildoutAllocSmoothing,
+        prevClearedFleetRequirement, // Stage 2: the t−1 cleared-work fleet requirement
+        // Stage 2 (order item 7): the builder base rides the LIVE profits state.
+        prevCorporateProfits: previousMacro.corporateProfits,
+        corporateProfitsSeam: buildoutCorporateProfitsSeam ?? undefined,
+        equityIssuance: buildoutIssuanceForYear, // Stage 3 MS3 (ruling v)
+        // Stage 5A (E2): the t−1 power bill nets against the builder-base floor
+        // (the wire the integration battery found dead — computeFinanceable).
+        prevEnergyOpex: previousMacro.buildout?.energyOpex,
+        shocks: {
+          chipsQty: scIn?.aiChips,
+          energyQty: scIn?.energyCapacity,
+          dcQty: scIn ? Math.min(scIn.trainingDCCapacity, scIn.inferenceDCCapacity) : undefined,
+          chipPrice: scIn?.chipPrice,
+          energyPrice: scIn?.energyPrice,
+          fleetRamp: fleetRampIdxForYear, // Stage 4 MS3: the arrival row
+        },
+        // Stage 4 MS2 (N1): the leg-cost trend beliefs (absent ⇒ consensus constants).
+        costTrends: {
+          chips: config.buildoutChipsCostTrend,
+          energy: config.buildoutEnergyCostTrend,
+          dc: config.buildoutDcCostTrend,
+          fleetUnit: config.buildoutFleetCostTrend,
+        },
+        // Stage 4 MS3: the arrival cost-curve bend (1 with no event — bit-zero).
+        costBend: { energy: energyCostBendFactor },
+        // Stage 5A (A1 + E1): the N1-owned queue beliefs (absent ⇒ consensus
+        // constants — the identity proof).
+        energyQueue: {
+          leadYears: config.energyQueueLeadYears,
+          ceilingGrowth: config.energyQueueCeilingGrowth,
+          btmShare: config.energyBtmShare,
+        },
+      });
+      // ═══ STAGE 5A (A3 + E2) — THE ENERGY OPEX LINE ═══
+      // energyOpex = seam rate × utilizedCompute × (1/FLOPs-per-watt norm) ×
+      // p_energy, where p_energy carries the N1 energy trend, the supply-chain
+      // energy-PRICE shock (the E2 wire — a war-class spike squeezes AI margins →
+      // Financeable(t+1) → I_AI), and the event cost bends. utilizedCompute =
+      // t−1 utilization × the TERRESTRIAL capacity (orbital carries its own
+      // power); GATED on a live requirement — the surfaced utilization is 1.0 at
+      // zero supply (the no-glut convention), so an ungated read would fabricate
+      // a zero-AI power bill (a stated implementation choice). The seam
+      // year never computes it (E3: year-0 spending seam-identical).
+      if (buildoutPlanForYear.dcRequired > 0) {
+        const pEnergyIndex =
+          Math.pow(1 + (config.buildoutEnergyCostTrend ?? BUILDOUT_LEG_COST_TREND.energy), year - DEFAULT_START_YEAR)
+          * ((scIn?.energyPrice ?? 100) / 100)
+          * energyCostBendFactor;
+        const utilizedCompute = Math.max(0, Math.min(1, previousMacro.aiCapacityUtilization))
+          * buildoutPlanForYear.capacityTerrestrial;
+        const fpwNorm = flopsPerWattFactor(year) / flopsPerWattFactor(DEFAULT_START_YEAR);
+        aiEnergyOpexForYear = AI_ENERGY_OPEX_SEAM_RATE * utilizedCompute * pEnergyIndex / fpwNorm;
+      } else {
+        aiEnergyOpexForYear = undefined;
+      }
+    }
+
+    // ── THE FLYWHEEL (the hoist; the ratified checkpoint §2.2/§2.6) — ALWAYS-ON. ──
+    // u_supply: the SC block's annual delay (1 − delay), or 1 when the block is dormant
+    // (no supply constraint exists on a dormant path — the definitional extension).
+    // u_demand: the DEAD-ZONED funding throughput from the t−1 macro funding gate
+    // F = min(investmentRealization, aiCapacityUtilization) — exactly 1 at F ≥ θ (the
+    // identity condition; the loop's gain is zero on every funded path), F/θ below.
+    // Composition u = min(u_s, u_d) — Leontief (owner-ratified): capacity building is
+    // bottlenecked by the scarcer of parts and funding; the drain law and κ_G carry
+    // over verbatim (a year funded at u builds u of the planned increment, whether the
+    // missing factor is chips or dollars — no new drain constant).
+    {
+      // ═══ PRODUCTION PROGRAM STAGE 1 (MS4+MS5) — THE FLYWHEEL RE-POINTS ═══
+      // MS4 (u_supply): capacity feeds u_supply (checkpoint §1.2 consumer 1). The
+      // frontier's pipeline is the TRAINING SLICE of the shared capacity (frontier labs
+      // preempt; inference shortfall does not starve training until capacity falls
+      // below the training share of the requirement) — the training-slice reading is a
+      // FLAGGED executor interpretation within the ratified "Capacity_dc → u_supply",
+      // reasoned in the Stage-1 report. Supply-chain famines now transmit THROUGH the
+      // shocked stocks (shocks-on-stocks, the one-machine rule); the SC block's
+      // annualCapabilityDelay keeps its capability-curve transmission role but no
+      // longer feeds the flywheel (derived-dead here; kept computed per no-delete).
+      // MS5 (F): F = financed-spend / required-spend (the honest funding ratio,
+      // replacing the demand-proxy min(investmentRealization, aiCapacityUtilization));
+      // F ≡ 1 at zero required spend (ratification A3). The t−1 timing stands (the
+      // ratified flywheel law). The retired proxy form, kept per the no-delete rule:
+      //   const F = previousMacro
+      //     ? Math.min(previousMacro.investmentRealization, previousMacro.aiCapacityUtilization)
+      //     : 1;
+      const dSupplyShock = scEffects ? scEffects.annualCapabilityDelay.generative : 0;
+      // STAGE 2 (T-A, post-verdict ruling 1): the training slice is the DERIVED
+      // time-varying share (RL rollout compute inside the slice; the RL-era growth
+      // path — buildout.ts trainingShare(), TRAINING_SHARE_DERIVATION.md). The
+      // retired static read, kept per the no-delete rule:
+      //   ... / (BUILDOUT_TRAINING_SHARE_2025 * buildoutPlanForYear.dcRequired)
+      const uSupplyCapacity = buildoutPlanForYear
+        ? (buildoutPlanForYear.dcRequired > 0
+            ? Math.min(1, buildoutPlanForYear.capacityDc
+                / (trainingShare(year) * buildoutPlanForYear.dcRequired))
+            : 1)
+        : (1 - dSupplyShock); // the machine's seam year rides the legacy shock path
+      const F = previousMacro?.buildout
+        ? previousMacro.buildout.fundingRatio
+        : 1; // seam years: funded (the observed 2025 buildout was financed in fact)
+      const theta = config.flywheelStarvationThreshold ?? DEFAULT_FLYWHEEL_STARVATION_THRESHOLD;
+      const uDemand = theta > 0 && F < theta ? F / theta : 1;
+      const combinedDelay = Math.max(1 - uSupplyCapacity, 1 - uDemand);
+      const fwDials = resolveFrontierStockDials(effectiveScConfig ?? undefined);
+      const frontier = computeFrontierStockUpdate(
+        frontierStock,
+        combinedDelay,
+        effectiveScConfig?.trainingScaleGrowthRate ?? DEFAULT_TRAINING_SCALE_GROWTH_RATE,
+        fwDials,
+      );
+      frontierStock = frontier.stock;
+      cumulativeCapabilityDelay = {
+        generative: cumulativeCapabilityDelay.generative + frontier.delayIncrement,
+        agentic: cumulativeCapabilityDelay.agentic + frontier.delayIncrement,
+        embodied: cumulativeCapabilityDelay.embodied + frontier.delayIncrement,
+      };
+      innovationStockMultiplier = frontier.innovationMultiplier;
+      // The cost clock: τ seam-pinned at 0 for the start year (the curves' anchor),
+      // then advances at S^φ_cost — exactly +1.0 per funded year (pow(1, φ) = 1;
+      // integer accumulation is exact, so τ === t bit-zero on funded paths).
+      if (year > config.startYear) {
+        const phiCost = config.frontierCostElasticity ?? DEFAULT_FRONTIER_COST_ELASTICITY;
+        effectiveCostTime += Math.pow(frontier.stock, phiCost);
+      }
+      tauByYear.set(year, effectiveCostTime);
+    }
+
+    // 1. Update capability scores S_c(t) for all vectors — the delay is loop state now
+    // (always defined; {0,0,0} on funded unshocked paths ⇒ year − 0 = year, bit-exact).
     const capabilityScores = getAllCapabilityScores(
       year, config.capabilities,
-      scEffects ? scEffects.cumulativeCapabilityDelay : undefined,
+      cumulativeCapabilityDelay,
     );
+
+    // R1: attach the capability display mirrors (they depend on the SC delay above, so
+    // they cannot resolve in the one producer) and write THE record — the same object
+    // the engine consumes, mirrors included (battery R1-B4: mirror ≡ computed score).
+    parameterTimeline.set(year, attachCapabilityMirrors(yearParams, {
+      generative: capabilityScores.generative ?? 0,
+      agentic: capabilityScores.agentic ?? 0,
+      embodied: capabilityScores.embodied ?? 0,
+    }));
 
     // Get automation acceleration from previous year (displacement-demand feedback)
     const baseAutomationAcceleration = previousMacro?.automationAcceleration ?? 0;
@@ -968,9 +1883,23 @@ export function runSimulation(
     const automationAcceleration = effectiveAutomationAcceleration; // reason: downstream call sites read this name; the alias keeps the rename docs-true with zero blast radius
 
     // Phase 5g Step 9: Compute min wage BEFORE cluster loop (needed for adoption acceleration)
-    const minWageHourlyEarly = interpolatePolicy(config.policyConfig.minimumWage.federalMinimum, year);
+    // Stage H item 4 (the audit's placebo-flag finding): all three min-wage channels — the
+    // Phillips LEVEL floor (policyWageFloor → macro), the adoption bonus, and the cost-push —
+    // key off annualMinWage, so the program's `enabled` flag gates them HERE, at the single
+    // source. The default config has enabled: true at the DOL $7.25 baseline, so default
+    // behavior is bit-identical by construction; enabled: false now actually turns the
+    // program off (previously a disabled program's schedule kept firing — the placebo).
+    const minWageEnabled = config.policyConfig.minimumWage.enabled;
+    const minWageHourlyEarly = minWageEnabled
+      ? interpolatePolicy(config.policyConfig.minimumWage.federalMinimum, year)
+      : 0;
+    // Statutory-minimum indexation rides the price-only dampened cost-of-living
+    // factor (one year lagged) — the instrument's real-world definition
+    // (CPI-based state indexation practice), not the raw price level and not a
+    // wage-carrying index. The retired raw basis, kept per the no-delete rule:
+    //   * (indexedToInflation ? (previousMacro?.priceLevel ?? 1.0) : 1.0)
     const effectiveMinWageEarly = minWageHourlyEarly
-      * (config.policyConfig.minimumWage.indexedToInflation ? (previousMacro?.priceLevel ?? 1.0) : 1.0);
+      * (config.policyConfig.minimumWage.indexedToInflation ? prevPolicyIndexationFactor : 1.0);
     const annualMinWage = effectiveMinWageEarly * 2080; // 40hr/week × 52 weeks
     const policyWageFloor = annualMinWage / BASELINE_AVERAGE_ANNUAL_WAGE;
     const wageAutoSens = config.wageAutomationSensitivity ?? DEFAULT_WAGE_AUTOMATION_SENSITIVITY;
@@ -981,7 +1910,22 @@ export function runSimulation(
 
     // 2-5. For each cluster: BFCS → adoption → displacement
     const clusterResults: ClusterDisplacementResult[] = [];
-    let totalAutomationDividend = 0;
+    // Mini-stage 1: the deployer-savings diagnostic (replaces totalAutomationDividend —
+    // the retired doubly-stale dividend, Audit B-4), the per-cluster realized-cost index
+    // for the deflation channel, and the emergent tokens-per-task accumulators.
+    let totalDeployerRealizedSavings = 0;
+    // Mini-stage 2 (Amendment 1): the year's re-hiring budget — cost-triggered de-adoption
+    // across all roles cannot draw more workers than the (t−1) pool holds.
+    // Mini-stage 3 refinement: the budget is EFFECTIVENESS-WEIGHTED (Σ cohort ×
+    // employability(d)) and the rehire wage basis is effectiveness-AND-scarring-weighted —
+    // the pre-registered which-change directions: budget ≤ raw count (tighter throttle);
+    // rehire wage ≤ vintage (cost-exit marginally more likely).
+    let rehirePoolBudget = poolFillBudget(poolState, poolDials);
+    const poolRehireWageValue = poolRehireWage(poolState, poolDials);
+    const clusterAiCostIndex = new Map<string, number>();
+    let aggInferenceLegSum = 0;
+    let aggFrontierWeightSum = 0;
+    let aggCostEmpWeight = 0;
     let totalAugmentationOutput = 0;
     const augmentationByCluster = new Map<string, number>();
     // Phase 10.A fix #1 — head-count augmentation fraction for the deflation pipeline.
@@ -1025,13 +1969,18 @@ export function runSimulation(
 
       // Compute weighted capability for this cluster (Phase 8 consolidation)
       const clusterOverride = config.clusterOverrides?.[cluster.id];
-      const effectiveWeights = clusterOverride
-        ? {
-            generative: clusterOverride.generativeWeight ?? cluster.capabilityRelevance.weights.generative,
-            agentic: clusterOverride.agenticWeight ?? cluster.capabilityRelevance.weights.agentic,
-            embodied: clusterOverride.embodiedWeight ?? cluster.capabilityRelevance.weights.embodied,
-          }
-        : cluster.capabilityRelevance.weights;
+      // RIDER 2: the consumer-site weight rung RETIRED — the effectiveClusters build
+      // is the ONE producer (user > data-calibration > authored); this cluster object
+      // already carries the resolved weights, uniformly with computeBetterScore and
+      // the production expansion. The retired chain, kept per no-delete:
+      // const effectiveWeights = clusterOverride
+      //   ? {
+      //       generative: clusterOverride.generativeWeight ?? cluster.capabilityRelevance.weights.generative,
+      //       agentic: clusterOverride.agenticWeight ?? cluster.capabilityRelevance.weights.agentic,
+      //       embodied: clusterOverride.embodiedWeight ?? cluster.capabilityRelevance.weights.embodied,
+      //     }
+      //   : cluster.capabilityRelevance.weights;
+      const effectiveWeights = cluster.capabilityRelevance.weights;
       const weightedCapability = computeWeightedCapability(capabilityScores, effectiveWeights);
 
       // Phase 10.A — peer α from prior year (employment-weighted, excludes self).
@@ -1066,6 +2015,9 @@ export function runSimulation(
 
       const adoptionRates: Record<string, number> = {};
       const roleBFCSOutputs: RoleBFCSOutput[] = [];
+      // Mini-stage 1: per-role realized-cost breakdowns (the one assembly), collected for
+      // the deployer-savings diagnostic, the cluster cost index, and the emergent diagnostic.
+      const roleCostBkByRole: Record<string, RoleCostBreakdown> = {};
 
       // Phase 5g Step 9B: Cluster average wage for min wage adoption bonus
       const clusterBaselineWages = Object.values(baseline.wages);
@@ -1103,7 +2055,7 @@ export function runSimulation(
           ? scEffects?.scaledCognitiveSensitivity : scEffects?.scaledEmbodiedSensitivity;
         const scBFCSParams = (scConfig && scEffects && scLaggedInputs) ? {
           fasterMultiplier: computeFasterMultiplier(
-            scLaggedInputs, scEffects.effectiveResilience, cluster.deploymentType, scConfig.inputs.softwareEfficiency,
+            scLaggedInputs, scEffects.effectiveResilience, cluster.deploymentType, (effectiveScConfig ?? scConfig).inputs.softwareEfficiency,
             scSensitivity,
           ),
           saferMultiplier: computeSaferMultiplier(
@@ -1113,22 +2065,53 @@ export function runSimulation(
           costMultipliers: scEffects.bfcsCostMultipliers,
         } : undefined;
 
+        // Mini-stage 1: the Better-ARRIVAL latch — the first year the frontier meets this
+        // role's requirement anchors its fixed-capability cost curve; the CURRENT-year
+        // surplus s = Better − B* sets the migration weight w(s) off the frontier.
+        const roleBetter = computeBetterScore(capabilityScores, cluster, role);
+        if (betterArrivalYears[cluster.id]![role.id] === null && roleBetter >= effectiveThresholds.better) {
+          betterArrivalYears[cluster.id]![role.id] = year;
+        }
+        const roleArrivalYear = betterArrivalYears[cluster.id]![role.id] ?? null;
+        const roleBetterSurplus = roleBetter - effectiveThresholds.better;
+
+        // Flywheel MS: the cost clock for this role — τ now, τ at the role's arrival
+        // (the fixed-capability re-anchor). On funded paths τ === calendar bit-exactly.
+        const roleCostClock = {
+          tEff: effectiveCostTime,
+          tauAtArrival: roleArrivalYear !== null
+            ? (tauByYear.get(roleArrivalYear) ?? Math.max(0, roleArrivalYear - config.startYear))
+            : null,
+        };
         const { triggered, scores } = checkAdoptionTrigger(
           cluster, role, year, capabilityScores, effectiveThresholds, effectiveAiCostParams,
           scBFCSParams,
           clusterWageAdjustment,  // Phase 10.A — propagates into Cheaper via computeCheaperScore
           seamWageRelative.get(seamKey),                       // FS-3: the OEWS basis
-          (config.seamBasisOnly ?? false) ? 1.0 : (previousMacro?.wageIndex ?? 1.0),  // FS-3 G1 (t−1); basis-only row holds 1.0
+          previousMacro?.wageIndex ?? 1.0,  // FS-3 G1 (t−1). RETIRED (CO-D2, R3b): seamBasisOnly held 1.0 here — pole at ~/.atlas-referents/co-d2/seamBasisOnly/
+          roleArrivalYear, roleBetterSurplus,                  // mini-stage 1: the cost layer's anchors
+          roleCostClock,                                       // flywheel MS: the τ clock
         );
+
+        // Mini-stage 1: the per-role realized-cost breakdown (ONE assembly, aiCost.ts) —
+        // consumed below by the deployer-savings diagnostic, the cluster cost index for the
+        // consumer-price deflation channel, and the emergent tokens-per-task diagnostic.
+        const roleCostBk = computeAiCostFraction(
+          year, cluster.deploymentType, roleArrivalYear, roleBetterSurplus,
+          effectiveAiCostParams, scEffects?.bfcsCostMultipliers ?? { inference: 1, manufacturing: 1, energy: 1 },
+          roleCostClock, // flywheel MS: the τ clock (the one assembly's substitution point)
+        );
+        roleCostBkByRole[role.id] = roleCostBk;
 
         // Phase 10.A fix #2 — effective trigger year shifts forward by role.aiReplacementFrictionYears
         // (direct years, no global scaling). We record the EFFECTIVE trigger year rather than the raw
         // BFCS-met year. If the shifted year falls outside the simulation window, the role never triggers.
-        // THE LATCH (why-note added at the close-out per OD-12): the trigger year is set once
-        // and never cleared, and the default-path adoption curve is monotone from it — a
-        // MODELING CHOICE with switching frictions, one-way pending the successor program's
-        // hysteresis design (the successor program charter, maintained with the audit records). The scenario-gated
-        // supply-chain path below carries the existing freeze/decline machinery.
+        // THE TRIGGER-YEAR RECORD (rewritten at the program close-out — the one-way latch
+        // description retired): the trigger year is set once as the role's ARRIVAL record
+        // (the anchor the cost layer and the state machine both key from). Adoption itself
+        // is NOT one-way — the unified state machine below (computeUnifiedAdoptionState)
+        // grows, freezes, declines (availability-forced or cost-triggered against the
+        // displaced pool's rehire basis), and recovers slowly, on EVERY path.
         if (triggered && triggerYears[cluster.id]![role.id] === null) {
           const frictionYears = role.aiReplacementFrictionYears ?? 0;
           const effectiveTriggerYear = Math.ceil(year + Math.max(0, frictionYears));
@@ -1162,41 +2145,79 @@ export function runSimulation(
         scores.alphaDecomposition = alphaResult.decomposition;
         scores.effectiveTriggerYearShift = role.aiReplacementFrictionYears ?? 0;
 
-        // 4. Compute adoption rate
-        if (scConfig && scEffects && scLaggedInputs) {
-          // Phase 9: Stateful adoption with hysteresis
+        // 4. Compute adoption rate — THE UNIFIED STATE MACHINE (mini-stage 2, §4 as amended).
+        // ONE path (Amendment 2 — the latch and the SC-only stateful branch retire outright):
+        // the machine wraps the RAW rich curve (getAdoptionRate, every modifier intact, no
+        // ratchet) so the no-shock world reproduces the predecessor EXACTLY (the pre-
+        // registered bit-identity row), and adds freeze / availability-forced decline /
+        // cost-triggered decline against the REHIRE basis with the pool-size fill throttle
+        // (Amendment 1's capacity coupling at this stage's resolution).
+        {
+          const isCognitive = cluster.deploymentType === 'software' || cluster.deploymentType === 'hybrid';
+          const classDeAdoptionRate = isCognitive
+            ? (config.deAdoptionRateCognitive ?? ADOPTION_DECLINE_RATE_COGNITIVE)
+            : (config.deAdoptionRateEmbodied ?? ADOPTION_DECLINE_RATE_EMBODIED);
+          const reRate = (config.reAdoptionRate ?? DEFAULT_RE_ADOPTION_RATE_FRACTION) * classDeAdoptionRate;
           const prevRate = adoptionState.rates[cluster.id]?.[role.id] ?? 0;
           const frozenSince = adoptionState.frozenSince[cluster.id]?.[role.id] ?? null;
-          const yearsSince = roleTriggerYear !== null ? year - roleTriggerYear : 0;
-          const hysteresisWidth = computeHysteresisWidth(yearsSince, cluster.deploymentType, scConfig);
-          const clusterDrag = computeAdoptionDrag(
-            scLaggedInputs, scEffects.effectiveResilience, cluster.deploymentType, scEffects.costPassThroughRate,
-            scSensitivity,
-          );
-          const statefulResult = computeStatefulAdoptionRate(
-            year, prevRate, roleTriggerYear, triggered, scores, effectiveThresholds,
-            hysteresisWidth, cluster.deploymentType, clusterLag,
-            clusterSteepness, clusterCeiling, clusterDrag, frozenSince,
-          );
-          adoptionRates[role.id] = statefulResult.adoptionRate;
-          // Update adoption state
-          if (!adoptionState.rates[cluster.id]) adoptionState.rates[cluster.id] = {};
-          if (!adoptionState.frozenSince[cluster.id]) adoptionState.frozenSince[cluster.id] = {};
-          adoptionState.rates[cluster.id]![role.id] = statefulResult.adoptionRate;
-          adoptionState.frozenSince[cluster.id]![role.id] = statefulResult.frozenSince;
-        } else {
-          // No supply chain: existing adoption model
-          // Phase 5g Step 9B: Add min wage cost pressure to automation acceleration
-          // Phase 10.A: pass role wagePremium (tail drag), peerAlpha (competitive split), threshold override
-          const adoptionResult = getAdoptionRate(
+          const prevHasDeclined = adoptionState.hasDeclined[cluster.id]?.[role.id] ?? false;
+          const yearsSince = roleTriggerYear !== null ? Math.max(0, year - roleTriggerYear) : 0;
+          const hysteresisWidth = computeHysteresisWidth(yearsSince, cluster.deploymentType, effectiveScConfig ?? undefined);
+          const clusterDrag = (scConfig && scEffects && scLaggedInputs)
+            ? computeAdoptionDrag(
+                scLaggedInputs, scEffects.effectiveResilience, cluster.deploymentType, scEffects.costPassThroughRate,
+                scSensitivity,
+              )
+            : 1.0;
+          const growthResult = getAdoptionRate(
             year, roleTriggerYear, cluster.deploymentType, clusterLag,
-            cluster.geopoliticalRiskExposure, config.adoptionParams,
-            automationAcceleration + minWageAdoptionBonus, clusterSteepness, clusterCeiling,
+            cluster.geopoliticalRiskExposure, effectiveAdoptionParams,
+            automationAcceleration + minWageAdoptionBonus,
+            scEffects ? clusterSteepness * clusterDrag : clusterSteepness,  // drag folds into steepness (×1 exact at defaults)
+            clusterCeiling,
             role.aiReplacementDifficultyWagePremium ?? 0,
             peerAlpha,
             config.competitivePressureThreshold ?? DEFAULT_COMPETITIVE_PRESSURE_THRESHOLD,
           );
-          adoptionRates[role.id] = adoptionResult.adjustedAdoptionRate;
+          // The REHIRE basis (Amendment 1): the displaced pool's composition-weighted wage
+          // (t−1 — the pool the firm would actually hire from), degrading to the incumbent
+          // basis when the pool is empty. Same scoring machinery as Cheaper.
+          const rehireRel = poolRehireWageValue > 0
+            ? poolRehireWageValue / BASELINE_AVERAGE_ANNUAL_WAGE
+            : seamWageRelative.get(seamKey);
+          const cheaperRehire = computeCheaperScore(
+            year, role, cluster, effectiveAiCostParams,
+            scEffects?.bfcsCostMultipliers ?? { inference: 1, manufacturing: 1, energy: 1 },
+            clusterWageAdjustment, rehireRel,
+            previousMacro?.wageIndex ?? 1.0,  // RETIRED (CO-D2): the seamBasisOnly 1.0-hold branch
+            roleArrivalYear, roleBetterSurplus,
+            roleCostClock, // flywheel MS: the τ clock (same realized-cost object as the trigger)
+          );
+          // The pool-size fill throttle (this stage's capacity resolution; MS3 refines to
+          // effectiveness-weighted): cost-triggered re-hiring cannot draw more workers than
+          // the pool holds, budgeted deterministically across roles within the year.
+          const roleEmployment = (baseline.employments[role.id] ?? 0) * laborForceGrowthFactor;
+          const requested = classDeAdoptionRate * roleEmployment;
+          const fillCapFactor = requested > 0 ? Math.min(1, rehirePoolBudget / requested) : 1;
+          const unified = computeUnifiedAdoptionState({
+            year, previousRate: prevRate, previousFrozenSince: frozenSince,
+            previousHasDeclined: prevHasDeclined, triggerYear: roleTriggerYear,
+            growthRate: growthResult.adjustedAdoptionRate,
+            bfcsCurrentlyMet: triggered,
+            scores: { better: scores.better, faster: scores.faster, safer: scores.safer },
+            thresholds: effectiveThresholds,
+            cheaperRehire, hysteresisWidth,
+            deAdoptionRate: classDeAdoptionRate, reAdoptionRate: reRate,
+            fillCapFactor,
+          });
+          rehirePoolBudget = Math.max(0, rehirePoolBudget - unified.costRehireFraction * roleEmployment);
+          adoptionRates[role.id] = unified.adoptionRate;
+          if (!adoptionState.rates[cluster.id]) adoptionState.rates[cluster.id] = {};
+          if (!adoptionState.frozenSince[cluster.id]) adoptionState.frozenSince[cluster.id] = {};
+          if (!adoptionState.hasDeclined[cluster.id]) adoptionState.hasDeclined[cluster.id] = {};
+          adoptionState.rates[cluster.id]![role.id] = unified.adoptionRate;
+          adoptionState.frozenSince[cluster.id]![role.id] = unified.frozenSince;
+          adoptionState.hasDeclined[cluster.id]![role.id] = unified.hasDeclined;
         }
 
         // Collect BFCS output for Phase 4 visualization
@@ -1207,6 +2228,7 @@ export function runSimulation(
           triggered,
           triggerYear: roleTriggerYear,
           adoptionRate: adoptionRates[role.id]!,
+          betterArrivalYear: roleArrivalYear,  // mini-stage 1: the fixed-capability anchor
         });
       }
 
@@ -1238,7 +2260,17 @@ export function runSimulation(
         const clusterCheaper = clusterProductivityWeight > 0
           ? clusterCheaperWeightedSum / clusterProductivityWeight
           : 0;
-        const replacementMultiplier = config.replacementMultiplier ?? DEFAULT_REPLACEMENT_MULTIPLIER;
+        // STAGE 2 (order item 5 — the ledger transition): the replacementMultiplier DIAL
+        // retires with the VA re-anchor (the ledger no longer consumes it at all). This
+        // deflation-channel formula is the ONE surviving consumer and reads the FROZEN
+        // constant — config influence retired so no unreachable parameter survives (the
+        // every-parameter-reachable law). DOCKETED, not silently changed: re-deriving
+        // this term's productivity factor from the measured per-cluster VA/wage multiple
+        // (the ledger's new basis) is REGISTERED for its own ruling — the deflation
+        // channel's savings arithmetic is out of the Stage-2 order's scope.
+        // The retired config read, kept per the no-delete rule:
+        //   const replacementMultiplier = config.replacementMultiplier ?? DEFAULT_REPLACEMENT_MULTIPLIER;
+        const replacementMultiplier = DEFAULT_REPLACEMENT_MULTIPLIER;
         const effProd = 1 + weightedCapability * clusterBetter * replacementMultiplier * (1 + clusterCheaper);
         effectiveProductivityByCluster.set(cluster.id, effProd);
         clusterBetterByCluster.set(cluster.id, clusterBetter);
@@ -1246,6 +2278,15 @@ export function runSimulation(
       }
 
       // Phase 10.A — use computed effective α per role (5-driver model)
+      // STAGE 4 MS4 — THE DISPLACEMENT GATE (the ratified design §2):
+      // g_c = (1 − w_embodied,c) + w_embodied,c × fleetCoverage_c. The software
+      // path never gates; coverage 1 where the cluster carries no t−1 cleared
+      // requirement (the A3 identity — pre-clearance and zero-AI paths are
+      // bit-silent by construction).
+      const wEmbGate = cluster.capabilityRelevance.weights.embodied;
+      const clusterFleetCoverage = perClusterCoverage[cluster.id]
+        ?? ((prevPerClusterFleetReq[cluster.id] ?? 0) > 0 ? 0 : 1);
+      const displacementGate = (1 - wEmbGate) + wEmbGate * clusterFleetCoverage;
       const clusterDisplacement = computeClusterDisplacement(
         cluster,
         adoptionRates,
@@ -1255,6 +2296,7 @@ export function runSimulation(
         roleAlphas,
         clusterOverride?.wageElasticity,
         config.scarcityIntensity ?? DEFAULT_SCARCITY_INTENSITY,
+        displacementGate,
       );
 
       // Phase 10.A — cluster-level α for next-year peer reads (employment-weighted across roles)
@@ -1285,22 +2327,14 @@ export function runSimulation(
       // Attach BFCS output to cluster result
       clusterDisplacement.bfcsOutput = roleBFCSOutputs;
 
-      // Phase 9 Fix: Accumulate automation dividend — deployer cost savings from AI replacing labor
-      // Uses UNCLAMPED cheaper score: positive = savings, negative = loss (supply shock + hysteresis)
-      const t_div = year - config.startYear;
-      const divComp = (config.aiCostParams?.composition?.[cluster.deploymentType]
-        ?? AI_COST_COMPOSITION[cluster.deploymentType]
-        ?? AI_COST_COMPOSITION['software'])!;
-      const divInfChange = config.aiCostParams?.inferenceAnnualChange ?? DEFAULT_INFERENCE_ANNUAL_CHANGE;
-      const divMfgChange = config.aiCostParams?.manufacturingAnnualChange ?? DEFAULT_MANUFACTURING_ANNUAL_CHANGE;
-      const divEngChange = config.aiCostParams?.energyAnnualChange ?? DEFAULT_ENERGY_ANNUAL_CHANGE;
-      // Supply chain multipliers: use pass-through-applied BFCS cost multipliers (1.0 when no SC)
-      const divScm = scEffects?.bfcsCostMultipliers ?? { inference: 1, manufacturing: 1, energy: 1 };
-      const divAiCostFraction =
-          divComp.inference * Math.exp(divInfChange * t_div) * divScm.inference
-        + divComp.manufacturing * Math.exp(divMfgChange * t_div) * divScm.manufacturing
-        + divComp.energy * Math.exp(divEngChange * t_div) * divScm.energy;
-
+      // Mini-stage 1: DEPLOYER REALIZED SAVINGS — the diagnostic rebuilt on the ONE
+      // realized-cost object with the LIVE human-cost basis (the FS-3 OEWS basis × the
+      // nominal wageIndex × scarcity — the same denominator the Cheaper score uses).
+      // Replaces the retired automation dividend, which rode the DEPRECATED exp leg
+      // (exp(inferenceAnnualChange·t) — ÷78,000 by 2050 vs the live ÷104) AND the retired
+      // seniority proxy (Audit B-4, the doubly-stale diagnostic). Unclamped: negative when
+      // AI costs MORE than the displaced labor it replaced (supply-shock compression).
+      const divEconIndex = previousMacro?.wageIndex ?? 1.0;  // RETIRED (CO-D2): the seamBasisOnly 1.0-hold branch
       for (const roleResult of clusterDisplacement.roles) {
         if (roleResult.displacementPct <= 0) continue;
         const role = cluster.roles.find(r => r.id === roleResult.roleId);
@@ -1308,10 +2342,32 @@ export function runSimulation(
         const roleWage = baseline.wages[role.id] ?? 0;
         const displacedCount = roleResult.displacementPct * (scaledEmployments[role.id] ?? 0);
         if (displacedCount <= 0 || roleWage <= 0) continue;
-        const humanCostFactor = 0.3 + role.seniorityLevel * 0.7;
-        // Unclamped: negative when AI costs MORE than human (supply shock margin compression)
-        const costSavingsRatio = 1 - (divAiCostFraction / humanCostFactor);
-        totalAutomationDividend += displacedCount * roleWage * costSavingsRatio;
+        const bk = roleCostBkByRole[role.id];
+        if (!bk) continue;
+        const basisFactor = seamWageRelative.get(`${cluster.id}:${role.id}`) ?? (0.3 + role.seniorityLevel * 0.7);
+        const humanCostFactor = basisFactor * divEconIndex * (1 + clusterWageAdjustment);
+        if (humanCostFactor <= 0) continue;
+        const costSavingsRatio = 1 - (bk.fraction / humanCostFactor);
+        totalDeployerRealizedSavings += displacedCount * roleWage * costSavingsRatio;
+      }
+
+      // Mini-stage 1: the cluster's employment-weighted realized cost index (for the
+      // consumer-price deflation channel — the SAME object the Cheaper score prices from,
+      // INCLUDING supply-chain multipliers; resolves the audit's B-3/C-5 basis divergence)
+      // + the economy-wide emergent-diagnostic accumulators.
+      {
+        let idxSum = 0; let idxWeight = 0;
+        for (const role of cluster.roles) {
+          const bk = roleCostBkByRole[role.id];
+          const emp = scaledEmployments[role.id] ?? 0;
+          if (!bk || emp <= 0) continue;
+          idxSum += bk.fraction * emp;
+          idxWeight += emp;
+          aggInferenceLegSum += bk.inferenceLeg * emp;
+          aggFrontierWeightSum += bk.frontierWeight * emp;
+          aggCostEmpWeight += emp;
+        }
+        clusterAiCostIndex.set(cluster.id, idxWeight > 0 ? idxSum / idxWeight : 1.0);
       }
 
       clusterResults.push(clusterDisplacement);
@@ -1493,10 +2549,26 @@ export function runSimulation(
     const scaledNonClusterEmployed = NON_CLUSTER_EMPLOYED * laborForceGrowthFactor;
     const effectiveUnemployment = Math.max(0, dynamicLaborForce - totalAfterSpillover - scaledNonClusterEmployed);
 
-    // Phase 5g Step 7: Track AI GDP at UBI index start year for productivity indexing
+    // Phase 5g Step 7 + the policy-wiring review's basis fix: the indexed-UBI base tracks
+    // REALIZED nominal AI revenue at the index start year — the honest earnings
+    // basis the profits machinery and the research channel use — replacing the raw
+    // internal composition (aiGDPContribution), which collapses in the crisis while
+    // realized revenue is in the trillions (the audited stale basis). The variable
+    // keeps its name (persisted-state shape untouched); the captured quantity is
+    // the realized-revenue series. The retired capture, kept per the no-delete rule:
+    //   startYearAiGDP = previousMacro.aiGDPContribution;
+    // The basis is REAL (deflated by the price level): the index answers "how
+    // much more AI output is really being sold," so a nominal basis would ride
+    // its own inflation back into the transfer (measured on the first battery
+    // execution: the nominal form re-created the spiral). Executor
+    // interpretation, flagged in the pre-registration record.
+    const prevRealizedAiRevenue = previousMacro && previousMacro.priceLevel > 0
+      ? Math.max(0, previousMacro.aiRealizedGDPContribution / previousMacro.priceLevel
+        + previousMacro.aiGoodsAbsorbed)
+      : 0;
     const ubiStartYear = config.policyConfig.ubi.indexedStartYear ?? 2032;
     if (year >= ubiStartYear && startYearAiGDP === 0 && previousMacro) {
-      startYearAiGDP = previousMacro.aiGDPContribution;
+      startYearAiGDP = prevRealizedAiRevenue;
     }
 
     // 10. Policy effects
@@ -1507,6 +2579,18 @@ export function runSimulation(
     // and pricing reduces to the average wage — bit-identical to the pre-fix path).
     if (year0ClusterResults === null) year0ClusterResults = clusterResults;
     const displacedPool = computeDisplacedPool(year0ClusterResults, clusterResults);
+    // Mini-stage 2: next year's rehire basis / fill budget (this year's adoption block
+    // already consumed the prior value — the t−1 discipline).
+    previousDisplacedPool = displacedPool;
+    // Mini-stage 3: advance the duration cohorts (age → discouragement exits → reconcile
+    // against the displaced stock; conservation asserted at battery B3-2). New cohorts
+    // carry the CURRENT enhanced-UI entitlement (or current-law when the program is off).
+    poolState = advanceDisplacedPool(
+      poolState, displacedPool.count, displacedPool.avgWage,
+      config.policyConfig.enhancedUI.enabled ? config.policyConfig.enhancedUI.durationWeeks : CURRENT_LAW_UI_DURATION_WEEKS,
+      poolDials,
+    );
+    const poolSearchingCount = poolState.cohorts.reduce((a, c) => a + c.count, 0);
     const policyEffects = computePolicyEffects(
       config.policyConfig,
       year,
@@ -1520,8 +2604,17 @@ export function runSimulation(
       aggregate.totalDirectDisplacement,
       displacedPool.count,
       displacedPool.avgWage,
-      previousMacro?.aiGDPContribution ?? 0,  // Phase 5g: for UBI productivity indexing
-      startYearAiGDP,                          // Phase 5g: AI GDP at index start year
+      prevRealizedAiRevenue,                   // the realized-revenue index basis (t−1)
+      startYearAiGDP,                          // the index base at the start year (same basis)
+      // Stage H addendum (A-6): the equity/profit-sharing payout base — prior-year realized
+      // ENDOGENOUS AI corporate profits (the t−1 basis the loop ordering forces; year 0 = 0,
+      // the 2025 anchor's initialization — no automation profits exist at the anchor).
+      previousMacro?.aiCorporateProfits ?? 0,
+      // Mini-stage 3: the entitlement-weeks pricing input (this year's pool, post-advance).
+      poolDurationShares(poolState),
+      // The price-only dampened indexation factor (one year lagged) for the
+      // UBI's inflation indexation.
+      prevPolicyIndexationFactor,
     );
 
     previousFundSize = policyEffects.sovereignFundSize;
@@ -1537,11 +2630,12 @@ export function runSimulation(
     let totalEffectiveLaborSupply = 0;
     let totalVoluntaryWithdrawal = 0;
 
-    // Get effective UBI for replacement rate calculation
+    // Get effective UBI for replacement rate calculation (the same
+    // realized-revenue index basis the policy-effects call consumes).
     const effectiveUBIMonthly = getEffectiveUBI(
       config.policyConfig.ubi,
       year,
-      previousMacro?.aiGDPContribution ?? 0,
+      prevRealizedAiRevenue,
       startYearAiGDP,
     );
     const annualUBI = config.policyConfig.ubi.enabled ? effectiveUBIMonthly * 12 : 0;
@@ -1602,6 +2696,7 @@ export function runSimulation(
       augmentedHeadcountByCluster,
       clusterBetterByCluster, clusterCheaperByCluster,
       config.augmentationMultiplier ?? DEFAULT_AUGMENTATION_MULTIPLIER,
+      clusterAiCostIndex,  // mini-stage 1: the ONE realized-cost assembly (aiCost.ts)
     );
     // Stage 1.5: scalar total (back-compat: monetization + aiDeflationRate output) + per-sector routing.
     const sectorWeightedDeflationRate = sectorDeflationResult.total;
@@ -1631,20 +2726,49 @@ export function runSimulation(
     // Uses PREVIOUS year's GDP -- economically correct: last year's investment creates this year's jobs.
     // FIX 8: Pass displacement-based automationCoverage
     const prevGDPForJobs = previousMacro?.gdpReal ?? BASELINE_GDP_NOMINAL_2025;
+    // MS1 (the frontier stock, the checkpoint's one-machine coupling): the innovation
+    // channel consumes the stock — creation = innovationRate × GDP × rdMultiplier ×
+    // stock^elasticity, at THIS single site. Gated on the SC block existing (dormant
+    // configs never touch the multiplicand); on an unshocked path the multiplier is
+    // exactly 1 (pow(1, e) = 1), so only famines drag new-job creation.
+    // FLYWHEEL MS (the hoist): the multiplier is loop-produced and ALWAYS-ON — on a
+    // funded, unshocked path it is exactly pow(1, φ_inn) = 1 and x × 1 = x bit-exactly
+    // (the identity); a demand famine now drags new-job creation like a supply famine.
+    const effectiveInnovationRate = config.innovationRate * innovationStockMultiplier;
     const newJobMetrics = computeNewJobMetrics(
       prevGDPForJobs,
       automationCoverage,
       aggregate.totalDirectDisplacement,
-      config.innovationRate,
+      effectiveInnovationRate,
       config.rdMultiplier,
       config.jobPersistenceFactor,
     );
 
-    // Phase 2: AI production expansion
+    // Phase 2: AI production expansion (H3 ruling 3: valued at the year-0 wage vintage —
+    // year0ClusterResults was captured above; at year 0 it IS this year's results).
+    // STAGE 2 (Channel 2): the VA re-anchor consumes the start-of-year FLEET stock (the
+    // embodiment gate) and the real economy index (the market grows with the economy);
+    // it returns the cleared-work fleet requirement the NEXT year's plan consumes.
     const aiProduction = computeAIProductionExpansion(
       clusterResults, effectiveClusters, capabilityScores, config,
-      triggerBetterScores,
+      triggerBetterScores, year0ClusterResults ?? clusterResults,
+      {
+        fleetUnits: buildoutState.fleetUnits,
+        econIdx: previousMacro && buildoutRealGDP2025 && buildoutRealGDP2025 > 0
+          ? Math.max(0, previousMacro.gdpReal) / buildoutRealGDP2025
+          : 1,
+        // Stage 4 MS4: the ONE coverage series (the ledger gate re-points to the
+        // same per-cluster coverage the displacement gate consumed this year) +
+        // the trust-maturity ramp's inputs for next year's priority.
+        perClusterCoverage,
+        year,
+        trustHalfLifeYears: (config.alphaDriverParams ?? DEFAULT_ALPHA_DRIVER_PARAMS).trustHalfLifeYears,
+      },
     );
+    prevClearedFleetRequirement = aiProduction.clearedFleetRequirement;
+    // Stage 4 MS4: thread the per-cluster requirement + priority to next year.
+    prevPerClusterFleetReq = aiProduction.perClusterFleetRequirement;
+    prevPerClusterPriority = aiProduction.perClusterPriority;
 
     // Build production inputs for computeMacro
     const augWageShare = BASELINE_WAGE_SHARE;
@@ -1653,6 +2777,7 @@ export function runSimulation(
       aiNetExportBoost: aiProduction.aiNetExportBoost,
       aiConsumerGoodsPotential: aiProduction.aiConsumerGoodsPotential,
       aiAdditionalOutput: aiProduction.totalAdditionalOutput,
+      aiPotentialCeiling: aiProduction.potentialCeiling,
       totalDurableNewJobs: newJobMetrics.durableNewJobs,
       newJobWageFraction: config.newJobWageFraction ?? DEFAULT_NEW_JOB_WAGE_FRACTION,
       augmentationWageBoost: totalAugmentationOutput * augWageShare,
@@ -1712,30 +2837,11 @@ export function runSimulation(
 
     let fiscalMonetaryOutput: FiscalMonetaryOutput;
 
-    // Phase 8b: Compute autopilot + resolve effective parameters for this year
-    const prevCIF = previousMacro?.cumulativeInflationFactor ?? 1.0;
-    const laggedIndex = Math.max(0, debtGDPHistory.length - 1 - fiscalProfile.consolidationLag);
-    const laggedDebtGDP = debtGDPHistory.length > 0
-      ? debtGDPHistory[laggedIndex]!
-      : (INITIAL_FEDERAL_DEBT / BASELINE_GDP_NOMINAL_2025);
-
-    const autopilotResult = isFirstFiscalYear
-      ? getBaselineAutopilot(config, fiscalProfile)
-      : computeAutopilotParameters(
-          laggedDebtGDP, prevCIF, fiscalProfile, baselineTaxRates,
-          year, config.supplyChainConfig,
-          config.aiProductionOnshoringFraction ?? DEFAULT_AI_PRODUCTION_ONSHORING_FRACTION,
-        );
-
-    const yearParams = resolveAllParameters(
-      year, config, autopilotResult, overrides, profileName,
-      {
-        generative: capabilityScores.generative ?? 0,
-        agentic: capabilityScores.agentic ?? 0,
-        embodied: capabilityScores.embodied ?? 0,
-      },
-    );
-    parameterTimeline.set(year, yearParams);
+    // R1 (the axes program): the autopilot + resolution block MOVED to the top of the
+    // year loop (before the supply-chain consumption) — the ONE producer; the engine and
+    // the record consume the same object. isFirstFiscalYear ≡ (year − startYear) === 0,
+    // the expression the moved block uses. The record is written after the capability
+    // mirrors attach (attachCapabilityMirrors, post-scores).
 
     // Phase 8a compat: consolidation struct for fiscal state reporting
     const consolidation = {
@@ -1876,7 +2982,12 @@ export function runSimulation(
       // E-9 item 3 (ratified): NAIRU unified on the cited FRED/CBO value everywhere (the Phillips
       // side already used it). Year-0 employment gap ≈ FRED_NAIRU − realized-2025 UE (disclosed in
       // the Gate A attribution). legacyNairu = the pre-E-9 split (Taylor on realized-2025).
-      const fedNairu = (config.legacyNairu ?? false) ? NATURAL_UNEMPLOYMENT_RATE : FRED_NAIRU_RATE;
+      // RETIRED (CO-D2 conversion, the axes program R3b; Amendment 2): legacyNairu —
+      // the E-9 isolation toggle (Taylor on the realized-2025 basis). The comparison
+      // capability lives on as the RECORDED POLE (~/.atlas-referents/co-d2/legacyNairu/,
+      // recorded pole-first at this commit); the key is out of types and the registry.
+      // const fedNairu = (config.legacyNairu ?? false) ? NATURAL_UNEMPLOYMENT_RATE : FRED_NAIRU_RATE;
+      const fedNairu = FRED_NAIRU_RATE;
       const prevUnemploymentRate = prevMacroForFiscal.unemploymentRate ?? fedNairu;
       const taylorPrescribed = computeTaylorRule(
         config.neutralRealRate ?? 0.007,                        // Fix 4: configurable r*, default 0.7%
@@ -2069,18 +3180,17 @@ export function runSimulation(
         config.fiscalRiskLevelMidpoint ?? 2.0,
         config.fiscalRiskTrajectoryMidpoint ?? 0.15,
         adjustmentExpectation,  // E-8 (profile-gated per E-8b item 4)
-        config.legacyFiscalPremium ?? false,                    // E-8b isolation toggle
+        false,                                                  // RETIRED toggle slot (close-out; recorded pole e8b-legacy-pole)
         initialDebtGDPRatio,                                    // E-8b: the 2025 debt anchor
         // D-fix: the anchor matches the slot's basis — PRIMARY baseline with the primary slot
-        (config.legacyTotalDeficitPremium ?? false)
-          ? BASELINE_DEFICIT_GDP_RATIO
-          : BASELINE_PRIMARY_DEFICIT_GDP_RATIO,
+        // RETIRED (CO-D2 conversion, R3b): legacyTotalDeficitPremium — the self-referencing
+        // total-deficit basis. Pole at ~/.atlas-referents/co-d2/legacyTotalDeficitPremium/.
+        // (config.legacyTotalDeficitPremium ?? false) ? BASELINE_DEFICIT_GDP_RATIO :
+        BASELINE_PRIMARY_DEFICIT_GDP_RATIO,
         config.laubachLevelBeta ?? DEFAULT_LAUBACH_LEVEL_BETA,
         config.laubachDeficitBeta ?? DEFAULT_LAUBACH_DEFICIT_BETA,
         nominalGDPHistory.length >= 1 && nominalGDPHistory[nominalGDPHistory.length - 1]! > 0
-          ? ((config.legacyTotalDeficitPremium ?? false)
-              ? debtResult.totalDeficit
-              : debtResult.totalDeficit - spending.interestExpense)  // D-fix: the PRIMARY deficit
+          ? (debtResult.totalDeficit - spending.interestExpense)  // D-fix: the PRIMARY deficit (the legacy total-deficit branch retired with the key, CO-D2)
             / nominalGDPHistory[nominalGDPHistory.length - 1]!
           : undefined,
       );
@@ -2136,8 +3246,14 @@ export function runSimulation(
         // class). The Greenwood-Vayanos recite was considered and not taken: its issuance basis
         // (primary deficit + rollover volume) is dominated by the rollover of the existing stock,
         // which is proportional to the debt that β_level already prices — a third read of the
-        // same integrator through a different window. legacySupplyPressure: true = the old reader.
-        (config.legacySupplyPressure ?? false) ? moneyResult.bondFinancedDeficit : 0,
+        // same integrator through a different window.
+        // RETIRED (CO-D2 conversion, R3b; Amendment 2): legacySupplyPressure — the D-fix
+        // second deficit reader. Pole at ~/.atlas-referents/co-d2/legacySupplyPressure/
+        // (recorded pole-first). CASCADE (named in the battery specs): the six gated
+        // diagnostics (foreignTreasuryDemand + the absorption family) are DEAD with the
+        // gate — re-specied in the census/annex/dial table at this commit.
+        // (config.legacySupplyPressure ?? false) ? moneyResult.bondFinancedDeficit : 0,
+        0,
         foreignDemandRatio,
         prevMacroForFiscal.gdpNominal,
         // Phase 8 Fix 3: absorption capacity for demand-adjusted supply pressure
@@ -2172,15 +3288,25 @@ export function runSimulation(
       previousCapabilityScores = [...currentCapScores];
 
       const currentCorporateProfits = prevMacroForFiscal.afterTaxCorporateProfits ?? BASELINE_CORPORATE_PROFITS;
+      // D1 fix F1a: the ERP re-anchored to its own series' crisis behavior — the
+      // banded consumer-tightening signal at t-1 (below the measured noise floor the
+      // ERP is exactly the base, which keeps the zero-AI reference byte-identical).
+      const erpResult = computeCrisisAdjustedERP(
+        EQUITY_RISK_PREMIUM,
+        prevMacroForFiscal.consumerCreditTightening ?? 0,
+        config.erpCrisisSensitivity ?? DEFAULT_ERP_CRISIS_SENSITIVITY,
+        config.creditDeflationNoiseFloor ?? DEFAULT_CREDIT_DEFLATION_NOISE_FLOOR,
+      );
       const equityResult = computeEquityValuation(
         yieldResult.tenYearYield,
-        EQUITY_RISK_PREMIUM,
+        erpResult.equityRiskPremium,
         currentCorporateProfits,
         prevCorporateProfitsForEquity,
         prevPrevCorporateProfitsForEquity,
         previousMarketCap,
         momentumResult.growthMomentum,
         config.aiPEMultiplier ?? 1.0,
+        erpResult.erpCrisisComponent,
       );
 
       // 14m: Update weighted average debt rate for next year's interest calculation
@@ -2203,8 +3329,12 @@ export function runSimulation(
       // stock (~17%/yr, 1/6 WAM) reprices at the 10Y-based rate; the bills layer (~13%/yr of the
       // total 30%) rolls at the POLICY-based rate. legacySingleRollover = the pre-E-9 single bucket.
       // Residual approximation documented: two buckets vs the true maturity ladder.
-      const billsShare = (config.legacySingleRollover ?? false) ? 0
-        : Math.max(0, rolloverResult.effectiveRolloverRate - DEBT_ROLLOVER_COUPON_RATE);
+      // RETIRED (CO-D2 conversion, R3b; Amendment 2): legacySingleRollover — the pre-E-9
+      // single-bucket rollover. Pole at ~/.atlas-referents/co-d2/legacySingleRollover/
+      // (recorded pole-first). The split rollover is single-path.
+      // const billsShare = (config.legacySingleRollover ?? false) ? 0
+      //   : Math.max(0, rolloverResult.effectiveRolloverRate - DEBT_ROLLOVER_COUPON_RATE);
+      const billsShare = Math.max(0, rolloverResult.effectiveRolloverRate - DEBT_ROLLOVER_COUPON_RATE);
       const couponShare = rolloverResult.effectiveRolloverRate - billsShare;
       const blendedNewIssueRate = rolloverResult.effectiveRolloverRate > 0
         ? (couponShare * yieldResult.tenYearYield + billsShare * fedResult.policyRate)
@@ -2309,6 +3439,10 @@ export function runSimulation(
     const macroInputs: MacroInputs = {
       year,
       laborForceGrowthFactor,
+      // Ruling 2 (the sector discount term): the ONE discount-rate producer's crisis
+      // excess, read off the equity state (same-year fm block; baseline 0 at year 0)
+      // — the sector legs and the aggregate valuation share one producer.
+      erpCrisisComponent: fm.equityMarket.erpCrisisComponent,
       totalRemainingEmployment: totalAfterSpillover,
       weightedAverageWage: aggregate.weightedAverageWage,
       totalDisplaced: aggregate.totalDirectDisplacement,
@@ -2321,11 +3455,81 @@ export function runSimulation(
       sectorWeightedDeflationRate,
       baseInflationRate: config.baseInflationRate,
       baselineGDPGrowth: config.baselineGDPGrowth,
+      // H3 ruling 2: the same-year zero-AI counterfactual real consumption (the twin run
+      // above; undefined on the twin itself and on zero-capability configs, where no AI
+      // production exists and the benchmark is never consulted — loud-guarded in macro.ts)
+      counterfactualRealConsumption: counterfactualRealConsumptionByYear?.get(year),
       // DEPRECATED: profitRealizationSensitivity — replaced by endogenous capital gains realization rate
       secondOrderParams,
       nominalGDPHistory,
       policyWageFloor,
       productionInputs,
+      // ═══ Production Program Stage 1 — Channel 1 (the buildout) ═══
+      aiBuildoutInvestmentDemand: buildoutPlanForYear ? buildoutPlanForYear.iAiPregate : undefined,
+      // Stage 3 MS2 (ruling vi): the allocation-weighted import-content share of this
+      // year's buildout spend (the cited per-sink shares × the plan's smoothed
+      // allocation — one composition, no second allocator).
+      // Stage 3 MS4 (Channel 3): the R&D demand + the TFP flow.
+      aiRdSpendDemand: aiRdDemandForYear,
+      aiRdDeflationFlow: aiRdFlowForYear,
+      aiBuildoutImportShare: buildoutPlanForYear
+        ? buildoutPlanForYear.allocUsed.chips * BUILDOUT_IMPORT_CONTENT_SHARE.chips
+          + buildoutPlanForYear.allocUsed.energy * BUILDOUT_IMPORT_CONTENT_SHARE.energy
+          + buildoutPlanForYear.allocUsed.dc * BUILDOUT_IMPORT_CONTENT_SHARE.dc
+          + buildoutPlanForYear.allocUsed.fleet * BUILDOUT_IMPORT_CONTENT_SHARE.fleet
+        : undefined,
+      aiBuildoutBaselineShare: config.aiBuildoutSeamAnchor !== undefined
+        ? config.aiBuildoutSeamAnchor / BASELINE_GDP_NOMINAL_2025
+        : undefined,
+      // Stage 5A (A3 + E2): the energy opex line (undefined ⇒ the identity keeps
+      // the retired arithmetic — the seam year and zero-AI stay bit-identical).
+      aiEnergyOpex: aiEnergyOpexForYear,
+      buildoutTelemetry: buildoutPlanForYear ? {
+        dcRequired: buildoutPlanForYear.dcRequired,
+        fleetRequired: buildoutPlanForYear.fleetRequired,
+        // Stage 2 (the embodiment gate's §0 surface): same-year coverage of the
+        // cleared embodied work by the start-of-year fleet stock.
+        fleetCoverage: aiProduction.fleetCoverage,
+        // Stage 4 MS4 (the ratified design §3's telemetry): the per-cluster
+        // coverage table — the one series both gates consumed this year.
+        fleetCoverageByCluster: perClusterCoverage,
+        // Stage 2 (T-A): the derived training share consumed by u_supply this year.
+        trainingShare: trainingShare(year),
+        // Stage 3 MS3 (ruling v): the issuance leg surfaced (the §0 contract).
+        equityIssuance: buildoutIssuanceForYear,
+        issuanceWindow: buildoutIssuanceWindowForYear,
+        capacityDc: buildoutPlanForYear.capacityDc,
+        // Stage 5A: the queue/orbital/opex surfaces — present ONLY when the
+        // machine is live (dcRequired > 0); ABSENT on the zero-AI path (trace
+        // hygiene, EB-8: the twin's bytes carry no new fields).
+        ...(buildoutPlanForYear.dcRequired > 0 ? {
+          capacityTerrestrial: buildoutPlanForYear.capacityTerrestrial,
+          energyPending: buildoutPlanForYear.energyPending,
+          energyBtmPending: buildoutPlanForYear.energyBtmPending,
+          energyCeiling: buildoutPlanForYear.energyCeiling,
+          energyOpex: aiEnergyOpexForYear,
+        } : {}),
+        ...(buildoutPlanForYear.orbitalStock > 0 ? {
+          orbitalStock: buildoutPlanForYear.orbitalStock,
+        } : {}),
+        supplyRatio: buildoutPlanForYear.supplyRatio,
+        demandSpend: buildoutPlanForYear.buildoutDemandSpend,
+        financeable: buildoutPlanForYear.financeable,
+        investmentPregate: buildoutPlanForYear.iAiPregate,
+        investmentRealized: 0, // stamped by computeMacro (the same gate chain all I rides)
+        fundingRatio: buildoutPlanForYear.fundingRatio,
+        bindingSink: buildoutPlanForYear.bindingSink,
+        stockChips: buildoutState.chips,
+        stockEnergy: buildoutState.energy,
+        stockDc: buildoutState.dc,
+        fleetUnits: buildoutState.fleetUnits,
+        fleetAdd: 0, // stamped after the post-gate stock advance below
+        mfgRampCapacity: buildoutState.mfgRampCapacity,
+        allocChips: buildoutPlanForYear.allocUsed.chips,
+        allocEnergy: buildoutPlanForYear.allocUsed.energy,
+        allocDc: buildoutPlanForYear.allocUsed.dc,
+        allocFleet: buildoutPlanForYear.allocUsed.fleet,
+      } : undefined,
       aiProfitMargin: config.aiProfitMargin ?? DEFAULT_AI_PROFIT_MARGIN,
       traditionalProfitMargin: config.traditionalProfitMargin ?? DEFAULT_TRADITIONAL_PROFIT_MARGIN,
       // Phase 5g Batch C: Price level decomposition
@@ -2344,9 +3548,13 @@ export function runSimulation(
       // Phase 9: Supply chain macro inputs
       supplyChainCostPush: scEffects?.supplyChainCostPush,
       labProfitMarginAdjustment: scEffects?.labProfitMarginAdjustment,
-      automationDividend: totalAutomationDividend,
+      // Mini-stage 1: the honest-basis diagnostic (macro voids-and-records it, Stage-7 pattern)
+      automationDividend: totalDeployerRealizedSavings,
       augmentationProfitBoost: totalAugmentationOutput * (1 - BASELINE_WAGE_SHARE),
       creditDeflationSensitivity: config.creditDeflationSensitivity ?? DEFAULT_CREDIT_DEFLATION_SENSITIVITY,
+      creditDeflationImpulseSensitivity: config.creditDeflationImpulseSensitivity ?? DEFAULT_CREDIT_DEFLATION_IMPULSE_SENSITIVITY,
+      creditDeflationPersistence: config.creditDeflationPersistence ?? DEFAULT_CREDIT_DEFLATION_PERSISTENCE,
+      creditDeflationNoiseFloor: config.creditDeflationNoiseFloor ?? DEFAULT_CREDIT_DEFLATION_NOISE_FLOOR,
       scarcityInflation,
       // Phase 5i: Housing & Credit inputs
       embodiedCapability: capabilityScores.embodied ?? 0,
@@ -2362,9 +3570,15 @@ export function runSimulation(
       laborCostShare: config.laborCostShare,
       // Stage 1.5: per-consumption-sector deflation routing + embodied passthroughs
       sectorDeflationByConsumption,
+      aiSavingsLevelReplacement: sectorDeflationResult.levelReplacement,
+      aiSavingsLevelAugmentation: sectorDeflationResult.levelAugmentation,
       laborServicesPassthrough: config.laborServicesPassthrough,
       foodEnergyPassthrough: config.foodEnergyPassthrough,
       shelterPassthrough: config.shelterPassthrough,
+      // Stage 2 — elasticity-based absorption (order item 4)
+      absorptionElasticityAiExposed: config.absorptionElasticityAiExposed,
+      absorptionElasticityLaborServices: config.absorptionElasticityLaborServices,
+      absorptionElasticityFoodEnergy: config.absorptionElasticityFoodEnergy,
       shelterInflationStickiness: config.shelterInflationStickiness,
       housingWealthMPC: config.housingWealthMPC,
       mpcWageUESensitivity: config.mpcWageUESensitivity,
@@ -2501,7 +3715,7 @@ export function runSimulation(
       opexPassthrough: config.opexPassthrough,
       rentDownwardRigidity: config.rentDownwardRigidity,
       rentIncomeElasticity: config.rentIncomeElasticity,
-      diagSpotBuilderPrice: config.diagSpotBuilderPrice,
+      // RETIRED (CO-D2, R3b): diagSpotBuilderPrice threading — builderPriceMode carries the mode.
       builderPriceMode: config.builderPriceMode,
       constructionCreditSensitivity: config.constructionCreditSensitivity,
       // F4/OD-8 examination
@@ -2514,6 +3728,41 @@ export function runSimulation(
       laborForceBaseline: config.laborForce ?? US_LABOR_FORCE_2025,
     };
     const macro = computeMacro(macroInputs);
+
+    // ═══ Production Program Stage 1 — advance the buildout stocks (post-gate) ═══
+    // The stocks build from the spend that ACTUALLY entered GDP (the unified
+    // credit/capacity/rate chain — no bypass); year 0 captures the real base the
+    // requirement index divides by.
+    if (year === config.startYear) buildoutRealGDP2025 = macro.gdpReal;
+    // Stage 2 (order item 7): the corporate-profits seam for the builder-base index.
+    if (year === config.startYear) buildoutCorporateProfitsSeam = macro.corporateProfits;
+    if (buildoutPlanForYear && macro.buildout) {
+      const chipsQtyIdx = effectiveScConfig?.inputs.aiChips ?? 100;
+      const survivingFleet = buildoutState.fleetUnits * (1 - FLEET_DEPRECIATION);
+      buildoutState = applyBuildout(
+        buildoutState, buildoutPlanForYear, macro.buildout.investmentRealized, chipsQtyIdx,
+        config.buildoutFleetRampGrowth, // Stage 4 MS2 (N1): the fleet-production worldview
+        fleetRampIdxForYear,            // Stage 4 MS3: the arrival row
+        orbitalAddIdxForYear,           // Stage 5A (A2): the orbital arrival row
+      );
+      macro.buildout.fleetAdd = Math.max(0, buildoutState.fleetUnits - survivingFleet);
+      // Stage 5A (EB-8): the queue's advance stamps — live-machine years only
+      // (the twin's bytes carry no new fields).
+      if (buildoutPlanForYear.dcRequired > 0) {
+        macro.buildout.energyDelivered = buildoutState.lastEnergyDelivered;
+        macro.buildout.energyBtmDelivered = buildoutState.lastEnergyBtmDelivered;
+        macro.buildout.energyCarryover = buildoutState.energyQueue.carryover;
+      }
+    }
+    // ═══ Stage 3 MS4 — advance the Channel-3 R&D stock (post-gate; the same
+    // realized-spend honesty as the buildout: only dollars that entered GDP
+    // accumulate). The Δln base for NEXT year is this year's start-of-year stock. ═══
+    {
+      const stockStartOfYear = aiRdStockState;
+      aiRdStockState = stockStartOfYear * (1 - DEFAULT_RD_DEPRECIATION) + (macro.aiRdSpend ?? 0);
+      aiRdStockPrevStart = stockStartOfYear;
+      macro.aiRdStock = aiRdStockState; // the post-advance stock, surfaced
+    }
 
     // Track GDP history for rolling average demand feedback (Phase 1 overhaul)
     nominalGDPHistory.push(macro.gdpNominal);
@@ -2562,11 +3811,38 @@ export function runSimulation(
       dynamicTrainingCompChips: scEffects?.dynamicTrainingComposition.aiChips ?? 0,
       dynamicTrainingCompEnergy: scEffects?.dynamicTrainingComposition.energy ?? 0,
       dynamicTrainingCompDC: scEffects?.dynamicTrainingComposition.datacenter ?? 0,
-      effectiveComputeDeclineRate: scEffects?.effectiveComputeDeclineRate ?? DEFAULT_INFERENCE_ANNUAL_CHANGE,
+      frontierStock, // flywheel MS: loop-produced (always-on; the hoist)
+      effectiveCostTime, // flywheel MS: the cost clock τ (= year − startYear on funded paths)
+      cascadeDeclineRateDiagnostic: scEffects?.cascadeDeclineRateDiagnostic ?? DEFAULT_INFERENCE_ANNUAL_CHANGE,
       deploymentMultiplierCompute: scEffects?.deploymentCostMultipliers.compute ?? 1,
       deploymentMultiplierPhysical: scEffects?.deploymentCostMultipliers.physicalHardware ?? 1,
       deploymentMultiplierEnergy: scEffects?.deploymentCostMultipliers.energy ?? 1,
-      automationDividend: totalAutomationDividend,
+      // Mini-stage 1: the deployer-savings diagnostic (the one realized-cost object; the
+      // retired automation dividend's honest successor — Audit B-4 resolved).
+      deployerRealizedSavings: totalDeployerRealizedSavings,
+      // Mini-stage 1: the EMERGENT tokens-per-task diagnostics — the aggregate path is an
+      // output the model reports, never an input (the retired global schedule's successor).
+      // impliedAggregateTokensPerTask = employment-weighted inference leg ÷ per-token cost.
+      impliedAggregateTokensPerTask: aggCostEmpWeight > 0
+        ? (aggInferenceLegSum / aggCostEmpWeight) / computeTokenCostFactor(effectiveCostTime, effectiveAiCostParams?.tokenCostCurve)
+        : 1,
+      aggregateFrontierWeight: aggCostEmpWeight > 0 ? aggFrontierWeightSum / aggCostEmpWeight : 1,
+      // Mini-stage 3: the two honest jobless measures + the policymaker displays
+      // (report-basis: all are POINT-IN-TIME stocks/rates for the stated year).
+      // The headline unemploymentRate keeps its construction — documented as the
+      // BROAD-consistent measure (all working-age jobless in the exogenous labor force);
+      // U-3 excludes discouragement exits from both numerator and denominator.
+      laborForceExitedStock: poolState.exitedStock,
+      u3UnemploymentRate: (dynamicLaborForce - poolState.exitedStock) > 0
+        ? Math.max(0, macro.totalUnemployment - poolState.exitedStock) / (dynamicLaborForce - poolState.exitedStock)
+        : 0,
+      employmentToPopulation: dynamicPopulation > 0 ? macro.totalEmployment / dynamicPopulation : 0,
+      longTermJoblessShare: poolSearchingCount > 0
+        ? poolState.cohorts.reduce((a, c, d) => a + (d >= 1 ? c.count : 0), 0) / poolSearchingCount
+        : 0,
+      meanJoblessDurationYears: poolSearchingCount > 0
+        ? poolState.cohorts.reduce((a, c, d) => a + c.count * d, 0) / poolSearchingCount
+        : 0,
     };
 
     // Phase 5g Step 3: Dynamic money velocity
@@ -2678,12 +3954,13 @@ export function runSimulation(
     // These answer: "How much ownership/transfer is needed to maintain year-0 CWI?"
     // Use CPS-consistent unemployment (non-cluster workers are employed, not unemployed)
     const totalUnemployment = Math.max(0, dynamicLaborForce - aggregate.totalRemainingEmployment - scaledNonClusterEmployed);
-    const yearsSinceStart = year - config.startYear;
-    const totalAIProfitsPerCapita =
-      (config.policyConfig.sovereignWealthFund.totalAICompanyProfits *
-        1_000_000_000 *
-        Math.pow(1 + config.policyConfig.sovereignWealthFund.profitGrowthRate, yearsSinceStart)) /
-      dynamicPopulation;
+    // Stage H addendum (A-6): the required-ownership display metric is priced from the
+    // CURRENT year's realized endogenous AI profits (this block runs after macro, so the
+    // same-year value exists — no lag needed for a "what would be required" metric).
+    // RETIRED exogenous basis (the deprecation record, never executed):
+    //   const yearsSinceStart = year - config.startYear;
+    //   totalAIProfitsPerCapita = swf.totalAICompanyProfits × 1e9 × (1+swf.profitGrowthRate)^t / N
+    const totalAIProfitsPerCapita = macroWithJobs.aiCorporateProfits / dynamicPopulation;
 
     // CWI = real income per capita (totalIncome / population / priceLevel).
     // Required ownership: what fraction of AI profits must be publicly
@@ -2726,6 +4003,9 @@ export function runSimulation(
         policyEffects,
         config.stateOverrides ?? {},
         config,
+        // Mini-stage 3: the DERIVED retention factor (searching/stock; 1 when no stock) —
+        // the 0.7 constant retired; national and state measurement bases reconciled.
+        displacedPool.count > 0 ? Math.min(1, poolSearchingCount / displacedPool.count) : 1,
       );
     }
 
@@ -2747,6 +4027,20 @@ export function runSimulation(
         effectiveCOLA = 1.0 + (colaIdx - 1.0) * dampenFactor;
       }
       fiscalMonetaryOutput.fiscal.effectiveCOLAFactor = effectiveCOLA;
+      // The policy indexation factor's advance (consumed next year — the lagged
+      // wire): the raw index compounds this year's composite inflation, floored
+      // at zero (nominal policy amounts are never cut on deflation — the CPI
+      // indexation practice), and the SAME profile dampening the budget applies
+      // to its own obligations applies to the policy index's level.
+      policyPriceIndexRaw *= (1 + Math.max(0, macroWithJobs.compositeInflation));
+      let dampedPolicyIndex = policyPriceIndexRaw;
+      if (policyPriceIndexRaw > fiscalProfile.colaDampeningThreshold) {
+        const dr = fiscalProfile.colaDampeningMaxCIF - fiscalProfile.colaDampeningThreshold;
+        const di = dr > 0
+          ? Math.min(1, (policyPriceIndexRaw - fiscalProfile.colaDampeningThreshold) / dr) : 1.0;
+        dampedPolicyIndex = 1.0 + (policyPriceIndexRaw - 1.0) * (1.0 - di * fiscalProfile.colaDampeningRate);
+      }
+      prevPolicyIndexationFactor = dampedPolicyIndex;
     }
 
     // Phase 8a: Track debt/GDP history for consolidation lag
@@ -2787,9 +4081,11 @@ export function runSimulation(
     }
 
     // Phase 9: Update supply chain carry-forward state
-    if (scConfig) {
-      chipSupplyHistory.push(scConfig.inputs.aiChips);
-      supplyChainShockHistory = [scConfig.inputs, supplyChainShockHistory[0]];
+    // Mini-stage 2 (C-1): the history carries the RESOLVED per-year inputs — the lag and
+    // cascade machinery see real timelines for the first time (drop-then-recover works).
+    if (scConfig && effectiveScConfig) {
+      chipSupplyHistory.push(effectiveScConfig.inputs.aiChips);
+      supplyChainShockHistory = [effectiveScConfig.inputs, supplyChainShockHistory[0]];
     }
     // Phase 9: Update cognitive/embodied progress for next year's sensitivity blend
     let totalCogEmp = 0, totalCogDisp = 0;

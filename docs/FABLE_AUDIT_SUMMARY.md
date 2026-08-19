@@ -98,3 +98,35 @@ against employment-to-population statistics.
 
 Detailed working records — the full measurement memos, rulings, and stage reports behind
 each change — are maintained outside the repository.
+
+---
+
+## The ongoing verification practice
+
+The audit above was not a one-time event; the same discipline governs every
+mechanism added since (the AI production and buildout system, the energy
+delivery queue, the adoption-gating machinery, and the policy-wiring review).
+Model documents cite this page as their decision record; the standing practice
+behind that citation:
+
+1. **Design before code.** A mechanism is specified on paper first — its
+   economic rationale, mathematical form, boundaries against neighboring
+   mechanisms (one machine per phenomenon), and the tests it must pass.
+2. **Tests before implementation.** Acceptance tests are written before the
+   mechanism is built, including the expected direction of its effect on the
+   default projection. Movement must decompose exactly to the designed cause;
+   unexplained movement stops the work.
+3. **Execution over reading.** Claims about what the code does are verified by
+   running it. Findings that a mechanism is dead, doubled, or mis-wired must
+   include the live call path, proven by execution.
+4. **Wire-isolated measurement.** New couplings are validated end to end by
+   running the model with and without the single wire under test, all else
+   identical, and measuring every segment of the claimed transmission chain.
+   A dead segment anywhere fails the check and is named.
+5. **Pinned reference paths.** Reference scenarios — including the zero-AI
+   counterfactual — are pinned byte-for-byte; they move only by explicitly
+   approved re-baselines with full attribution, and every recorded claim that
+   referenced the old numbers is restated.
+6. **Honest reporting.** Darker results ship when they are truer; judgment
+   parameters are labeled as judgments; output demand cannot absorb is
+   reported as unrealized rather than silently counted.

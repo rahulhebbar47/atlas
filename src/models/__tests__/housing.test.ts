@@ -48,6 +48,7 @@ function zeroPolicyEffects(): PolicyEffects {
     swfAnnualContribution: 0,
     requiredAssetOwnership: 0,
     requiredTransferLevel: 0,
+    aiProfitPayoutBase: 0, // Stage H addendum (A-6): fixture default — no payout base in these unit fixtures
   };
 }
 
@@ -60,6 +61,11 @@ function buildDefaultMacroInputs(overrides?: Partial<MacroInputs>): MacroInputs 
     automationCoverage: 0,
     policyEffects: zeroPolicyEffects(),
     previousMacro: null,
+    // H3 rider F6b: the dead profit-growth-proxy arm was retired LOUD — computeMacro now
+    // requires the equity-module return (the simulation loop always passes it). Neutral 0
+    // here; tests that exercised the dead arm ride the same neutral basis (previousMacro is
+    // null in this helper, so the retired arm evaluated to 0 as well — bit-identical).
+    marketReturn: 0,
     ...overrides,
   };
 }

@@ -52,13 +52,14 @@ export const ParameterMiniChart = memo(function ParameterMiniChart({
   const startValue = formatParamValue(firstPoint.effective, paramKey);
   const endValue = formatParamValue(lastPoint.effective, paramKey);
 
-  // Determine source dot color based on last point's source
+  // Determine source dot color based on last point's source (R1: six-tag union —
+  // overrides amber, machine/manifest layers blue, default gray)
   const sourceColor =
-    lastPoint.source === 'override'
+    lastPoint.source === 'user-override' || lastPoint.source === 'imported'
       ? AMBER
-      : lastPoint.source === 'autopilot'
-        ? BLUE
-        : GRAY;
+      : lastPoint.source === 'default'
+        ? GRAY
+        : BLUE;
 
   // Determine chart line color
   const lineColor = hasUserOverride ? AMBER : hasAutopilotAdjustment ? BLUE : GOLD;

@@ -316,12 +316,32 @@ describe('Policy Presets — Cross-Preset Comparisons', () => {
     const statusQuo = getPresetTimeline('status_quo');
     const progressiveUBI = getPresetTimeline('progressive_ubi');
 
-    const sqCycleStart = statusQuo.cycleStartYear;
-    const ubiCycleStart = progressiveUBI.cycleStartYear;
+    // H3 RE-SPEC (two findings, docketed in .archive/housekeeping/H3_REPORT.md):
+    // (1) VACUITY: pre-H3 status_quo's cycleStartYear was null, so this test's early-return
+    //     guard made it pass VACUOUSLY; H3's profit-chain movement made the detector fire
+    //     (2044), un-vacuating the comparison for the first time.
+    // (2) DETECTOR ARTIFACT: progressive_ubi's timeline.cycleStartYear is 2030 — a nominal
+    //     growth-deceleration wobble at the END OF THE UBI RAMP-IN, with ZERO AI production
+    //     and 3.8% unemployment. That is not an AI-displacement cycle; comparing it against
+    //     status quo's 2044 AI-era start compares two different phenomena.
+    // The claim under test ("UBI delays or matches the AI-era cycle start") is therefore
+    // measured on the AI-ERA cycle start: the first ACCELERATING_DECLINE year in which AI
+    // production exists (aiAdditionalOutput > 0) — the ramp-in wobble is excluded by
+    // construction, not by tolerance widening.
+    const aiEraCycleStart = (tl: ReturnType<typeof runSimulation>): number | null => {
+      for (const y of tl.years) {
+        if (y.macro.cyclePhase === 'ACCELERATING_DECLINE' && y.macro.aiAdditionalOutput > 0) {
+          return y.year;
+        }
+      }
+      return null;
+    };
+    const sqCycleStart = aiEraCycleStart(statusQuo);
+    const ubiCycleStart = aiEraCycleStart(progressiveUBI);
 
-    // If status quo has no cycle start, UBI should also have none
+    // If status quo has no AI-era cycle start, UBI should also have none
     if (sqCycleStart === null) {
-      // No cycle start means policies don't matter for this invariant
+      expect(ubiCycleStart).toBeNull();
       return;
     }
 

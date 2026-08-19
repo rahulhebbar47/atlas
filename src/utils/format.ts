@@ -136,3 +136,31 @@ export function formatDelta(
 
   return { text, sign };
 }
+
+// ════════════════════════════════════════════════════════════
+// Display-hygiene guards (owner-approved rider on the flywheel mini-stage;
+// DISPLAY-ONLY — the engine fields are untouched and stay raw in CSV/diagnostics).
+// ════════════════════════════════════════════════════════════
+
+/**
+ * The policy-rate DISPLAY clamp: the Taylor machinery's prescription can run far
+ * below any implementable rate in a collapse (observed −104% in the Acceleration
+ * trace); display surfaces clamp at the effective lower bound while the raw
+ * prescription remains visible as its own series/card (taylorPrescribedRate).
+ */
+export function clampPolicyRateForDisplay(rate: number, effectiveLowerBound: number = -0.005): number {
+  return Math.max(rate, effectiveLowerBound);
+}
+
+/** P/E values above this are display-degenerate (near-zero earnings base). */
+export const PE_DISPLAY_CAP = 200;
+
+/**
+ * The P/E not-meaningful guard: a price-to-earnings ratio over a collapsing or
+ * near-zero earnings base (observed ~10⁶ in the Acceleration trace) carries no
+ * information — display surfaces render an em-dash; the raw value stays in
+ * diagnostics and the CSV export.
+ */
+export function isPEDisplayMeaningful(pe: number): boolean {
+  return Number.isFinite(pe) && pe > 0 && pe <= PE_DISPLAY_CAP;
+}

@@ -17,6 +17,7 @@ Complete reference for all 6 feedback loops in the ATLAS economic model: every v
 9. [Complete Interconnection Map](#9-complete-interconnection-map)
 10. [Simulation Execution Order](#10-simulation-execution-order)
 11. [Key Constants & Defaults](#11-key-constants--defaults)
+12. [Additional Feedback Surfaces](#12-additional-feedback-surfaces)
 
 ---
 
@@ -188,7 +189,7 @@ Consumption ←(-)-── Wage Income ←(-)-── Unemployment ←(+)-── D
 | 1 | GDP Growth Rate | `dl_gdp_growth` | percent | Yes (GDP) | §5.6 | `macro.ts:computeMacro()` |
 | 2 | Revenue Pressure | `dl_revenue_pressure` | percent | No | §1.5 | `macro.ts:computeRevenuePressure()` |
 | 3 | Automation Acceleration | `dl_auto_accel` | multiplier | No | §1.5 | `adoption.ts:applyRevenuePressure()` |
-| 4 | Displacement Rate | `dl_displacement` | percent | No | §2.1 | `displacement.ts:computeSimplifiedDisplacement()` |
+| 4 | Displacement Rate | `dl_displacement` | percent | No | §2.1 | `displacement.ts:computeDisplacementV2()` |
 | 5 | Unemployment Rate | `dl_unemployment` | percent | Yes (Unemployment) | §2.2 | `macro.ts:computeMacro()` |
 | 6 | Wage Income | `dl_wage_income` | currency | Yes (Wages) | §3.1 | `macro.ts:computeMacro()` |
 | 7 | Consumption | `dl_consumption` | currency | Yes (Consumption) | §3.2 | `macro.ts:computeMacro()` |
@@ -215,10 +216,11 @@ automationAcceleration(t) = min(cap, previousAcceleration(t-1) × decay + revenu
 **Edge 3→4: Automation Acceleration → Displacement** (polarity: `+`)
 ```
 effectiveAdoptionRate = baseAdoptionRate × (1 + automationAcceleration)
-displacement = min(1, effectiveAdoptionRate × capability²)
+displacement_pct(o, r, t) = clamp(adoption_rate(o, r, t) × weighted_capability(o, t) × α(o, r, t), 0, 1)
 ```
-- Quadratic in capability: displacement = adoptionRate × capability × capability
-- Example: adoption=0.5, capability=0.7 → displacement = 0.5 × 0.49 = 24.5%
+- The acceleration folds into the adoption growth curve; the resulting rate then passes through the adoption state machine — trigger → growth along the adoption curve → freeze / decline / recovery — the one adoption path on every run (DATA_MODEL §3.5; `adoption.ts:computeUnifiedAdoptionState()`)
+- `α(o, r, t)` is the effective automation share for the role, decomposed into five weighted drivers (capability, trust, competitive, margin, slack — DATA_MODEL §4.1; `alphaDrivers.ts:computeEffectiveAlpha()`)
+- Example: adoption=0.5, weighted capability=0.7, α=0.7 → displacement = 0.5 × 0.7 × 0.7 = 24.5%
 
 **Edge 4→5: Displacement → Unemployment** (polarity: `+`)
 ```
@@ -298,7 +300,7 @@ excessUnemployment = max(0, unemploymentRate - naturalRate)
 - `naturalRate` (NAIRU): default `0.044` (4.4%)
 - Below NAIRU: excess = 0, no downward wage pressure
 
-**Edge 2→5: STAGE 3 — endogenous nominal wage GROWTH** (replaces the exp-decay wagePressure level multiplier and the `(1−aiShare)` gate, both retired)
+**Edge 2→5: endogenous nominal wage GROWTH** (replaces the exp-decay wagePressure level multiplier and the `(1−aiShare)` gate, both retired)
 ```
 nominalWageGrowth(t) = inflationIndexation × compositeInflation(t−1)        # LAGGED by design — breaks wage-price simultaneity
                      + productivityPassthrough × perWorkerProductivity(1.6%) # genuine per-worker (population enters via employment)
@@ -678,6 +680,20 @@ If debtGDP > consolidationThreshold:
 ```
 - This creates the **Keynesian Austerity Paradox**: cutting spending → GDP falls → tax revenue falls MORE than spending was cut → debt/GDP ratio WORSENS
 
+### The Measurement-Basis Caveat — the Unemployment Input to the Yield Path
+
+The yield that sets this loop's interest expense is priced off an unemployment measure that
+overstates labor-market slack once displaced workers stop searching, so the loop's debt-service
+conclusions lean favorable in deep-displacement scenarios. Specifically: the bond market's
+expected-policy-rate projection (`computeExpectedPolicyRates`, `bondMarket.ts`) reads the
+model's headline unemployment rate, which is the broad measure — all working-age jobless,
+including discouragement exits (DATA_MODEL §4.5). The real institution being mimicked reads
+U-3, the searcher-only official measure. Broad exceeds U-3 wherever exits have accumulated, so
+the projected employment gap is overstated, the expected policy path runs too low, and the
+ten-year Treasury yield is understated — interest expense, debt service, and the fiscal-risk
+dynamics downstream of the yield are flattered (bias direction: favorable to debt). The gap is
+zero at year 0, in zero-AI runs, and wherever the exited stock is zero.
+
 ### Adjustable Parameters
 
 | Parameter | Default | Min | Max | Step | Unit | Constant |
@@ -885,8 +901,11 @@ Each year in `simulation.ts`, the computation proceeds in this order:
 3.  Adoption triggers (BFCS thresholds)
 4.  Revenue pressure → automation acceleration (LOOP 1 entry point)
 5.  Business credit → adoption acceleration (LOOP 4 → LOOP 1 cross-link)
-6.  Adoption rates with acceleration (applyRevenuePressure)
-7.  Per-role displacement (quadratic: adoptionRate × capability²)
+6.  Adoption rates — the unified state machine: trigger → growth along the adoption curve
+    (acceleration folded in via applyRevenuePressure) → freeze / decline / recovery
+    (computeUnifiedAdoptionState — the one adoption path on every run)
+7.  Per-role displacement (α-driven: adoptionRate × weightedCapability × α, the
+    automation-share decomposition — DATA_MODEL §4.1)
 8.  Aggregate employment, wages (LOOP 1 midpoint)
 9.  Demand spillover (LOOP 3 — constrains employment by demand survival)
 10. Scarcity inflation + labor supply response
@@ -971,6 +990,138 @@ All constants live in `src/models/constants.ts` with source citations.
 | `BASELINE_TOTAL_EMPLOYMENT` | ~158.3M | BLS CES 2024 |
 | `BASELINE_AVERAGE_ANNUAL_WAGE` | ~$65,470 | BLS OEWS 2024 |
 | `BASELINE_LABOR_FORCE` | ~167.6M | BLS LAUS 2024 |
+
+---
+
+## 12. Additional Feedback Surfaces
+
+Two feedback surfaces sit outside the six-loop inventory above. Both run through the adoption
+layer rather than the macro block, and both are inert in runs where no BFCS
+(Better/Faster/Cheaper/Safer) gate ever fails after triggering.
+
+### 12.1 The Adoption Reverse Gear (Cost-Triggered De-Adoption ↔ the Displaced Pool)
+
+**Plain English**: when running AI becomes more expensive than hiring back displaced workers,
+firms reverse automation — but each wave of re-hiring changes the pool it draws from.
+Re-hiring takes the recently displaced first, so the remaining pool ages: its members are less
+employable and carry deeper wage scars. Deeper scars mean cheaper re-hiring, which keeps the
+reversal attractive; a depleting pool means less capacity to restaff, which slows the reversal
+down. The loop carries both an amplifying arm and a damping arm, and the damping arm wins in
+the limit — the reversal is self-limiting by construction.
+
+**Variable Chain**
+
+```
+Realized AI cost ──(+)-→ Rehire-basis Cheaper gap ──(+)-→ Cost-triggered de-adoption
+        │                                                        │ (throttled by fill capacity)
+        │                                                        ↓
+Future rehire wage ←(-)-── Pool composition ages ←(+)-── Re-hiring draw (recent cohorts first)
+        │                                                        │
+        └──(-: lower rehire wage widens the Cheaper gap)─────────┘
+```
+
+**Equations**
+
+```
+rehire_wage    = Σ_d count_d × employability(d) × vintage_wage_d × scarring(d)
+               / Σ_d count_d × employability(d)
+cheaper_rehire = the Cheaper score with the human-wage leg = rehire_wage
+de-adoption    : cheaper_rehire < threshold × (1 − hysteresis_width)
+                 → rate falls by de_adoption_rate × min(1, fill_budget / requested) per year
+fill_budget    = Σ_d count_d × employability(d)      (shared across roles within the year)
+re-hiring draw : recent cohorts first ⇒ remaining pool older ⇒ scarring ↑, employability ↓
+```
+
+Amplifying arm: the recent-first draw leaves an older pool, whose scarring lowers the
+re-hiring wage, which lowers the rehire-basis Cheaper score and sustains de-adoption. Damping
+arms: the employability-weighted fill budget depletes, throttling the decline; de-adoption
+itself shrinks the displaced stock, which shrinks the pool at reconciliation; an empty pool
+degrades the comparison back to the incumbent wage basis. Full specification: DATA_MODEL §3.5
+(the state machine) and §4.5 (the pool).
+
+**Adjustable Parameters**
+
+| Parameter | Default | Unit | Constant / config field |
+|-----------|---------|------|-------------------------|
+| De-adoption rate (cognitive) | 0.10 | rate points/yr | `deAdoptionRateCognitive` (uncited) |
+| De-adoption rate (embodied) | 0.05 | rate points/yr | `deAdoptionRateEmbodied` (uncited) |
+| Re-adoption cap (fraction of class rate) | 0.5 | x | `reAdoptionRate` (uncited) |
+| Discouragement exit hazard (base / slope) | 0.05 / 0.3 | /yr, /duration-yr | `exitBase`, `exitDurationSlope` (CPS-flow anchor, table pending) |
+| Employability decay | 0.10 | /yr | `atrophyRate` (Kroft–Lange–Notowidigdo anchor, table pending) |
+| Wage scarring (cap 25%) | 0.02 | /yr | `wageScarringRate` (Jacobson–LaLonde–Sullivan / Davis–von Wachter anchor, table pending) |
+
+**Code**: `computeUnifiedAdoptionState` (`adoption.ts`); `poolRehireWage`, `poolFillBudget`,
+`advanceDisplacedPool` (`uiIncidence.ts`); the per-role adoption block and the pool advance in
+the year loop (`simulation.ts`).
+
+### 12.2 Pass-Through × Coverage (the Non-Monotone Cost-Push)
+
+**Plain English**: when supply shocks raise AI input costs, the share of that cost passed on
+to deployers does two opposing things. Passing more cost through pushes consumer prices up
+more per automated unit — but it also makes automation less attractive, so less of the economy
+ends up automated, and the price push multiplies over a smaller automated base. The
+consumer-price response to a supply shock is therefore not monotone in the pass-through rate:
+at zero pass-through deployers see baseline costs and there is no push at all; at high
+pass-through the push per unit is large but the coverage it applies to shrinks.
+
+**Variable Chain**
+
+```
+Supply shock ──(+)-→ Deployment cost multipliers ──(×pass-through)-→ Deployer costs
+                                                                          │
+                              ┌─────────────(-)── Cheaper score, adoption drag
+                              ↓                                           │
+                    Automation coverage ──(×)─→ Consumer cost-push ←──(+)─┘
+```
+
+**Equations**
+
+```
+cost_push            = automation_coverage × avg_cost_increase
+                       × cost_pass_through × consumer_pass_through
+deployer multipliers = 1 + cost_pass_through × (raw_multiplier − 1)     → Cheaper score falls
+adoption drag        ∝ avg constraint × (0.5 + 0.5 × cost_pass_through) → adoption steepness falls
+lab absorption       = −avg_cost_increase × (1 − cost_pass_through)     → AI profit margins
+```
+
+The pass-through rate enters `cost_push` positively (directly) and negatively (through
+`automation_coverage`, which a higher pass-through suppresses over time via the Cheaper score
+and the adoption drag) — the derivative of the cost-push with respect to pass-through carries
+both signs. The absorbed remainder `(1 − cost_pass_through)` lands on AI-sector profit margins:
+the incidence split is conserved.
+
+**Adjustable Parameters**
+
+| Parameter | Default | Unit | Constant / config field |
+|-----------|---------|------|-------------------------|
+| Lab-to-deployer pass-through | 0 (config); autopilot 0.5 | ratio | `costPassThroughRate`; autopilot `PASS_THROUGH_TRAJECTORY` (2021–22 episode anchor — DATA_MODEL §9.3) |
+| Deployer-to-consumer pass-through | 0.50 | ratio | `consumerPassThroughRate` (`DEFAULT_CONSUMER_PASS_THROUGH`, uncited) |
+
+**Code**: `computeSupplyChainCostPush`, `applyPassThrough`, `computeAdoptionDrag`,
+`computeLabProfitAdjustment` (`supplyChain.ts`); the cost-push enters goods inflation in
+`computeMacro` (`macro.ts`, `supplyChainCostPush` input).
+
+---
+
+## 13. The Production-System Loops (the AI buildout's feedback inventory)
+
+The AI production and buildout system (DATA_MODEL.md §14) adds its own loops to
+the six-loop macro inventory. Each was classified and stability-tested when its
+edge entered the graph; none is oscillatory on any tested path.
+
+| # | Loop | Path | Polarity | Bound |
+|---|---|---|---|---|
+| P1 | Flywheel funding | funding ratio → frontier training throughput → capability → adoption → profits → funding | + | a dead zone below a low starvation threshold gives the loop zero gain on funded paths |
+| P2 | Buildout demand | AI investment → GDP → capacity requirement → AI investment | + (weak) | `min(demand, financeable)` breaks the spiral — finance grows with profits, requirement with the believed ceiling |
+| P3 | Capacity grounding | capacity → training-slice supply → capability realization → requirement | − (stabilizing) | the believed trajectory is a ceiling; realization can only fall toward what capacity supports |
+| P4 | Finance–profits | AI profits (t−1) → financeable → investment → capacity → realized activity → profits | + | floored financing base; demand-side absorption caps the upside; the energy operating bill is a modifier on this loop's gain (expensive energy squeezes margins and financing together) |
+| P5 | Equity issuance | valuation → issuance → buildout → profits → valuation | + | bounded by the demand minimum and the issuance window, which closes as the crisis equity premium rises |
+| P6 | Adoption gating | fleet stock → per-cluster displacement → demand → economy scale → fleet demand → fleet build | − (stabilizing) | a lagging fleet weakens displacement, supporting demand — negative feedback on crisis depth |
+| P7 | Priority reallocation | coverage → displacement → trust/clearance per cluster → allocation priority → coverage | mixed, small | bounded partial adjustment; no thrashing |
+
+The energy delivery queue (§14.3 of DATA_MODEL.md) adds a **delivery lag**
+inside P2/P3 — a re-timing of existing edges, not a new cycle. Arrival events
+(new fabs, orbital capacity) are exogenous happenings, not feedback.
 
 ---
 

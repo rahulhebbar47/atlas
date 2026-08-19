@@ -265,20 +265,31 @@ export interface AugmentationAdoptionResult {
 /** AI Cost parameters — 3-component decomposition */
 export interface AICostParams {
   // DEPRECATED (Phase 10.A): inferenceAnnualChange is superseded by tokenCostCurve + tokenUsageMultiplier.
+  // DEPRECATED (Stage H): dead on the simulation path (superseded by tokenCostCurve; economic trace inert, Audit B-5); UI control removed; guarded by stageH-honesty.test.ts.
   inferenceAnnualChange: number;      // default -0.45, range -0.80 to +0.50
   manufacturingAnnualChange: number;  // default -0.10, range -0.50 to +0.50
   energyAnnualChange: number;         // default -0.03, range -0.50 to +0.50
   composition?: Record<DeploymentType, AICostComposition>;
   /** Floored decay curve for the cost-per-token of AI work. */
   tokenCostCurve?: TokenCostCurveParams;
-  /** Optional FLAT multiplier for tokens-consumed-per-task vs. the 2025 baseline.
-   *  Leave unset (the default) to use the spike-and-recover DEFAULT_TOKEN_USAGE_SCHEDULE
-   *  (2025=1× → 2026=20× → 2027=25× → 2028=15× → 2029=5× → 2030+=1×). Set it to force a
-   *  flat post-2025 trajectory (start year stays 1×, every later year takes this value).
-   *  Either way it is year-overridable via parameterOverrides (sticky-forward) — see the
-   *  Year Parameters section. Combined with `tokenCostCurve` to produce inference cost:
-   *    inferenceCostFactor(t) = tokenCostFactor(t) × tokenUsageMultiplier(year). */
+  /** RETIRED (coupled design checkpoint, mini-stage 1; Amendment 2 — no legacy toggles):
+   *  the global tokens-per-task multiplier/schedule is replaced by the frontier-intensity
+   *  layer below; the aggregate tokens-per-task path is an emergent OUTPUT
+   *  (MacroOutput.impliedAggregateTokensPerTask). No path reads this field (probe-guarded);
+   *  kept per the no-delete rule. */
   tokenUsageMultiplier?: number;
+  /** Frontier tokens-per-task multiple at the 2026 anchor. Default 20 (the observed
+   *  reasoning-class jump; cited table with the data refresh). Range 1-100. */
+  frontierIntensityLevel?: number;
+  /** Annual frontier-intensity growth post-anchor. Default +0.05/yr (owner-ruled middle
+   *  path, honest-flagged). Range −0.15 to +0.40; absolute frontier per-task cost climbs
+   *  only when this exceeds the per-token decline (~26%/yr early). */
+  frontierIntensityGrowth?: number;
+  /** σ: capability surplus at which frontier reliance halves (w = 2^(−s/σ)). Default 0.15.
+   *  Range 0.02-1.0. Uncited structural dial; per-band batteries bound it. */
+  sigmaMigration?: number;
+  /** Always-frontier task residue (floor on w). Default 0. Range 0-0.5. Uncited. */
+  wMinFrontierFloor?: number;
 }
 
 export interface AICostComposition {
@@ -347,6 +358,9 @@ export interface RoleBFCSOutput {
   triggered: boolean;              // all 4 thresholds met?
   triggerYear: number | null;      // first year all thresholds met
   adoptionRate: number;            // adjusted adoption rate at this year
+  /** Mini-stage 1: first year Better ≥ B* (the frontier reaching the role's requirement) —
+   *  the anchor of the role's fixed-capability cost curve. Distinct from triggerYear. */
+  betterArrivalYear?: number | null;
 }
 
 // ============================================================
@@ -362,6 +376,10 @@ export interface MacroProductionInputs {
   aiNetExportBoost: number;         // Pre-computed in simulation loop
   aiConsumerGoodsPotential: number; // Tracked, NOT added to C
   aiAdditionalOutput: number;       // Total across clusters
+  /** Production Program Stage 2 (Channel 2): the VA-anchored potential CEILING —
+   *  Σ_c VA_c × BFCSClearance_c × EmbodimentGate_c (the checkpoint §2 formula; the
+   *  emitted legs above track REALIZED automation and are asserted ≤ this). */
+  aiPotentialCeiling?: number;
   totalDurableNewJobs: number;      // From computeNewJobMetrics()
   newJobWageFraction: number;       // Config param, default 0.70
   augmentationWageBoost?: number;   // Workers' share of augmentation output → wage income
@@ -418,9 +436,103 @@ export interface SecondOrderEffectParams {
  *
  * Optional fields (fall back to module constants if omitted).
  */
+/** PRODUCTION PROGRAM STAGE 1 — the buildout's per-year telemetry (the checkpoint §0
+ *  contract: the user sees WHICH sink throttled the believed trajectory and WHEN).
+ *  Computed by computeBuildoutPlan (buildout.ts); echoed onto MacroOutput. */
+export interface BuildoutTelemetry {
+  /** DC capacity requirement, 2025-required units (K_required). */
+  dcRequired: number;
+  /** Fleet requirement, units. Stage 2: DERIVED from cleared embodied cluster work
+   *  (t−1 ledger state × unitsPerEmbodiedWorker), no longer the retired [hu] scale. */
+  fleetRequired: number;
+  /** Stage 2 (the embodiment gate's §0 surface); STAGE 4 MS4 (the per-cluster
+   *  supersession, the ratified design §3): now the REQUIREMENT-WEIGHTED MEAN of
+   *  the per-cluster coverages; 1 when no cluster carries a requirement. */
+  fleetCoverage?: number;
+  /** Stage 4 MS4 (the ratified design §3's telemetry): per-cluster fleet coverage
+   *  min(1, allocated / required) over clusters with a live requirement — the ONE
+   *  series both the displacement gate and the ledger gate consume. */
+  fleetCoverageByCluster?: Record<string, number>;
+  /** Stage 2 (T-A): the derived time-varying training share of compute demand this
+   *  year (RL rollout inside the slice — TRAINING_SHARE_DERIVATION.md). */
+  trainingShare?: number;
+  /** Stage 3 (MS3 — ruling v): the equity-issuance financing leg this year, nominal $
+   *  (ι × the t−1 implied AI market cap × the t−1 issuance window). */
+  equityIssuance?: number;
+  /** Stage 3 (MS3): the issuance window [0, 1] (1 = open; closes on the crisis
+   *  equity premium — the episode-anchored shutdown). */
+  issuanceWindow?: number;
+  /** Stage 3 (MS2 — the import-content fix, owner ruling vi): the allocation-weighted
+   *  import-content share of this year's buildout spend. */
+  importShare?: number;
+  /** Stage 3 (MS2): the import leakage subtracted from net exports, nominal $ —
+   *  importShare × the machine's realized spend above the baseline-embedded path
+   *  (0 when the delta is ≤ 0; identically 0 on the zero-AI path). */
+  importLeakage?: number;
+  /** Post-shock effective DC capacity. STAGE 5A (A2): the INTEGRATED capacity —
+   *  min(chips, energy × FLOPs/W, dc) + the orbital stock. */
+  capacityDc: number;
+  /** Stage 5A (A2): the terrestrial min alone (the opex line's capacity basis —
+   *  orbital carries its own power). Present when the machine is live. */
+  capacityTerrestrial?: number;
+  /** Stage 5A (A2): the orbital capacity stock, 2025-required units. Present when
+   *  nonzero (arrival-event content; absent on the default and zero-AI paths). */
+  orbitalStock?: number;
+  // ═══ STAGE 5A (A1 + E1) — the energy queue's per-year state (present when the
+  //     machine is live; UNDEFINED on the zero-AI path — trace hygiene, EB-8) ═══
+  /** Pending grid-lane units (pipeline + carryover) at the start of the year. */
+  energyPending?: number;
+  /** Pending express-lane (behind-the-meter) units at the start of the year. */
+  energyBtmPending?: number;
+  /** The annual additions ceiling, units/yr, at the start of the year. */
+  energyCeiling?: number;
+  /** Grid-lane units delivered at this year's advance (ceiling-gated). */
+  energyDelivered?: number;
+  /** Express-lane units delivered at this year's advance (bypasses the ceiling). */
+  energyBtmDelivered?: number;
+  /** Matured-but-ceiling-blocked units carried forward after this year's advance. */
+  energyCarryover?: number;
+  /** Stage 5A (A3): the AI sector's energy operating cost this year, nominal $ —
+   *  seamRate × utilizedCompute(t−1 utilization × terrestrial capacity) ×
+   *  (1/FLOPs-per-watt norm) × the p_energy index. Enters the AI profit identity. */
+  energyOpex?: number;
+  /** min(1, capacityDc / dcRequired); 1 at zero requirement. The flywheel's u_supply. */
+  supplyRatio: number;
+  /** Buildout demand spend (required spend), nominal $. */
+  demandSpend: number;
+  /** Financeable buildout budget, nominal $. */
+  financeable: number;
+  /** I_AI pre-gate = min(demand, financeable), nominal $. */
+  investmentPregate: number;
+  /** I_AI as it entered GDP (post the unified credit/capacity/rate gates), nominal $. */
+  investmentRealized: number;
+  /** F = financed/required; ≡ 1 at zero required spend (ratification A3). */
+  fundingRatio: number;
+  /** The binding sink this year ('none' when every requirement is met). */
+  bindingSink: 'chips' | 'energy' | 'dc' | 'fleet' | 'none';
+  /** Stocks at the START of the year (pre-build), capacity units / units. */
+  stockChips: number;
+  stockEnergy: number;
+  stockDc: number;
+  fleetUnits: number;
+  /** Units added to the fleet this year (the A5 triple-min outcome). */
+  fleetAdd: number;
+  /** The manufacturing ramp ceiling, units/yr. */
+  mfgRampCapacity: number;
+  /** The smoothed allocation shares used this year (sum 1). */
+  allocChips: number;
+  allocEnergy: number;
+  allocDc: number;
+  allocFleet: number;
+}
+
 export interface MacroInputs {
   /** Current simulation year */
   year: number;
+  /** Ruling 2 (D1): the one discount-rate producer's crisis excess (the F1a dynamic
+   *  ERP component, read off the same-year equity state) — the sector valuation legs'
+   *  discount term. 0 in calm regimes and identically 0 on the zero-AI path. */
+  erpCrisisComponent?: number;
   /** Sum of employment across all clusters (demand-constrained, before new jobs) */
   totalRemainingEmployment: number;
   /** Employment-weighted average wage across all clusters */
@@ -433,6 +545,53 @@ export interface MacroInputs {
   policyEffects: PolicyEffects;
   /** Previous year's macro output (null for first year) */
   previousMacro: MacroOutput | null;
+
+  // ═══ PRODUCTION PROGRAM STAGE 1 — Channel 1 (the buildout) ═══
+  /** The buildout machine's PRE-GATE investment demand this year, nominal $
+   *  (I_AI = min(BuildoutDemand, Financeable), computed in the simulation loop).
+   *  UNDEFINED ⇒ the machine is not live for this run and the baseline capex
+   *  partition's delta is exactly 0 (bit-identity — PB-1 Leg A). 0 on the zero-AI
+   *  twin ⇒ the delta is −(the baseline-embedded AI capex path): the ruled level
+   *  shift of "a world in which the AI buildout never happened" (ratification A2;
+   *  PB-1 Leg B). */
+  aiBuildoutInvestmentDemand?: number;
+  /** The buildout plan's telemetry, echoed onto MacroOutput (the §0 gate-telemetry
+   *  contract: per-year per-sink binding attribution on the output surface). */
+  buildoutTelemetry?: BuildoutTelemetry;
+  /** The baseline-embedded AI capex share of GDP the partition subtracts (default:
+   *  AI_CAPEX_BASELINE_SHARE). Overridden coherently with config.aiBuildoutSeamAnchor
+   *  so the PB-1 sensitivity moves seam and partition together. */
+  aiBuildoutBaselineShare?: number;
+
+  /** Stage 3 (MS2 — the import-content fix): the allocation-weighted import-content
+   *  share of the buildout's spend this year (from the plan's allocUsed × the cited
+   *  per-sink shares). Default: the seam-composition constant. */
+  aiBuildoutImportShare?: number;
+
+  /** STAGE 5A (A3 + E2): the AI sector's energy operating cost this year, nominal $
+   *  (computed in the loop: seam rate × t−1 utilization × terrestrial capacity ×
+   *  (1/FLOPs-per-watt norm) × the p_energy index, which carries the N1 energy
+   *  trend, the supply-chain energy-PRICE shock, and the event cost bends — the E2
+   *  wire). Subtracted in the AI profit identity with the wedge carve-out (the
+   *  no-double-count residual). UNDEFINED/0 ⇒ inert (zero-AI, unit tests). */
+  aiEnergyOpex?: number;
+
+  // ═══ PRODUCTION PROGRAM STAGE 3 — MS4 Channel 3 (corporate R&D) ═══
+  /** The AI-era R&D investment demand this year, nominal $ (intensity × the t−1
+   *  realized AI revenue; computed in the loop). Rides the ONE investment pipeline. */
+  aiRdSpendDemand?: number;
+  /** The R&D productivity flow this year (Δln(RD_stock) × the cited elasticity,
+   *  SIGNED — de-accumulation reflates), entering the non-shelter sector inflations
+   *  through the existing pass-through assembly. */
+  aiRdDeflationFlow?: number;
+
+  // ═══ PRODUCTION PROGRAM STAGE 2 — elasticity-based absorption (order item 4) ═══
+  /** Own-price elasticity magnitudes per consumption sector (defaults: the cited
+   *  constants). Shelter is excluded by declared boundary (its AI price channel is
+   *  the housing supply response). */
+  absorptionElasticityAiExposed?: number;
+  absorptionElasticityLaborServices?: number;
+  absorptionElasticityFoodEnergy?: number;
 
   // --- Optional fields with module-constant defaults ---
 
@@ -476,6 +635,14 @@ export interface MacroInputs {
   minWageCostPush?: number;
   /** Credit deflation sensitivity (default: DEFAULT_CREDIT_DEFLATION_SENSITIVITY) */
   creditDeflationSensitivity?: number;
+  /** Pass-through: impulse sensitivity (above-floor Δ-tightening; [e]-derived, A8-laddered). */
+  creditDeflationImpulseSensitivity?: number;
+  /** Pass-through: impulse persistence κ ([e], GR episode-anchored). */
+  creditDeflationPersistence?: number;
+  /** Pass-through: the credit noise floor ([e]-measured band boundary). */
+  creditDeflationNoiseFloor?: number;
+  /** D1 fix F1a: ERP crisis sensitivity ([e]-derived, Damodaran 2008-09 step over the banded tightening signal). */
+  erpCrisisSensitivity?: number;
   /** Sector scarcity inflation (computed in simulation.ts). Default 0. */
   scarcityInflation?: number;
 
@@ -506,6 +673,9 @@ export interface MacroInputs {
   laborCostShare?: number;
   /** Stage 1.5: per-consumption-sector AI deflation RATES, routed from clusters (R10 mapping). */
   sectorDeflationByConsumption?: { aiExposed: number; laborServices: number; foodEnergy: number; shelter: number };
+  /** Pass-through (ruling 4): the per-leg savings levels for the traced decomposition. */
+  aiSavingsLevelReplacement?: number;
+  aiSavingsLevelAugmentation?: number;
   /** Stage 1.5: embodied-AI passthrough per sector (fraction reaching prices, net of regulation). */
   laborServicesPassthrough?: number;
   foodEnergyPassthrough?: number;
@@ -634,8 +804,15 @@ export interface MacroInputs {
   mortgageRate?: number;
   /** Corporate borrowing rate for investment dampening. Default: baseline corporate rate. */
   corporateBorrowingRate?: number;
-  /** Aggregate equity market return for capital gains. Default 0. */
+  /** Aggregate equity market return for capital gains. The simulation loop passes the
+   *  equity module's return unconditionally; the old profit-growth-proxy fallback arm was
+   *  retired LOUD (H3 rider F6b) — absent input throws when the blend is consulted. */
   marketReturn?: number;
+  /** H3 ruling 2: the same-year ZERO-AI COUNTERFACTUAL real consumption (the engine's twin
+   *  run — same config, capabilities zeroed). The demand-health benchmark for AI consumer
+   *  goods absorption. Absent on the twin itself and zero-capability runs (no AI production
+   *  exists there); computeMacro throws if AI consumer potential > 0 and this is missing. */
+  counterfactualRealConsumption?: number;
   /** Federal Reserve policy rate for velocity effect. Default: initial policy rate. */
   fiscalMonetaryPolicyRate?: number;
 
@@ -652,7 +829,9 @@ export interface MacroInputs {
   supplyChainCostPush?: number;
   /** Lab profit margin reduction from absorbed supply chain costs. Default 0 (negative when absorbing). */
   labProfitMarginAdjustment?: number;
-  /** Aggregate cost savings from replacing human labor with AI (dollars). Can be negative under supply shocks. */
+  /** Mini-stage 1: carries totalDeployerRealizedSavings (the one realized-cost object's
+   *  diagnostic; the retired automation dividend's honest successor). Voided in macro's
+   *  profit math (Stage-7 residual profits), recorded into MacroOutput.deployerRealizedSavings. */
   automationDividend?: number;
   /** Firms' share of worker augmentation output → corporate profits. Default 0. */
   augmentationProfitBoost?: number;
@@ -731,7 +910,8 @@ export interface MacroInputs {
   /** L9b: the rent income/WTP elasticity θ. Default 0.47 (citation-first, 40-yr decomposition). 0 = off (toggle). Range 0.3-0.7. */
   rentIncomeElasticity?: number;
   /** LLAG diagnostic only. */
-  diagSpotBuilderPrice?: boolean;
+  // RETIRED (CO-D2, R3b): diagSpotBuilderPrice — builderPriceMode 'spot' is the dial.
+  // diagSpotBuilderPrice?: boolean;
   /** L9c-3/4. */
   builderPriceMode?: 'spot' | 'trend-aware' | 'adaptive';
   /** L9c-1. */
@@ -805,9 +985,44 @@ export interface MacroOutput {
   medianCWI: number;              // Real income per capita for bottom 80% of households
   medianCWIGrowthRate: number;    // YoY growth rate
 
-  // AI GDP Contribution
-  aiGDPContribution: number;      // Total AI addition to GDP ($): investment + absorbed goods + net exports
-  aiGDPContributionPct: number;   // AI GDP contribution as fraction of nominal GDP
+  // AI revenue basis (H3: RETIRED FROM DISPLAY — the internal profit/UBI-indexing basis only.
+  // Composition unchanged: raw investment leg + absorbed consumer goods + raw net-export leg.
+  // It is NOT "AI's addition to GDP": the raw legs enter GDP only post-realization and the
+  // absorbed leg reaches GDP only through the profits channel. Display consumers use the
+  // split metrics below.)
+  aiGDPContribution: number;      // AI revenue basis ($): raw investment + absorbed goods + raw net exports
+  aiGDPContributionPct: number;   // aiGDPContribution / gdpNominal (DEPRECATED for display — basis-mixed)
+
+  // H3 ruling 1 — THE SPLIT (one producer each, macro.ts):
+  /** REALIZED AI SHARE OF GDP: strictly the AI dollars that entered GDP this year
+   *  (investment leg × realization × credit × capacity × rate dampening; net-export leg ×
+   *  realization; consumer leg only as absorbed-AND-added = zero direct entry under the
+   *  ruled architecture), over nominal GDP. Commensurable by construction. */
+  aiRealizedShareOfGDP: number;
+  /** The realized numerator in nominal dollars (the exact GDP entries). */
+  aiRealizedGDPContribution: number;
+  /** AI OUTPUT POTENTIAL: total AI production expansion (real 2025$, trigger-time vintage
+   *  valuation) over REAL GDP — the honest name for what the retired headline measured. */
+  aiOutputPotentialShare: number;
+  /** Production Program Stage 2 (Channel 2): the VA-anchored potential CEILING —
+   *  Σ_c VA_c × BFCSClearance_c × EmbodimentGate_c, real 2025$-class (economy-indexed).
+   *  The emitted expansion (aiAdditionalOutput) is asserted ≤ this (QB-1). */
+  aiPotentialCeiling: number;
+  /** Stage 3 MS3 (ruling v): the model-implied AI-sector market cap (the D1-guarded
+   *  sector P/E × the realized AI profit base) — the equity-issuance leg's t−1
+   *  pricing basis. Identically 0 on the zero-AI path. */
+  aiMarketCapImplied: number;
+  /** Stage 3 MS3: the ONE crisis-ERP producer's component, echoed (the issuance
+   *  window reads it at t−1; no second producer — the echo pattern). */
+  erpCrisisComponent: number;
+  /** Stage 3 MS4 (Channel 3): the realized AI-era R&D spend this year, nominal $
+   *  (the demand through the same unified gate chain — stamped by computeMacro). */
+  aiRdSpend?: number;
+  /** Stage 3 MS4: the corporate AI-era R&D stock, nominal $ (perpetual inventory;
+   *  set by the loop post-advance). 0 on the zero-AI path. */
+  aiRdStock?: number;
+  /** Stage 3 MS4: the R&D productivity flow consumed this year (the input, echoed). */
+  aiRdDeflationFlow?: number;
   
   // Revenue Pressure
   revenuePressure: number;
@@ -859,12 +1074,22 @@ export interface MacroOutput {
   aiNetExportBoost: number;          // Fraction of AI output → domestic production (onshoring)
   aiConsumerGoodsPotential: number;  // Fraction of AI output → consumer goods (NOT added to C)
   unrealizedAIOutput: number;        // AI supply capacity minus demand-absorbed goods (Phase 3b)
+  /** Stage 2 (elasticity-based absorption): the SIGNED quantity called forth by the
+   *  AI-attributable sector price flows at the cited elasticities (Σ_s C_s × ε_s ×
+   *  deflationFlow_s, real 2025$) — joins the twin-benchmark absorption; negative
+   *  under reflation (de-adoption legitimately shrinks absorption). */
+  aiElasticityAbsorbed: number;
   aiGoodsAbsorbed: number;           // AI goods absorbed by demand = supply × demandHealthRatio
   // Worker augmentation channel
   totalAugmentationOutput: number;   // Total additional output from AI-augmented remaining workers
   augmentationWageBoost: number;     // Workers' share of augmentation → wage income
   augmentationProfitBoost: number;   // Firms' share of augmentation → corporate profits
   aiCapacityUtilization: number;     // AI capacity utilization = absorbed / supply [0, 1]
+
+  // ═══ PRODUCTION PROGRAM STAGE 1 — the buildout telemetry surface (checkpoint §0) ═══
+  /** Present when the buildout machine is live for this run; the per-year per-sink
+   *  gate-binding attribution the user-facing surfaces read. */
+  buildout?: BuildoutTelemetry;
 
   // Investment Demand Constraint
   investmentRealization: number;     // Combined market gate [0, ~2+]: utilization × demand × credit factors
@@ -891,6 +1116,8 @@ export interface MacroOutput {
   capitalGainsRealizationRate: number;  // Endogenous realization rate (IRS 4%-12% range)
   aiSectorPE: number;                   // Dynamic AI sector P/E ratio
   traditionalSectorPE: number;          // Dynamic traditional sector P/E ratio
+  sectorPEClampEngaged: boolean;        // D1 F2: a sector P/E hit its constants' cited ceiling (reported)
+  sectorEarningsFloorEngaged: boolean;  // D1 F3: a negative sector-profit input was floored for valuation (reported)
   /** Previous year's AI corporate profits — used for t-2 lookback in capital gains */
   prevAICorporateProfits: number;
   /** Previous year's traditional corporate profits — used for t-2 lookback */
@@ -1017,11 +1244,38 @@ export interface MacroOutput {
   creditFundedRatio: number;
   corporateCashAccumulation: number;
 
-  // AI Cost Indices
-  blendedAiCostIndex: number;
-  inferenceCostIndex: number;
-  manufacturingCostIndex: number;
-  energyCostIndex: number;
+  // RETIRED (mini-stage 1): the Phase-5-tax AI cost indices — rode the DEPRECATED
+  // exp(inferenceAnnualChange·t) leg, publishing a dead basis beside the live economics
+  // (Audit B-5's third diagnostic site). Successors below. Kept per the no-delete rule.
+  // blendedAiCostIndex: number;
+  // inferenceCostIndex: number;
+  // manufacturingCostIndex: number;
+  // energyCostIndex: number;
+  /** Mini-stage 1: deployer cost savings on displaced labor, priced from the ONE
+   *  realized-cost object (aiCost.ts) against the LIVE human-cost basis (the honest
+   *  successor to the retired automationDividend; Audit B-4). Dollars; negative under
+   *  supply-shock cost compression. Diagnostic — not consumed by model math. */
+  deployerRealizedSavings: number;
+  /** Mini-stage 1: the EMERGENT economy-wide tokens-per-task path — employment-weighted
+   *  realized inference cost ÷ per-token cost. An OUTPUT the model reports (validation
+   *  diagnostic vs the observed intensity record), never an input; replaces the retired
+   *  global tokens-per-task schedule. */
+  impliedAggregateTokensPerTask: number;
+  /** Mini-stage 1: employment-weighted frontier-reliance weight w(s) — how much of the
+   *  economy's AI work is still frontier-priced. Diagnostic. */
+  aggregateFrontierWeight: number;
+  // ═══ Mini-stage 3: the two honest jobless measures + policymaker displays ═══
+  /** Discouraged exits: left the measured labor force, still jobless (in BROAD, not U-3). */
+  laborForceExitedStock: number;
+  /** U-3-consistent unemployment: searchers only; exits removed from numerator AND
+   *  denominator. The headline unemploymentRate is the BROAD-consistent measure. */
+  u3UnemploymentRate: number;
+  /** Employment ÷ total population (the policymaker display). */
+  employmentToPopulation: number;
+  /** Share of the searching pool jobless ≥ 1 year. */
+  longTermJoblessShare: number;
+  /** Mean jobless duration of the searching pool (years). */
+  meanJoblessDurationYears: number;
 
   // Supply Chain
   // DEPRECATED: importDependence — kept for backward compat, now populated as 1 - aggregateResilience
@@ -1039,12 +1293,38 @@ export interface MacroOutput {
   dynamicTrainingCompChips: number;
   dynamicTrainingCompEnergy: number;
   dynamicTrainingCompDC: number;
-  effectiveComputeDeclineRate: number;
+  /** The frontier stock (MS1; flywheel MS: always-on, loop-hosted): training capacity
+   *  relative to the default path. Exactly 1 on every funded, unshocked path; drains
+   *  under supply famines AND funding starvation, rebuilds at fab speed. */
+  frontierStock: number;
+  /** The cost clock (flywheel MS): effective innovation time τ. Advances at
+   *  stock^frontierCostElasticity per year; τ = year − startYear exactly on every
+   *  funded path. Every realized-cost leg evaluates at τ. */
+  effectiveCostTime: number;
+  // ── THE PASS-THROUGH LAW: the AI-savings LEVEL objects (state — the emitted
+  // deflation flows are their first differences; the pass-through law: flows derive
+  // from CHANGES in their causes) + the per-leg split (replacement / augmentation,
+  // ruling 4's traced decomposition) + the credit impulse kernel state J. ──
+  aiSavingsLevelTotal: number;
+  aiSavingsLevelAiExposed: number;
+  aiSavingsLevelLaborServices: number;
+  aiSavingsLevelFoodEnergy: number;
+  aiSavingsLevelShelter: number;
+  aiSavingsLevelReplacement: number;
+  aiSavingsLevelAugmentation: number;
+  creditDeflationImpulseState: number;
+  /** DIAGNOSTIC ONLY (ruling 4's loudness condition; was `effectiveComputeDeclineRate`):
+   *  the counterfactual inference-cost decline rate a backlogged chip fleet implies.
+   *  NOT consumed by any economic path — proven by strict-equality execution
+   *  (flywheel session 1, probe leg A). The realized cost trend lives on the τ clock
+   *  (`effectiveCostTime`), its honest successor. */
+  cascadeDeclineRateDiagnostic: number;
   deploymentMultiplierCompute: number;
   deploymentMultiplierPhysical: number;
   deploymentMultiplierEnergy: number;
-  /** Aggregate cost savings from deployers replacing human labor with AI (dollars). Negative under severe supply shocks. */
-  automationDividend: number;
+  // RETIRED (mini-stage 1): automationDividend — the doubly-stale diagnostic (deprecated
+  // exp leg + retired seniority proxy; Audit B-4). Successor: deployerRealizedSavings.
+  // automationDividend: number;
 
   // ═══ Phase 10.A: Alpha Drivers Inputs + Cumulative AI Displacement ═══
   /** corporateProfits / gdpNominal with safe fallback to baseline if gdpNominal ≤ 0.
@@ -1159,6 +1439,12 @@ export interface EquityMarketState {
   growthMomentum: number;
   equityDiscountRate: number;
   marketReturn: number;
+  /** D1 fix F1b: the Gordon form ran out of domain (r − g below the cited spread
+   *  floor) and the valuation capped at the record-valuation class — reported. */
+  gordonDomainGuardEngaged: boolean;
+  /** D1 fix F1a: the crisis component inside the equity risk premium (0 below the
+   *  tightening noise floor — identically 0 on the zero-AI reference path). */
+  erpCrisisComponent: number;
 }
 
 export interface MonetizationState {
@@ -1253,6 +1539,12 @@ export interface WorkWeekPolicy {
 
 export interface SovereignWealthFundPolicy {
   enabled: boolean;
+  /** The fund's creation year: initialFundSize seeds at THIS year and the fund is
+   *  inert before it (no returns, no dividends, no contributions consumed). Absent ⇒
+   *  DEFAULT_SWF_START_YEAR (simulation start) — byte-identical prior behavior. Also
+   *  closes the prior seed-loss class: enabling the fund after the start year used to
+   *  lose initialFundSize entirely (the seed fired only at yearsSinceStart === 0). */
+  startYear?: number;
   initialFundSize: number;                    // billions (one-time init, stays flat)
   annualContribution: PolicySchedule;         // billions/year, was: number
   annualReturnRate: number;
@@ -1260,10 +1552,14 @@ export interface SovereignWealthFundPolicy {
   distribution: 'universal' | 'means_tested';
   // Merged from UniversalEquityPolicy (Phase 5g SWF consolidation)
   ownershipFraction: PolicySchedule;   // fraction 0-0.50
-  // DEPRECATED: totalAICompanyProfits and profitGrowthRate — replaced by computeCorporateProfits
-  // Kept as fallback defaults for the equity stake computation when corporate profits model unavailable
-  totalAICompanyProfits: number;       // billions/year baseline
-  profitGrowthRate: number;
+  // DEPRECATED (Stage H addendum, A-6 — previously cited-dead/uncited-live): these two fields
+  // WERE the live payout base for equity stakes and profit sharing (500 × 1.15^t $B — claiming
+  // ≈$1.0T of AI profits in 2030 when the endogenous residual was ≈$0). The payouts are now
+  // priced from prior-year realized ENDOGENOUS AI corporate profits (MacroOutput.
+  // aiCorporateProfits at t−1); these fields are UNREAD on every path, kept per the no-delete
+  // rule, and their deadness is enforced by stageH-honesty.test.ts probes.
+  totalAICompanyProfits: number;       // billions/year baseline (retired)
+  profitGrowthRate: number;            // (retired)
   distributionMethod: 'equal' | 'progressive';
 }
 
@@ -1321,6 +1617,7 @@ export interface RetrainingPolicy {
   enabled: boolean;
   stipendMonthly: PolicySchedule;      // $/month, was: number
   durationMonths: number;
+  /** DEPRECATED (Stage H): dead on the simulation path (never read by the policy engine); UI control removed; guarded by stageH-honesty.test.ts. */
   effectivenessRate: number;
   participationRate: number;           // fraction 0-1, default 0.30
   targetClusters: OccupationClusterId[];
@@ -1343,10 +1640,13 @@ export interface StateData {
 }
 
 export interface StatePolicyOverride {
+  /** DEPRECATED (Stage H): dead on the simulation path (written but never read by computeStateOutputs); UI control removed; guarded by stageH-honesty.test.ts. */
   minimumWage: number;
   additionalUBI: number;
   uiReplacementRate: number;
+  /** DEPRECATED (Stage H): dead on the simulation path (lagModifier computed and discarded — only `.additions` is consumed by computeStateOutputs); UI control removed; guarded by stageH-honesty.test.ts. */
   avRegulatoryEnvironment: 'permissive' | 'moderate' | 'restrictive';
+  /** DEPRECATED (Stage H): dead on the simulation path (lagModifier computed and discarded — only `.additions` is consumed by computeStateOutputs); UI control removed; guarded by stageH-honesty.test.ts. */
   roboticsRegulatoryEnvironment: 'permissive' | 'moderate' | 'restrictive';
 }
 
@@ -1371,7 +1671,9 @@ export interface SimulationConfig {
   policyConfig: PolicyConfig;
   
   // Macro parameters
-  baseInflationRate: number;     // default: 0.02
+  // default: BASE_INFLATION_RATE — data-derived from fetched BLS CPI data via govData (≈0.0263
+  // at last fetch), NOT a fixed 0.02; the constant is the single source of truth (audit H679)
+  baseInflationRate: number;
   baselineGDPGrowth: number;
   
   // Population
@@ -1397,25 +1699,31 @@ export interface SimulationConfig {
   // Second-Order Effect Parameters (Phase 8 + Phase 1 overhaul)
   // All optional — fall back to module constants if not set.
   demandFeedbackSensitivity?: number;     // 0-3, default 1.5
+  /** DEPRECATED (Stage H): dead on the simulation path (old credit system; consumers block-commented); UI control removed; guarded by stageH-honesty.test.ts. */
   creditUESensitivity?: number;           // 0-20, default 8.0
+  /** DEPRECATED (Stage H): dead on the simulation path (old credit system; consumers block-commented); UI control removed; guarded by stageH-honesty.test.ts. */
   creditInvestmentSensitivity?: number;   // 0-1.0, default 0.35 (was 0.15 — 2008 investment fell 23%)
+  /** DEPRECATED (Stage H): dead on the simulation path (old credit system; consumers block-commented); UI control removed; guarded by stageH-honesty.test.ts. */
   creditConsumptionSensitivity?: number;  // 0-1.0, default 0.06
 
   // Feedback Loop Parameters (Phase 1 overhaul)
   revenuePressureSensitivity?: number;    // 0-3, default 1.5
   revenuePressureCap?: number;            // 0-1, default 0.3
   revenuePressureDecay?: number;          // 0-1, default 0.5
+  /** DEPRECATED (Stage H): dead on the simulation path (written to secondOrderParams, never read); UI control removed; guarded by stageH-honesty.test.ts. */
   aiWageProductivityMultiplier?: number;  // 0-1, default 0.5
 
   // Phillips Curve Parameters (Phase 4 quality pass)
   /** Exponential Phillips curve sensitivity. Higher = wages fall faster with excess unemployment.
-   *  Default 2.5. At 10% excess UE → ~22% wage reduction. Source: Blanchard (2016), IMF WEO Ch3 (2017). */
+   *  Default 2.5. At 10% excess UE → ~22% wage reduction. Source: Blanchard (2016), IMF WEO Ch3 (2017).
+   *  DEPRECATED (Stage H): dead on the simulation path (computeWagePressure retired at Stage 3; zero live call sites); UI control removed; guarded by stageH-honesty.test.ts. */
   phillipsCurveSensitivity?: number;       // 0-5, default 2.5
 
   // Credit Parameters (Phase 4 quality pass)
   /** Maximum fraction of credit that can contract during crisis.
    *  Empirical: 2008 ~40% bank lending decline, Great Depression ~50% total credit contraction.
-   *  Default 0.70 allows worse-than-historical outcomes. */
+   *  Default 0.70 allows worse-than-historical outcomes.
+   *  DEPRECATED (Stage H): dead on the simulation path (old credit system; consumers block-commented); UI control removed; guarded by stageH-honesty.test.ts. */
   maxCreditTightening?: number;            // 0.3-1.0, default 0.70
 
   // Deflation Fix Parameters (Phase 8 + Phase 4 quality pass)
@@ -1440,9 +1748,12 @@ export interface SimulationConfig {
   newJobWageFraction?: number;              // 0-2, default 0.70
 
   // Worker Augmentation
-  /** Per-worker output boost from AI tools at full capability. Default 0.20 (20%).
+  /** Per-worker output boost from AI tools at full capability. Default 2.0 (200%), per
+   *  DEFAULT_AUGMENTATION_MULTIPLIER — single source of truth (the "0.20" previously stated
+   *  here was a stale copy; audit H679 doc correction).
    *  At betterScore=1.0, each remaining worker produces (1 + multiplier) × baseline.
-   *  Source: McKinsey/Goldman Sachs (2023) — 15-40% knowledge worker productivity gains. */
+   *  Source: McKinsey (2023) — 15-70% generative-AI gains in knowledge work; individual
+   *  reports of 100-300% gains in software/writing/analysis (2024-2025). */
   augmentationMultiplier?: number;          // 0-5, default 2.0
 
   // Employment multiplier override for other_uncategorized cluster (Phase 5h Fix 2)
@@ -1454,7 +1765,9 @@ export interface SimulationConfig {
   clusterOverrides?: Record<string, Partial<ClusterParameterOverride>>;
 
   // Corporate Profits & Financial Markets (Phase 5g)
+  /** DEPRECATED (Stage H): dead on the simulation path (voided at macro.ts:3096-3097); UI control removed; guarded by stageH-honesty.test.ts. */
   aiProfitMargin?: number;              // 0-0.999, default 0.25
+  /** DEPRECATED (Stage H): dead on the simulation path (voided at macro.ts:3096-3097); UI control removed; guarded by stageH-honesty.test.ts. */
   traditionalProfitMargin?: number;     // 0-0.30, default 0.11
   // Asset Income Decomposition — dynamic P/E + endogenous capital gains
   /** AI sector P/E sensitivity to earnings growth. P/E points per 100% growth. Default 100. Range: 25-250. */
@@ -1474,9 +1787,102 @@ export interface SimulationConfig {
    *  Source: Biddle (2014), Faberman & Lazear (2022) — labor hoarding literature. Range: 0-0.10. */
   demandSpilloverTolerance?: number;
 
+  // ═══ PRODUCTION PROGRAM STAGE 1 — Channel 1 (the buildout) ═══
+  /** AI-sector retention share for buildout finance. Default 0.30 — the MEASURED NIPA
+   *  net-dividends-basis anchor 0.283–0.331 (2023–25; buybacks excluded from that
+   *  basis, stated). Range: 0.1–0.6. */
+  aiRetentionShare?: number;
+  /** R3 smoothed binding-leg allocation: the bounded partial-adjustment step per year.
+   *  Default 0.5 [e]. Range: 0.1–1 (1 = unsmoothed shadow-price chasing). */
+  buildoutAllocSmoothing?: number;
+  /** PB-1 sensitivity override of the seam anchor I_AI_OBSERVED_2025 (the measured
+   *  $130–155B bracket). Default: the constant ($140B pick). Moves the machine seam
+   *  AND the baseline-partition share coherently. */
+  aiBuildoutSeamAnchor?: number;
+
+  // ═══ PRODUCTION PROGRAM STAGE 2 — Channel 2 (the ledger re-anchor) ═══
+  /** Embodied-capital units per fully-automated embodied worker (the derived fleet
+   *  requirement's per-worker factor). Default 1.0; range = the cited-anchored honest
+   *  band [0.5, 1.5] (IFR robot-density-class basis — constants.ts). */
+  unitsPerEmbodiedWorker?: number;
+  /** Own-price demand elasticity magnitude, AI-exposed consumption (elasticity-based
+   *  absorption). Default 0.75 (EPA NCEE 21-05 T12); range [0.3, 1.0]. */
+  absorptionElasticityAiExposed?: number;
+  /** Own-price demand elasticity magnitude, labor services. Default 0.20 (RAND HIE
+   *  arc elasticity, healthcare-dominant declared); range [0.1, 0.5]. */
+  absorptionElasticityLaborServices?: number;
+  /** Own-price demand elasticity magnitude, food & energy. Default 0.40 (declared
+   *  food-dominant blend — Andreyeva et al. 2010 + Hughes modern-era fuel);
+   *  range [0.05, 0.8]. */
+  absorptionElasticityFoodEnergy?: number;
+
+  // ═══ PRODUCTION PROGRAM STAGE 3 — MS3 equity issuance (owner ruling v) ═══
+  /** Issuance rate ι: gross issuance as a share of the implied AI market cap per
+   *  year. Default 0.015 (cited-class); range [0.005, 0.03]. */
+  equityIssuanceRate?: number;
+
+  // ═══ PRODUCTION PROGRAM STAGE 3 — MS4 Channel 3 + N2 ═══
+  /** AI-sector R&D intensity on the realized revenue base (sales basis). Default
+   *  0.12 (NCSES software/information class 10–15%); range [0.02, 0.20]. */
+  aiRdIntensity?: number;
+  /** The R&D→TFP returns elasticity (the N2 axis's ONE lever). Default 0.08
+   *  (Hall–Mairesse–Mohnen 0.01–0.25 centered ≈0.08); range = the cited range. */
+  rdTfpElasticity?: number;
+
+  // ═══ PRODUCTION PROGRAM STAGE 4 — MS2: N1, the buildout-cost worldview ═══
+  // (checkpoint §4 + ratification R2's surgery: ONE owner of every leg-level
+  //  input-cost trend. Defaults = the Stage-1 derived-default constants; the
+  //  N1-consensus variant assigns exactly these literals — the identity proof.)
+  /** Chips leg unit-cost annual trend ($/FLOP class). Default −0.26 (Epoch
+   *  FLOP/$ doubling 2.1–2.5yr); range [−0.5, 0.05]. Also drives the DERIVED
+   *  tokenCostCurve coupling (aiCost.ts coupledTokenCostCurve). */
+  buildoutChipsCostTrend?: number;
+  /** Energy leg unit-cost annual trend. Default 0.0 (Lazard v18 blend); range
+   *  [−0.10, 0.10]. */
+  buildoutEnergyCostTrend?: number;
+  /** Datacenter leg unit-cost annual trend. Default 0.0 (level citable, learning
+   *  rate honest-uncertainty as ratified); range [−0.10, 0.10]. */
+  buildoutDcCostTrend?: number;
+  /** Fleet unit-cost annual trend. Default −0.05 [hu]; range [−0.25, 0.05]. */
+  buildoutFleetCostTrend?: number;
+  /** Fleet manufacturing-ramp growth per binding year (the queue-not-fence rate;
+   *  the ratified adoption-gating design §4's fleet-production row). Default
+   *  0.35 [episode: automotive ramps]; range [0.05, 1.0]. */
+  buildoutFleetRampGrowth?: number;
+
+  // ═══ STAGE 5A — the energy queue (the ratified ENERGY_PROGRAM_DESIGN.md A1 +
+  //     owner ruling E1; N1-owned belief content — the queue machine OWNS energy
+  //     availability; the scale-pressure rows own frontier cost-composition drift;
+  //     the supplyChainEnergyCapacity row stays the shock surface) ═══
+  /** Grid-lane effective lead, order → available, years. Default 4 (LBNL Queued Up
+   *  >4→>5yr record); range [1, 8]. Fractional values split delivery between the
+   *  bracketing years. */
+  energyQueueLeadYears?: number;
+  /** Additions-ceiling growth per BINDING year (queue-not-fence). Default 0.20
+   *  (the observed 48.6→63 GW additions jump, DC-claim-discounted); range [0, 1]. */
+  energyQueueCeilingGrowth?: number;
+  /** E1: behind-the-meter share of the financed energy build bypassing the grid
+   *  queue at the express lead + cost premium (Colossus-class episode). Default
+   *  0.25 [episode/hu]; range [0, 0.8]. */
+  energyBtmShare?: number;
+
+  // ═══ PRODUCTION PROGRAM STAGE 4 — MS4: the adoption-gating build ═══
+  /** The per-cluster fleet allocation's partial-adjustment step per year (the
+   *  ratified design §3's one new [e] constant, the R3 smoothing class).
+   *  Default 0.5; range [0.1, 1.0]. */
+  fleetAllocSmoothing?: number;
+
   // Credit Deflation (Phase 5g Step 10)
   /** Sensitivity of price level to credit contraction. Default 0.04. Range: 0-1. */
   creditDeflationSensitivity?: number;
+  /** Pass-through: impulse sensitivity (above-floor Δ-tightening; [e]-derived, A8-laddered). */
+  creditDeflationImpulseSensitivity?: number;
+  /** Pass-through: impulse persistence κ ([e], GR episode-anchored). */
+  creditDeflationPersistence?: number;
+  /** Pass-through: the credit noise floor ([e]-measured band boundary). */
+  creditDeflationNoiseFloor?: number;
+  /** D1 fix F1a: ERP crisis sensitivity ([e]-derived, Damodaran 2008-09 step over the banded tightening signal). */
+  erpCrisisSensitivity?: number;
 
   // Sector Scarcity Inflation (Phase 5g Step 11)
   /** Fraction of sector labor scarcity passed through to prices. Default 0.30. Range: 0-1. */
@@ -1489,7 +1895,8 @@ export interface SimulationConfig {
   participationThreshold?: number;
 
   // Phase 5i: Housing, Shelter Inflation & Mortgage Stress
-  /** Business credit GDP sensitivity. Default 5.0. Range: 0-15. */
+  /** Business credit GDP sensitivity. Default 5.0. Range: 0-15.
+   *  DEPRECATED (Stage H): dead on the simulation path (no live reader); UI control removed; guarded by stageH-honesty.test.ts. */
   businessCreditGDPSensitivity?: number;
   /** Max business credit loosening cap. Default 0.30. Range: 0-1.0. */
   maxBusinessCreditLoosening?: number;
@@ -1514,7 +1921,8 @@ export interface SimulationConfig {
   foodEnergyPassthrough?: number;
   /** Shelter embodied passthrough (housing/land-use regulation → near-zero). Default 0.05. Range: 0-1.0. */
   shelterPassthrough?: number;
-  /** Shelter inflation stickiness. Default 0.80. Range: 0-1.0. */
+  /** Shelter inflation stickiness. Default 0.80. Range: 0-1.0.
+   *  DEPRECATED (Stage H): dead on the simulation path (retired with the Stage-6.5/L9 shelter mechanics); UI control removed; guarded by stageH-honesty.test.ts. */
   shelterInflationStickiness?: number;
   /** Mortgage stress amplifier. Default 0.40. Range: 0-2.0. */
   mortgageStressAmplifier?: number;
@@ -1534,10 +1942,12 @@ export interface SimulationConfig {
    *  Source: CoreLogic, Amherst Capital (2012-2015): institutional purchases 20-40% of foreclosed inventory. */
   institutionalBuyerRate?: number;
   /** How much rental demand from displaced homeowners pushes up shelter costs. Default 0.50. Range: 0-1.0.
-   *  Source: Glaeser & Gyourko (2018): housing tenure switch literature. */
+   *  Source: Glaeser & Gyourko (2018): housing tenure switch literature.
+   *  DEPRECATED (Stage H): dead on the simulation path (retired with the Stage-6.5/L9 shelter mechanics); UI control removed; guarded by stageH-honesty.test.ts. */
   rentalDemandSensitivity?: number;
   /** Maximum annual shelter deflation rate (land scarcity floor). Default -0.05. Range: -0.15 to 0.
-   *  Represents land scarcity + construction cost floor. -5%/yr ≈ 60% of value after 10yr max deflation. */
+   *  Represents land scarcity + construction cost floor. -5%/yr ≈ 60% of value after 10yr max deflation.
+   *  DEPRECATED (Stage H): dead on the simulation path (retired with the Stage-6.5/L9 shelter mechanics); UI control removed; guarded by stageH-honesty.test.ts. */
   shelterInflationFloor?: number;
 
   // Investment Demand Constraint — market-signal gating of AI investment
@@ -1548,7 +1958,8 @@ export interface SimulationConfig {
    *  Maps to exponent: val/100 × 3.0. Default 50. Source: Accelerator principle (Samuelson 1939). */
   consumerDemandInvestmentSensitivity?: number; // 0-100, default 50
   /** How much credit conditions affect AI investment. 0=ignored, 50=moderate, 100=aggressive.
-   *  Maps to exponent: val/100 × 3.0. Default 50. Source: Fed SLOOS lending conditions surveys. */
+   *  Maps to exponent: val/100 × 3.0. Default 50. Source: Fed SLOOS lending conditions surveys.
+   *  DEPRECATED (Stage H): dead on the simulation path (Phase-6 deprecation; readers commented out); UI control removed; guarded by stageH-honesty.test.ts. */
   creditInvestmentResponseSensitivity?: number; // 0-100, default 50
   /** How much consumer demand affects traditional (non-AI) business investment.
    *  Maps to exponent: val/100 × 3.0. Default 30. Source: BEA investment-output ratio cyclicality. */
@@ -1568,9 +1979,13 @@ export interface SimulationConfig {
   systemicRiskSensitivity?: number;         // 0.5-4.0
   /** Inflation above 3% → preemptive credit tightening. Default 0.5. */
   inflationRiskSensitivity?: number;        // 0.0-2.0
-  /** Maximum consumer credit restriction. Default 0.5. */
+  /** Maximum consumer credit restriction. Default 1.0 per DEFAULT_MAX_CONSUMER_TIGHTENING
+   *  (Stage 6 R18/H6 re-anchor: 0.5 ≈ Great-Recession peak, 1.0 ≈ Depression-scale collapse;
+   *  the "0.5" previously stated here was the unpropagated pre-R18 copy — audit H679). */
   maxConsumerTightening?: number;           // 0.2-1.0
-  /** Consumer credit tightening → consumption reduction. Default 0.06. */
+  /** Consumer credit tightening → consumption reduction. Default 0.12 per
+   *  DEFAULT_CONSUMER_CREDIT_IMPACT (saturation re-anchor: 0.12 × the GR-peak ratio 0.5
+   *  reproduces the old 6% haircut; the "0.06" here was a stale copy — audit H679). */
   consumerCreditImpact?: number;            // 0.02-0.15
   /** Profit decline → business credit tightening. Default 1.5. */
   profitabilitySensitivity?: number;        // 0.5-4.0
@@ -1597,9 +2012,27 @@ export interface SimulationConfig {
   postTaxMPCs?: PostTaxMPCs;
   /** AI cost decomposition params. Default: inference=-0.45, mfg=-0.10, energy=-0.03. */
   aiCostParams?: AICostParams;
-  /** Corporate retention rate (fraction of after-tax profits retained). Default ~0.40 from BEA. Range 0-1. */
+
+  // ═══ The flywheel (cost endogeneity) — ROOT-LEVEL dials: the mechanism is always-on
+  // (the Acceleration class composes no supply-chain config), so its dials cannot live
+  // under the optional supplyChainConfig block. ═══
+  /** Starvation threshold θ on the funding gate F = min(investmentRealization,
+   *  aiCapacityUtilization) at t−1. F ≥ θ ⇒ demand throughput exactly 1 (the dead zone —
+   *  the identity condition); below θ it ramps F/θ. Default 0.5 [hu]; range 0–0.75, the
+   *  cap MEASUREMENT-DERIVED (pinned-path minimum 0.776). 0 = demand edge off. */
+  flywheelStarvationThreshold?: number;
+  /** Cost-clock speed = frontierStock^elasticity: effective innovation time τ advances
+   *  at S^φ_cost; every realized-cost leg evaluates at τ. The A2 dials are the POTENTIAL
+   *  pace; τ is its funded realization. Default 1.0 [hu]; range 0–3; 0 = cost decoupled
+   *  (the shipped calendar curves exactly). */
+  frontierCostElasticity?: number;
+
+  /** Corporate retention rate (fraction of after-tax profits retained). Default: BEA-derived at
+   *  module init (BASELINE_CORPORATE_RETENTION_RATE ≈ 0.390, NIPA undistributed-profits ratio) —
+   *  not the static "~0.40" previously stated here (audit H679). Range 0-1. */
   corporateRetentionRate?: number;
-  /** AI market power / profit growth rate. Default 2.0. Range 0.5-10.0. */
+  /** AI market power / profit growth rate. Default 2.0. Range 0.5-10.0.
+   *  DEPRECATED (Stage H): dead on the simulation path (its reader is retired); UI control removed; guarded by stageH-honesty.test.ts. */
   aiProfitGrowthRate?: number;
 
   // ═══ Phase 7: Fiscal-Monetary Parameters ═══
@@ -1616,11 +2049,15 @@ export interface SimulationConfig {
   fiscalDominanceDampening?: number;
   // DEPRECATED Phase 8 Fix 4: Replaced by fiscalRiskLevelMidpoint (trajectory-based composite model).
   // fiscalRiskPremiumMidpoint?: number;
-  /** Maximum fiscal risk premium in decimal. Default 0.06 (600bp). Range: 0.01-0.10. */
+  /** Maximum fiscal risk premium in decimal. Default 0.06 (600bp) per
+   *  DEFAULT_FISCAL_RISK_PREMIUM_MAX. Range: 0.01-0.15 (uncited; widened from the uncited
+   *  0.01-0.10 to the shipped UI envelope — audit H679 range alignment). */
   fiscalRiskPremiumMax?: number;
-  /** Share of corporate profits actually taxed (statutory × effectiveness). Default 0.65. Range: 0.10-1.00. */
+  /** Share of corporate profits actually taxed (statutory × effectiveness). Default 0.65. Range: 0.10-1.00.
+   *  DEPRECATED (Stage H): dead on the simulation path (zero readers anywhere); UI control removed; guarded by stageH-honesty.test.ts. */
   corporateTaxEffectiveness?: number;
-  /** Foreign buyers' share of US Treasuries. Default 0.30. Range: 0.05-0.60. */
+  /** Foreign buyers' share of US Treasuries. Default 0.30. Range: 0.05-0.60.
+   *  DEPRECATED (Stage H): dead on the simulation path (inert on the default path — D-fix zero branch; revived only by the no-UI legacy toggles); UI control removed; guarded by stageH-honesty.test.ts. */
   foreignTreasuryDemand?: number;
   /** Market premium for AI earnings at peak hype. 1.0 = rational. Default 1.0. Range: 0.5-3.0. */
   aiPEMultiplier?: number;
@@ -1657,9 +2094,13 @@ export interface SimulationConfig {
   // ═══ Phase 8 Fix 4: Yield calibration ═══
   /** Neutral real interest rate (r*). Default 0.007 (0.7%). Source: NY Fed Laubach-Williams. Range: -0.01-0.03. */
   neutralRealRate?: number;
-  /** Term premium for 10Y yield. Default 0.003 (30bp). Source: NY Fed ACM model. Range: -0.01-0.02. */
+  /** Term premium for 10Y yield. Default 0.007 (70bp) = TERM_PREMIUM, the single source of
+   *  truth ("0.003" here was one of four stale copies of the pre-E-8c value — audit H679).
+   *  Source: NY Fed ACM model (ACMTP10). Range: -0.01-0.02. */
   termPremium?: number;
-  /** Years for inflation expectations to converge to target. Default 5. Range: 2-15. */
+  /** Years for inflation expectations to converge to target. Default 5 per
+   *  DEFAULT_INFLATION_CONVERGENCE_YEARS. Range: 1-15 (uncited; min widened from the uncited
+   *  2 to the shipped UI envelope — audit H679 range alignment). */
   inflationConvergenceYears?: number;
 
   // ═══ Phase 8 Fix 4: Fiscal risk premium weights (trajectory-based composite) ═══
@@ -1669,7 +2110,8 @@ export interface SimulationConfig {
   fiscalRiskSustainabilityWeight?: number;
   /** Weight on absolute debt/GDP level component. Default 0.15. Range: 0-1. */
   fiscalRiskLevelWeight?: number;
-  /** Debt/GDP midpoint for level sigmoid. Default 2.0. Range: 1.0-3.0. */
+  /** Debt/GDP midpoint for level sigmoid. Default 2.0. Range: 1.0-4.0 (uncited; widened from
+   *  the uncited 1.0-3.0 to the shipped UI envelope — audit H679 range alignment). */
   fiscalRiskLevelMidpoint?: number;
   /** Debt/GDP change rate where trajectory risk hits 50% of max. Default 0.15. Range: 0.05-0.25.
    *  Source: Empirical — US has sustained +6pp/year for a decade with ~0bp trajectory premium. */
@@ -1697,7 +2139,9 @@ export interface SimulationConfig {
   demographicHousingElasticity?: number;
 
   // ═══ Phase 8 Fix 4: Independent fiscal + Fed presets ═══
-  /** Fiscal policy preset name. Default 'balanced_reduction'. */
+  /** Fiscal policy preset name. Default 'observed_political_economy' per
+   *  DEFAULT_FISCAL_POLICY_PRESET (fiscalResponseProfiles.ts), the single source of truth —
+   *  'balanced_reduction' stated here was one of a five-site stale fallback family (audit H679). */
   fiscalPolicyPreset?: string;
   /** Federal Reserve preset name. Default 'balanced_mandate'. */
   federalReservePreset?: string;
@@ -1732,7 +2176,9 @@ export interface SimulationConfig {
   // Stage 3: endogenous wage equation
   /** Fraction of lagged composite inflation passed into nominal wage growth (COLA). Default 1.0. Range 0–1.5. */
   inflationIndexation?: number;
-  /** Fraction of per-worker productivity passed into nominal wage growth. Default 1.0. Range 0–1.5. */
+  /** Fraction of per-worker productivity passed into nominal wage growth. Default 0.90 per
+   *  DEFAULT_PRODUCTIVITY_PASSTHROUGH — the D-1 ratified calibration to the observed aggregate
+   *  labor-share drift (the "1.0" here was a stale copy; audit H679). Range 0–1.5. */
   productivityPassthrough?: number;
   /** Wage-Phillips semi-elasticity (pp wage growth per pp excess UE). Default 0.30. Range 0–1.0. */
   phillipsSlope?: number;
@@ -1764,7 +2210,11 @@ export interface SimulationConfig {
   landScarcityElasticity?: number;
   /** Rent growth per unit occupancy gap. Default 2.0 (Rosen-Smith natural-vacancy literature). */
   rentOccupancyElasticity?: number;
-  /** Weight on replacement-cost growth in rent growth. Default 1.0 (cost anchor, ratified); 0 = literal occupancy-only form. */
+  /** Weight on replacement-cost growth in rent growth. Default 0 per
+   *  DEFAULT_RENT_COST_ANCHOR_WEIGHT — the L9 anchor retirement (rents follow the
+   *  occupancy/entry-margin form); 1.0 = the pre-L9 legacy cost-anchor pole (which-change
+   *  toggle). The "Default 1.0 (ratified)" previously stated here documented the RETIRED pole
+   *  as the default (audit H679 doc correction). */
   rentCostAnchorWeight?: number;
   /** Rent-price ratio anchor. Default 0.052 (Davis-Lehnert-Martin; 2024-25 multifamily caps). */
   baselineCapRate?: number;
@@ -1811,9 +2261,11 @@ export interface SimulationConfig {
   /** E-9 item 1 (F-D): non-shelter sector anchor override. Default = the derived complement ≈0.0222; 0.0261 = the legacy all-items (isolation). */
   nonShelterBaseInflation?: number;
   /** E-9 item 3: true = the legacy split-NAIRU behavior (Taylor on realized-2025). Default false = unified FRED NAIRU. */
-  legacyNairu?: boolean;
+  // RETIRED (CO-D2 conversion, R3b): legacyNairu — pole at ~/.atlas-referents/co-d2/legacyNairu/.
+  // legacyNairu?: boolean;
   /** E-9 item 4: true = single-bucket 30% rollover at the 10Y rate (legacy). Default false = split 17% @10Y + 13% @policy. */
-  legacySingleRollover?: boolean;
+  // RETIRED (CO-D2, R3b): legacySingleRollover — pole at ~/.atlas-referents/co-d2/legacySingleRollover/.
+  // legacySingleRollover?: boolean;
   /** E-9b: policy-rate inertia ρ (annualized). Default 0.5 (CGG 2000 / Coibion-Gorodnichenko, 0.79-0.92 quarterly compounded). 0 = legacy instantaneous. */
   taylorSmoothing?: number;
   /** E-9c row 1: the anchor's year-0 init (observed 2025 expectations state). Default 0.027 (dual derivation); 0.025 ≈ the pre-E-9c idealized init (isolation). */
@@ -1833,32 +2285,63 @@ export interface SimulationConfig {
   /** L9b: θ. Default 0.47. */
   rentIncomeElasticity?: number;
   /** LLAG diagnostic only: builder reads spot P (price channel only; starts smoothing untouched). */
-  diagSpotBuilderPrice?: boolean;
+  // RETIRED (CO-D2, R3b): see the housing block's retired twin above.
+  // diagSpotBuilderPrice?: boolean;
   /** L9c-3/4: the builder price-perception mode. Default 'trend-aware'; 'spot' and 'adaptive' (the pre-L9c smoother) = the dial's poles. */
   builderPriceMode?: 'spot' | 'trend-aware' | 'adaptive';
   /** L9c-1: the construction-credit gate sensitivity (R1 episode-solved 2.0; the ADC capacity citation). 0 = no gate (toggle). */
   constructionCreditSensitivity?: number;
   /** FS-3 which-change: true = the retired seniority proxy + no wage-level connection (the full legacy Cheaper). */
-  legacyCheaperProxy?: boolean;
+  // RETIRED (CO-D2, R3b): legacyCheaperProxy — pole at ~/.atlas-referents/co-d2/legacyCheaperProxy/.
+  // legacyCheaperProxy?: boolean;
   /** FS-3 which-change: true = the OEWS basis WITHOUT the wage-level connection (the basis-only row). */
-  seamBasisOnly?: boolean;
+  // RETIRED (CO-D2, R3b): seamBasisOnly — pole at ~/.atlas-referents/co-d2/seamBasisOnly/.
+  // seamBasisOnly?: boolean;
   /** E-8b item 2: fiscal premium per unit debt/GDP above the 2025 anchor. Default 0.035 (Laubach 2009 / Engen-Hubbard 2004). */
   laubachLevelBeta?: number;
   /** E-8b item 2: fiscal premium per unit deficit/GDP above the 2025 anchor. Default 0.25 (Laubach 2009). */
   laubachDeficitBeta?: number;
   /** E-8b isolation toggle: true = the pre-E-8b logistic extrapolative premium (the doom-pricing source). */
-  legacyFiscalPremium?: boolean;
+  /** RETIRED (the program close-out; Amendment 2 — no legacy toggles): the E-8b isolation
+   *  toggle. The legacy logistic premium survives only as the recorded pole
+   *  (~/.atlas-referents/e8b-legacy-pole/) and commented arithmetic in bondMarket.ts.
+   *  Persisted configs carrying the key are healed (stripped with a warning). */
+  // legacyFiscalPremium?: boolean;
   /** D-fix toggle: true = the β_deficit slot reads the realized TOTAL deficit (the self-referencing legacy basis). */
-  legacyTotalDeficitPremium?: boolean;
+  // RETIRED (CO-D2, R3b): legacyTotalDeficitPremium — pole at ~/.atlas-referents/co-d2/legacyTotalDeficitPremium/.
+  // legacyTotalDeficitPremium?: boolean;
   /** D-fix toggle: true = the retired supply-pressure premium (the second deficit reader) re-enabled. */
-  legacySupplyPressure?: boolean;
+  // RETIRED (CO-D2, R3b): legacySupplyPressure — pole at ~/.atlas-referents/co-d2/legacySupplyPressure/; the six gated diagnostics are dead with the gate.
+  // legacySupplyPressure?: boolean;
   /** E-8c F-B: the fiscal-dominance service/revenue gate for yield-response monetization. Default 0.50 (UK-1920s/France-1926/Weimar poles). */
   monetizationDominanceThreshold?: number;
   /** E-8c F-B: the Laubach-premium co-condition (markets pricing FISCAL stress). Default 0.01; the Volcker guard. */
   monetizationPremiumCoCondition?: number;
   /** Adoption rate above which competitive pressure kicks in; overrides DEFAULT_COMPETITIVE_PRESSURE_THRESHOLD. */
   competitivePressureThreshold?: number;
+  // ═══ Mini-stage 2: the reverse gear's speed dials (the coupled design checkpoint §4) ═══
+  /** De-adoption speed for cognitive AI (rate points/yr) when the gear fires. Default 0.10
+   *  (the skeleton's value, honest-uncited → episode-anchored). Range 0-0.5. */
+  deAdoptionRateCognitive?: number;
+  /** De-adoption speed for embodied AI (rate points/yr). Default 0.05 (same status). Range 0-0.5. */
+  deAdoptionRateEmbodied?: number;
+  /** Post-decline re-engagement cap as a FRACTION of the class de-adoption rate (the
+   *  labor-economics asymmetry: layoffs fast, re-engagement slow). Default 0.5 — UNCITED,
+   *  honest-flagged. Range 0-1. */
+  reAdoptionRate?: number;
+  // ═══ Mini-stage 3: the duration-structured pool's dials (checkpoint §5) ═══
+  /** Discouragement hazard base (/yr). Default 0.05 (CPS U→N anchor, honest-flagged). Range 0-0.3. */
+  exitBase?: number;
+  /** Exit-hazard duration slope (/duration-yr). Default 0.3 (same anchor). Range 0-1. */
+  exitDurationSlope?: number;
+  /** Employability decay per jobless year. Default 0.10 (KLN callback decay). Range 0-0.3. */
+  atrophyRate?: number;
+  /** Re-entry wage scarring per jobless year, cap 0.25. Default 0.02 (JLS/DvW). Range 0-0.1. */
+  wageScarringRate?: number;
   /** Productivity multiplier at full capability and full Better score (AI-replacement mode). Default 2.0. */
+  /** DEPRECATED (Production Program Stage 2, order item 5): the dial retired with the
+   *  ledger's VALUE-ADDED re-anchor — no engine reader remains (the deflation channel
+   *  consumes the frozen constant). Key retained for persisted-config compatibility. */
   replacementMultiplier?: number;
   // DEPRECATED (Phase 10.A fix #2): global maxAdoptionFrictionYears removed.
   // Friction is now expressed directly in years per role via role.aiReplacementFrictionYears,
@@ -1949,6 +2432,12 @@ export interface PolicyEffects {
   swfAnnualContribution: number; // billions — government outlay to SWF (Phase 5h Fix 5)
   requiredAssetOwnership: number;  // to maintain baseline CWI
   requiredTransferLevel: number;   // to maintain baseline CWI
+  /** Stage H addendum (A-6): the AI-profit base the equity-stakes and profit-sharing payouts
+   *  were priced from this year — prior-year realized ENDOGENOUS AI corporate profits
+   *  (MacroOutput.aiCorporateProfits at t−1; 0 at year 0). Exposed for the attribution
+   *  assertion (the uiPricingWage pattern): the consumed base must equal the lagged
+   *  endogenous series exactly; a silent regression to an exogenous path breaks the guard. */
+  aiProfitPayoutBase: number;
 }
 
 export interface SimulationSummary {
@@ -2052,7 +2541,12 @@ export interface BLSMetadata {
 // 12. Dashboard Navigation (Phase 4)
 // ============================================================
 
-export type DashboardView = 'overview' | 'economics' | 'policy' | 'fiscal' | 'occupations' | 'monetary' | 'methodology' | 'predictions';
+export type DashboardView = 'overview' | 'economics' | 'policy' | 'fiscal' | 'occupations' | 'monetary' | 'methodology' | 'predictions' | 'advanced' | 'axes'; // R3a': 'advanced' = the power surface; 'axes' RETIRED (heals to 'advanced' — the board re-hosted into the sidebar)
+
+/** The shared quintile-chart view (the quintile view redesign): the two-line default
+ *  (Top 20% vs the Bottom-80% average) or the full five-quintile display. One store
+ *  key drives EVERY quintile-rendering chart — one control, one behavior. */
+export type QuintileViewMode = 'top-vs-rest' | 'all';
 
 // ============================================================
 // 13. BFCS Editor Types (Phase 4)
@@ -2077,6 +2571,32 @@ export interface SavedScenario {
   description: string;
   createdAt: string;
   config: SimulationConfig;
+  /** The composition's data-calibration slot (the AEI program): the active preset id
+   *  at save time, or null/absent ⇒ none. Provenance travels with the scenario; an
+   *  import whose snapshot no longer ships follows the loud-loss pattern (named in
+   *  the import status, slot cleared — never silently dropped). Retained as the legacy
+   *  location; the slot now also travels inside `composition`. */
+  dataCalibration?: string | null;
+  /** THE COMPLETE WORLD'S SELECTIONS (the Scenarios bug pass: saves previously captured
+   *  the config only — the worldview NEVER traveled, so "your saves restore the complete
+   *  world" was false until this field): belief axes, scheduled events, policy packages,
+   *  and the data-calibration slot. Absent on earlier saves ⇒ empty selections at load.
+   *  Structurally identical to the store's CompositionState. */
+  composition?: {
+    axes: Partial<Record<string, string>>;
+    /** Lockstep with the store's CompositionState row (the duration/severity build). */
+    events: Array<{ id: string; anchorYear: number; durationYears?: number; severity?: 'mild' | 'medium' | 'severe' }>;
+    /** Lockstep with the store's CompositionState row (the per-field policy rebuild);
+     *  load boundaries normalize the legacy bare-string form via normalizePolicyRefs. */
+    policies: Array<{ id: string; params?: Record<string, number> }>;
+    dataCalibration?: string | null;
+  };
+  /** The user's touched (shadow-winning) dial keys at save time (the per-field policy
+   *  rebuild): without carrying these, a schedule-key shadow — invisible to the scalar
+   *  diff the load path rebuilds touches from — un-shadows on load and a composed
+   *  package silently re-wins over the user's Advanced edit. Absent on earlier saves ⇒
+   *  the scalar-diff reconstruction stands alone. */
+  touchedKeys?: string[];
 }
 
 // ============================================================

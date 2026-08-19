@@ -19,11 +19,45 @@ import { formatPercent, formatYear } from '@/utils/format';
 const VECTOR_IDS: CapabilityVectorId[] = ['generative', 'agentic', 'embodied'];
 
 export function CapabilityControls() {
+  // MS1: the frontier-stock overlay legend — rendered only when the current world's
+  // shocks (supply famines or funding starvation, since the flywheel MS) drain the
+  // stock (the sparklines then carry the dashed overlay).
+  const stockDrained = useSimulationStore(
+    (s) => s.timeline.years.some((y) => y.macro.frontierStock < 1),
+  );
+  // Flywheel MS (ruling 5, minimal form): the cost-clock legend — rendered only when
+  // the clock has visibly fallen behind calendar (τ/t < 1 somewhere).
+  const clockStalled = useSimulationStore(
+    (s) => s.timeline.years.some(
+      (y) => y.year > s.config.startYear
+        && y.macro.effectiveCostTime / (y.year - s.config.startYear) < 0.999,
+    ),
+  );
   return (
     <div className="space-y-1">
       {VECTOR_IDS.map((id) => (
         <CapabilityVectorSection key={id} vectorId={id} />
       ))}
+      {stockDrained && (
+        <div className="flex items-center gap-1.5 pt-1.5 pb-0.5">
+          <svg width="14" height="4" viewBox="0 0 14 4" className="flex-shrink-0">
+            <line x1="0" y1="2" x2="14" y2="2" stroke="#F97316" strokeWidth="1" strokeDasharray="2 2" strokeOpacity="0.8" />
+          </svg>
+          <span className="text-text-muted text-[10px] leading-none">
+            frontier compute stock — drained by supply shocks and funding collapses, rebuilt at fab speed
+          </span>
+        </div>
+      )}
+      {clockStalled && (
+        <div className="flex items-center gap-1.5 pt-0.5 pb-0.5">
+          <svg width="14" height="4" viewBox="0 0 14 4" className="flex-shrink-0">
+            <line x1="0" y1="2" x2="14" y2="2" stroke="#F97316" strokeWidth="1" strokeDasharray="4 3" strokeOpacity="0.5" />
+          </svg>
+          <span className="text-text-muted text-[10px] leading-none">
+            cost clock — AI cost declines stall while the flywheel is starved, resume at pace on recovery
+          </span>
+        </div>
+      )}
     </div>
   );
 }
